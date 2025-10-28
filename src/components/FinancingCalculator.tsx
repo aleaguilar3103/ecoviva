@@ -22,7 +22,7 @@ export default function FinancingCalculator({
   const { t } = useLanguage();
   const [lotValue, setLotValue] = useState("170000");
   const [term, setTerm] = useState("20");
-  const [annualRate, setAnnualRate] = useState("9");
+  const annualRate = "9"; // Fixed rate at 9%
   const [monthlyPayment, setMonthlyPayment] = useState("1529.53");
 
   const calculatePayment = () => {
@@ -120,23 +120,16 @@ export default function FinancingCalculator({
                     </Select>
                   </div>
 
-                  {/* Annual Rate */}
+                  {/* Annual Rate - Fixed Display */}
                   <div>
                     <label
-                      htmlFor="annualRate"
                       className="block text-sm font-medium text-gray-700 mb-2"
                     >
                       {t("calculator.rate")}
                     </label>
-                    <Input
-                      id="annualRate"
-                      type="number"
-                      step="0.1"
-                      value={annualRate}
-                      onChange={(e) => setAnnualRate(e.target.value)}
-                      placeholder="9"
-                      className="w-full"
-                    />
+                    <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-semibold">
+                      9%
+                    </div>
                   </div>
 
                   {/* Calculate Button */}
