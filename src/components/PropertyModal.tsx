@@ -32,7 +32,7 @@ export default function PropertyModal({
   onOpenChange,
 }: PropertyModalProps) {
   const handleContactClick = () => {
-    window.open("https://wa.link/6afpfu", "_blank");
+    window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank");
   };
 
   const images = project.gallery || [project.image];

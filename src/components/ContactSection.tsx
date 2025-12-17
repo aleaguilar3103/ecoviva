@@ -1,33 +1,20 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Mail, Phone, MapPin } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useEffect } from "react";
 
-interface ContactSectionProps {
-  onSubmit?: (data: {
-    name: string;
-    email: string;
-    phone: string;
-    message: string;
-  }) => void;
-}
-
-export default function ContactSection({
-  onSubmit = (data) => console.log("Contact form submitted:", data),
-}: ContactSectionProps) {
+export default function ContactSection() {
   const { t } = useLanguage();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    onSubmit({
-      name: formData.get("name") as string,
-      email: formData.get("email") as string,
-      phone: formData.get("phone") as string,
-      message: formData.get("message") as string,
-    });
-  };
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://link.bralto.io/js/form_embed.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   return (
     <section id="contact" className="py-20 bg-gray-50">
@@ -57,7 +44,7 @@ export default function ContactSection({
                       <p className="font-semibold text-gray-900">
                         {t("contact.phone")}
                       </p>
-                      <p className="text-gray-600">+506 7157 4334</p>
+                      <p className="text-gray-600">+506 8414 2111</p>
                     </div>
                   </div>
                   <div className="flex items-start">
@@ -92,77 +79,23 @@ export default function ContactSection({
 
             {/* Contact Form */}
             <div className="bg-white p-8 rounded-2xl shadow-lg">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    {t("contact.form.name")}
-                  </label>
-                  <Input
-                    id="name"
-                    name="name"
-                    type="text"
-                    required
-                    placeholder={t("contact.form.namePlaceholder")}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    {t("contact.form.email")}
-                  </label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    placeholder={t("contact.form.emailPlaceholder")}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="phone"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    {t("contact.form.phone")}
-                  </label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    required
-                    placeholder={t("contact.form.phonePlaceholder")}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="message"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    {t("contact.form.message")}
-                  </label>
-                  <Textarea
-                    id="message"
-                    name="message"
-                    required
-                    placeholder={t("contact.form.messagePlaceholder")}
-                    className="w-full min-h-[120px]"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-accent hover:bg-accent/90 text-white"
-                >
-                  {t("contact.form.submit")}
-                </Button>
-              </form>
+              <iframe
+                src="https://link.bralto.io/widget/form/OQnOy795eU8dHUfanbpB"
+                style={{ width: '100%', height: '486px', border: 'none', borderRadius: '3px' }}
+                id="inline-OQnOy795eU8dHUfanbpB"
+                data-layout="{'id':'INLINE'}"
+                data-trigger-type="alwaysShow"
+                data-trigger-value=""
+                data-activation-type="alwaysActivated"
+                data-activation-value=""
+                data-deactivation-type="neverDeactivate"
+                data-deactivation-value=""
+                data-form-name="Contact Us"
+                data-height="486"
+                data-layout-iframe-id="inline-OQnOy795eU8dHUfanbpB"
+                data-form-id="OQnOy795eU8dHUfanbpB"
+                title="Contact Us"
+              />
             </div>
           </div>
         </div>

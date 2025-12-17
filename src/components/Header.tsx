@@ -8,7 +8,7 @@ interface HeaderProps {
 }
 
 export default function Header({
-  onWhatsAppClick = () => window.open("https://wa.link/6afpfu", "_blank"),
+  onWhatsAppClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank"),
 }: HeaderProps) {
   const { t } = useLanguage();
 

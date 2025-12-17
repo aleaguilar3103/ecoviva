@@ -17,7 +17,7 @@ interface FinancingCalculatorProps {
 }
 
 export default function FinancingCalculator({
-  onWhatsAppClick = () => window.open("https://wa.link/6afpfu", "_blank"),
+  onWhatsAppClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank"),
 }: FinancingCalculatorProps) {
   const { t } = useLanguage();
   const [lotValue, setLotValue] = useState("170000");

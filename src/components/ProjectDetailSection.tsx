@@ -19,7 +19,7 @@ interface ProjectDetailSectionProps {
 export default function ProjectDetailSection({ 
   project,
   reverse = false,
-  onCTAClick = () => window.open('https://wa.link/6afpfu', '_blank')
+  onCTAClick = () => window.open('https://api.whatsapp.com/send?phone=50684142111', '_blank')
 }: ProjectDetailSectionProps) {
   return (
     <section id={`project-${project.id}`} className="py-20 bg-white">

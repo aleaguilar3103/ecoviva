@@ -67,7 +67,7 @@ export default function Footer() {
             </h4>
             <div className="space-y-3">
               <a
-                href="https://wa.link/6afpfu"
+                href="https://api.whatsapp.com/send?phone=50684142111"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center text-white/80 hover:text-white transition-colors"

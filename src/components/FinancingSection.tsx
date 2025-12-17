@@ -8,7 +8,7 @@ interface FinancingSectionProps {
 }
 
 export default function FinancingSection({
-  onContactClick = () => window.open("https://wa.link/6afpfu", "_blank"),
+  onContactClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank"),
 }: FinancingSectionProps) {
   const { t } = useLanguage();
 
