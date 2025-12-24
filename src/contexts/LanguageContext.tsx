@@ -84,7 +84,7 @@ const translations: Record<LanguageCode, any> = {
       llanadaViews: {
         title: "Lomas De La Llanada",
         location: "Ciudad Quesada",
-        price: "Consultar",
+        price: "",
         size: "Varios tamaños disponibles",
         features: [
           "Vistas panorámicas a Ciudad Quesada y Volcán Arenal",
@@ -204,7 +204,7 @@ const translations: Record<LanguageCode, any> = {
       llanadaViews: {
         title: "Lomas De La Llanada",
         location: "Ciudad Quesada",
-        price: "Inquire",
+        price: "",
         size: "Various sizes available",
         features: [
           "Panoramic views of Ciudad Quesada and Arenal Volcano",
@@ -326,7 +326,7 @@ const translations: Record<LanguageCode, any> = {
       llanadaViews: {
         title: "Lomas De La Llanada",
         location: "Ciudad Quesada",
-        price: "Consulter",
+        price: "",
         size: "Différentes tailles disponibles",
         features: [
           "Vues panoramiques sur Ciudad Quesada et le volcan Arenal",
@@ -448,7 +448,7 @@ const translations: Record<LanguageCode, any> = {
       llanadaViews: {
         title: "Lomas De La Llanada",
         location: "Ciudad Quesada",
-        price: "Anfragen",
+        price: "",
         size: "Verschiedene Größen verfügbar",
         features: [
           "Panoramablick auf Ciudad Quesada und Arenal Vulkan",
@@ -569,7 +569,7 @@ const translations: Record<LanguageCode, any> = {
       llanadaViews: {
         title: "Lomas De La Llanada",
         location: "Ciudad Quesada",
-        price: "Consultar",
+        price: "",
         size: "Vários tamanhos disponíveis",
         features: [
           "Vistas panorâmicas de Ciudad Quesada e Vulcão Arenal",
@@ -692,7 +692,7 @@ const translations: Record<LanguageCode, any> = {
       llanadaViews: {
         title: "Lomas De La Llanada",
         location: "Ciudad Quesada",
-        price: "Consultare",
+        price: "",
         size: "Varie dimensioni disponibili",
         features: [
           "Viste panoramiche su Ciudad Quesada e Vulcano Arenal",

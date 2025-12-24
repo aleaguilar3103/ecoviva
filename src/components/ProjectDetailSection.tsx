@@ -74,7 +74,7 @@ export default function ProjectDetailSection({
                 {project.ctaText || "Quiero detalles"}
               </Button>
               <Button 
-                onClick={() => onCTAClick(project.id)}
+                onClick={() => window.location.href = "/agendar-visita"}
                 size="lg"
                 variant="outline"
                 className="border-accent text-accent hover:bg-accent hover:text-white"

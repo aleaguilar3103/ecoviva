@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Maximize, Check } from "lucide-react";
-import PropertyModal from "./PropertyModal";
 
 export interface ProjectCardData {
   id: string;
@@ -30,12 +30,19 @@ export default function ProjectCard({
   onLearnMore = () => {},
   onScheduleVisit = () => {},
 }: ProjectCardProps) {
-  const [modalOpen, setModalOpen] = useState(false);
+  const navigate = useNavigate();
+  
+  const handleCardClick = () => {
+    if (project.id === "rio-celeste") {
+      navigate("/rio-celeste-oasis-detalle");
+    }
+  };
+  
   return (
     <>
       <Card
         className="overflow-hidden hover:shadow-2xl transition-all duration-300 group bg-white cursor-pointer"
-        onClick={() => setModalOpen(true)}
+        onClick={handleCardClick}
       >
         {/* Image */}
         <div className="relative h-64 overflow-hidden">
@@ -57,45 +64,48 @@ export default function ProjectCard({
         <CardContent className="p-6">
           {/* Title & Location */}
           <div className="mb-4">
-            <h3 className="text-2xl font-bold text-primary mb-2">
+            <h3 className="text-2xl md:text-3xl font-bold text-primary mb-2">
               {project.title}
             </h3>
             <div className="flex items-center text-gray-600">
-              <MapPin className="w-4 h-4 mr-1" />
+              <MapPin className="w-4 h-4 mr-1 text-accent" />
               <span className="text-sm">{project.location}</span>
             </div>
           </div>
 
           {/* Size */}
           <div className="mb-4">
-            <div className="flex items-center text-gray-700 mb-2">
-              <Maximize className="w-4 h-4 mr-2 text-accent" />
-              <span className="text-sm font-medium">{project.size}</span>
+            <div className="flex items-center text-gray-700">
+              <Maximize className="w-5 h-5 mr-2 text-accent" />
+              <span className="text-base font-semibold">{project.size}</span>
             </div>
           </div>
 
           {/* Features */}
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2 mb-5">
             {project.features.map((feature, index) => (
               <div key={index} className="flex items-start">
                 <Check className="w-4 h-4 mr-2 text-accent flex-shrink-0 mt-0.5" />
-                <span className="text-sm text-gray-700">{feature}</span>
+                <span className="text-sm text-gray-700 leading-tight">{feature}</span>
               </div>
             ))}
           </div>
 
           {/* Price */}
-          <div className="mb-6 pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-1">Precio</p>
-            <p className="text-3xl font-bold text-primary">{project.price}</p>
-          </div>
+          {project.price && (
+            <div className="mb-6 pt-4 border-t border-gray-200">
+              <p className="text-3xl md:text-4xl font-bold text-primary">{project.price}</p>
+            </div>
+          )}
 
           {/* CTA Buttons */}
           <div className="space-y-3">
             <Button
               onClick={(e) => {
                 e.stopPropagation();
-                setModalOpen(true);
+                if (project.id === "rio-celeste") {
+                  navigate("/rio-celeste-oasis-detalle");
+                }
               }}
               className="w-full bg-primary hover:bg-primary/90 text-white"
             >
@@ -104,11 +114,6 @@ export default function ProjectCard({
           </div>
         </CardContent>
       </Card>
-      <PropertyModal
-        project={project}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-      />
     </>
   );
 }
