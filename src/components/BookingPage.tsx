@@ -29,10 +29,10 @@ export default function BookingPage() {
   };
 
   const benefits = [
-    "Recorrido personalizado por los proyectos",
-    "Asesoría financiera sin compromiso",
-    "Conoce las amenidades en persona",
-    "Explora los lotes disponibles",
+    t("booking.benefit1"),
+    t("booking.benefit2"),
+    t("booking.benefit3"),
+    t("booking.benefit4"),
   ];
 
   return (
@@ -46,22 +46,22 @@ export default function BookingPage() {
           <div className="max-w-4xl mx-auto text-center text-white">
             <div className="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full mb-6">
               <Calendar className="w-5 h-5" />
-              <span className="font-medium">Agenda tu visita</span>
+              <span className="font-medium">{t("booking.badge")}</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Conoce tu futuro hogar en Costa Rica
+              {t("booking.heroTitle")}
             </h1>
             <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
-              Agenda una visita guiada a nuestros proyectos y descubre por qué cientos de familias ya eligieron invertir con Eco Viva Desarrollos.
+              {t("booking.heroSubtitle")}
             </p>
             <div className="flex flex-wrap justify-center gap-4 text-white/80">
               <div className="flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
-                <span>Zona Norte, Costa Rica</span>
+                <span>{t("booking.location")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
-                <span>Visitas disponibles todos los días</span>
+                <span>{t("booking.available")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-5 h-5" />
@@ -80,10 +80,10 @@ export default function BookingPage() {
             <div className="space-y-8">
               <div>
                 <h2 className="text-3xl md:text-4xl font-bold text-primary mb-4">
-                  ¿Por qué agendar una visita?
+                  {t("booking.whySchedule")}
                 </h2>
                 <p className="text-lg text-gray-600">
-                  Una visita presencial te permite conocer de primera mano la calidad de nuestros desarrollos, las vistas impresionantes y el potencial de inversión.
+                  {t("booking.whyScheduleDesc")}
                 </p>
               </div>
 
@@ -101,17 +101,17 @@ export default function BookingPage() {
 
               <div className="bg-gradient-to-br from-accent/10 to-accent/5 p-6 rounded-xl border border-accent/20">
                 <h3 className="text-xl font-bold text-primary mb-2">
-                  ¿Prefieres contacto directo?
+                  {t("booking.preferDirect")}
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Nuestro equipo está disponible para atenderte por WhatsApp y coordinar tu visita de forma inmediata.
+                  {t("booking.preferDirectDesc")}
                 </p>
                 <Button
                   onClick={handleWhatsAppClick}
                   className="bg-accent hover:bg-accent/90 text-white"
                 >
                   <Phone className="w-4 h-4 mr-2" />
-                  Contactar por WhatsApp
+                  {t("booking.contactWhatsApp")}
                 </Button>
               </div>
             </div>
@@ -120,8 +120,8 @@ export default function BookingPage() {
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
               <div className="bg-primary p-6 text-white text-center">
                 <Calendar className="w-10 h-10 mx-auto mb-3" />
-                <h3 className="text-2xl font-bold">Selecciona fecha y hora</h3>
-                <p className="text-white/80 mt-2">Elige el momento ideal para tu visita</p>
+                <h3 className="text-2xl font-bold">{t("booking.selectDateTime")}</h3>
+                <p className="text-white/80 mt-2">{t("booking.selectDateTimeDesc")}</p>
               </div>
               <div className="p-4">
                 <iframe
@@ -147,10 +147,10 @@ export default function BookingPage() {
       <section className="py-20 bg-gradient-to-br from-primary to-primary/90">
         <div className="container mx-auto px-4 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            ¿Listo para dar el siguiente paso?
+            {t("booking.readyNext")}
           </h2>
           <p className="text-xl text-white/90 max-w-2xl mx-auto mb-8">
-            Agenda tu visita hoy y descubre por qué Costa Rica es el destino ideal para tu inversión en bienes raíces.
+            {t("booking.readyNextDesc")}
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button
@@ -159,7 +159,7 @@ export default function BookingPage() {
               className="bg-white text-primary hover:bg-gray-100"
             >
               <Calendar className="w-5 h-5 mr-2" />
-              Agendar ahora
+              {t("booking.scheduleNow")}
             </Button>
             <Button
               onClick={handleWhatsAppClick}

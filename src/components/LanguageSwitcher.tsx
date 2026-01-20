@@ -18,10 +18,6 @@ interface Language {
 const languages: Language[] = [
   { code: "es", name: "Español", flag: "🇪🇸" },
   { code: "en", name: "English", flag: "🇺🇸" },
-  { code: "fr", name: "Français", flag: "🇫🇷" },
-  { code: "de", name: "Deutsch", flag: "🇩🇪" },
-  { code: "pt", name: "Português", flag: "🇵🇹" },
-  { code: "it", name: "Italiano", flag: "🇮🇹" },
 ];
 
 interface LanguageSwitcherProps {
@@ -66,7 +62,7 @@ export default function LanguageSwitcher({
               </div>
               {language === lang.code && (
                 <Badge variant="secondary" className="ml-2">
-                  Activo
+                  ✓
                 </Badge>
               )}
             </DropdownMenuItem>

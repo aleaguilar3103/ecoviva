@@ -17,6 +17,7 @@ export interface ProjectCardData {
   description?: string;
   financingDetails?: string[];
   gallery?: string[];
+  viewDetails?: string;
 }
 
 interface ProjectCardProps {
@@ -109,7 +110,7 @@ export default function ProjectCard({
               }}
               className="w-full bg-primary hover:bg-primary/90 text-white"
             >
-              Ver detalles
+              {project.viewDetails || "Ver detalles"}
             </Button>
           </div>
         </CardContent>

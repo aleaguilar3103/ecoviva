@@ -93,13 +93,13 @@ export default function RioCelesteDetail() {
         <div className="relative h-full container mx-auto px-4 lg:px-8 flex items-center">
           <div className="max-w-3xl text-white">
             <h1 className="text-5xl md:text-6xl font-bold mb-4">
-              Río Celeste Oasis
+              {t("rioCelesteDetail.heroTitle")}
             </h1>
             <p className="text-2xl mb-3 text-white/90">
-              Balneario Natural Privado · Quintas y Lotes Exclusivos
+              {t("rioCelesteDetail.heroSubtitle")}
             </p>
             <p className="text-lg mb-8 text-white/80 leading-relaxed">
-              Un proyecto inmobiliario único con acceso privado y directo al Río Celeste, diseñado como un balneario natural de baja densidad en una de las zonas turísticas con mayor proyección de crecimiento en Costa Rica.
+              {t("rioCelesteDetail.heroDescription")}
             </p>
             <div className="flex flex-wrap gap-4">
               <Button
@@ -107,7 +107,7 @@ export default function RioCelesteDetail() {
                 size="lg"
                 className="bg-accent hover:bg-accent/90 text-white px-8"
               >
-                Solicitar información
+                {t("rioCelesteDetail.requestInfo")}
               </Button>
               <Button
                 onClick={() => window.location.href = "/agendar-visita"}
@@ -115,7 +115,7 @@ export default function RioCelesteDetail() {
                 variant="outline"
                 className="bg-white/10 hover:bg-white/20 text-white border-white/30"
               >
-                Agendar visita
+                {t("rioCelesteDetail.scheduleVisit")}
               </Button>
             </div>
           </div>
@@ -127,10 +127,10 @@ export default function RioCelesteDetail() {
         <div className="container mx-auto px-4 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-4xl md:text-5xl font-bold text-primary mb-3">
-              Galería del proyecto
+              {t("rioCelesteDetail.galleryTitle")}
             </h2>
             <p className="text-lg text-gray-600">
-              Naturaleza, río y amenidades del balneario natural.
+              {t("rioCelesteDetail.gallerySubtitle")}
             </p>
           </div>
 
@@ -222,10 +222,10 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-6 text-center">
-            Un proyecto diferente a todo lo demás en la zona
+            {t("rioCelesteDetail.differentProject")}
           </h2>
           <p className="text-lg text-gray-700 leading-relaxed text-center">
-            Río Celeste Oasis no es una lotificación tradicional. Es un desarrollo concebido como un balneario natural privado, donde la baja densidad, la privacidad y el acceso directo al río crean un entorno exclusivo, escaso y altamente atractivo para inversión turística, retiro o segunda residencia.
+            {t("rioCelesteDetail.differentProjectDesc")}
           </p>
         </div>
       </section>
@@ -243,14 +243,14 @@ export default function RioCelesteDetail() {
             </div>
             <div>
               <h2 className="text-3xl md:text-4xl font-bold text-primary mb-6">
-                Opciones de inversión dentro del proyecto
+                {t("rioCelesteDetail.investmentOptions")}
               </h2>
               <ul className="space-y-4">
                 {[
-                  "15 quintas exclusivas de 5.000 m²",
-                  "Lotes frente a calle desde 1.300 m²",
-                  "Ingreso flexible según perfil de inversión",
-                  "Ideal para villas privadas, Airbnb premium, glamping o fincas de retiro",
+                  t("rioCelesteDetail.investmentOption1"),
+                  t("rioCelesteDetail.investmentOption2"),
+                  t("rioCelesteDetail.investmentOption3"),
+                  t("rioCelesteDetail.investmentOption4"),
                 ].map((item, index) => (
                   <li key={index} className="flex items-start">
                     <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
@@ -284,10 +284,10 @@ export default function RioCelesteDetail() {
             </svg>
           </div>
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-4">
-            Acceso privado y directo al Río Celeste
+            {t("rioCelesteDetail.riverAccessTitle")}
           </h2>
           <p className="text-lg text-gray-700 leading-relaxed">
-            Cada propiedad cuenta con acceso privado al río. El Río Celeste no es un atractivo cercano: es parte integral del proyecto, permitiendo experiencias de descanso, recreación, bienestar y contacto directo con la naturaleza.
+            {t("rioCelesteDetail.riverAccessDesc")}
           </p>
         </div>
       </section>
@@ -296,7 +296,7 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-            Concepto de balneario natural
+            {t("rioCelesteDetail.naturalResortTitle")}
           </h2>
           <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto">
             {projectImages.map((image, index) => (
@@ -319,15 +319,15 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-            Áreas comunes del proyecto
+            {t("rioCelesteDetail.commonAreasTitle")}
           </h2>
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {[
-              { icon: "🍖", text: "Ranchos BBQ totalmente equipados" },
-              { icon: "🚿", text: "Baños comunes modernos y funcionales" },
-              { icon: "🥾", text: "Senderos naturales internos" },
-              { icon: "🧘", text: "Deck para yoga, meditación y actividades" },
-              { icon: "🌿", text: "Zonas de descanso y contemplación" },
+              { icon: "🍖", text: t("rioCelesteDetail.commonArea1") },
+              { icon: "🚿", text: t("rioCelesteDetail.commonArea2") },
+              { icon: "🥾", text: t("rioCelesteDetail.commonArea3") },
+              { icon: "🧘", text: t("rioCelesteDetail.commonArea4") },
+              { icon: "🌿", text: t("rioCelesteDetail.commonArea5") },
             ].map((feature, index) => (
               <Card key={index} className="border-accent/20 hover:shadow-lg transition-shadow">
                 <CardContent className="p-6 flex items-center">
@@ -346,14 +346,14 @@ export default function RioCelesteDetail() {
           <div className="grid md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
             <div className="order-2 md:order-1">
               <h2 className="text-3xl md:text-4xl font-bold text-primary mb-6">
-                Seguridad, privacidad y control
+                {t("rioCelesteDetail.securityTitle")}
               </h2>
               <ul className="space-y-4">
                 {[
-                  "Acceso controlado al proyecto",
-                  "Cámaras de seguridad en puntos estratégicos",
-                  "Ambiente rural, privado y de baja densidad",
-                  "Diseñado para tranquilidad de propietarios y huéspedes",
+                  t("rioCelesteDetail.security1"),
+                  t("rioCelesteDetail.security2"),
+                  t("rioCelesteDetail.security3"),
+                  t("rioCelesteDetail.security4"),
                 ].map((item, index) => (
                   <li key={index} className="flex items-start">
                     <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
@@ -379,10 +379,10 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-6 text-center">
-            Ubicación estratégica y alto potencial de crecimiento
+            {t("rioCelesteDetail.locationTitle")}
           </h2>
           <p className="text-lg text-gray-700 leading-relaxed text-center">
-            Ubicado en Katira de Guatuso, Alajuela, con conectividad directa por la Ruta Nacional 4 y cercanía a los principales polos de turismo de naturaleza de la Zona Norte. Esta región ha sido identificada por el Instituto Costarricense de Turismo como una de las zonas con mayor proyección de crecimiento turístico del país.
+            {t("rioCelesteDetail.locationDesc")}
           </p>
         </div>
       </section>
@@ -391,21 +391,21 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-            ¿Para quién es Río Celeste Oasis?
+            {t("rioCelesteDetail.targetTitle")}
           </h2>
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {[
               {
-                title: "Inversionista turístico",
-                text: "Rentas cortas, glamping y villas boutique con alto atractivo natural.",
+                title: t("rioCelesteDetail.targetInvestor"),
+                text: t("rioCelesteDetail.targetInvestorDesc"),
               },
               {
-                title: "Comprador patrimonial",
-                text: "Tierra escasa, acceso al río y proyección de plusvalía.",
+                title: t("rioCelesteDetail.targetPatrimonial"),
+                text: t("rioCelesteDetail.targetPatrimonialDesc"),
               },
               {
-                title: "Comprador lifestyle",
-                text: "Retiro, segunda residencia y conexión con la naturaleza.",
+                title: t("rioCelesteDetail.targetLifestyle"),
+                text: t("rioCelesteDetail.targetLifestyleDesc"),
               },
             ].map((card, index) => (
               <Card
@@ -428,18 +428,18 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-gradient-to-br from-primary/5 to-accent/5">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-            Resumen de valor del proyecto
+            {t("rioCelesteDetail.summaryTitle")}
           </h2>
           <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {[
-              "Lotes desde 1.300 m² hasta 5.000 m²",
-              "15 quintas exclusivas",
-              "Acceso privado al Río Celeste",
-              "Concepto de balneario natural",
-              "Áreas comunes completas",
-              "Seguridad y control de acceso",
-              "Zona de alto crecimiento turístico",
-              "Proyecto único en su categoría",
+              t("rioCelesteDetail.summary1"),
+              t("rioCelesteDetail.summary2"),
+              t("rioCelesteDetail.summary3"),
+              t("rioCelesteDetail.summary4"),
+              t("rioCelesteDetail.summary5"),
+              t("rioCelesteDetail.summary6"),
+              t("rioCelesteDetail.summary7"),
+              t("rioCelesteDetail.summary8"),
             ].map((item, index) => (
               <div key={index} className="flex items-center bg-white p-4 rounded-lg shadow-sm">
                 <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center mr-3 flex-shrink-0">
@@ -456,10 +456,10 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-gradient-to-br from-primary to-primary/90">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Una inversión donde la naturaleza es el activo
+            {t("rioCelesteDetail.ctaTitle")}
           </h2>
           <p className="text-xl text-white/90 mb-10 leading-relaxed">
-            Río Celeste Oasis representa una oportunidad única de inversión en tierra escasa, con alto potencial turístico y un entorno natural que no se puede replicar.
+            {t("rioCelesteDetail.ctaDesc")}
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button
@@ -467,7 +467,7 @@ export default function RioCelesteDetail() {
               size="lg"
               className="bg-accent hover:bg-accent/90 text-white px-8"
             >
-              Solicitar información
+              {t("rioCelesteDetail.requestInfo")}
             </Button>
             <Button
               onClick={() => window.location.href = "/agendar-visita"}
@@ -475,7 +475,7 @@ export default function RioCelesteDetail() {
               variant="outline"
               className="bg-white/10 hover:bg-white/20 text-white border-white/30"
             >
-              Agendar visita
+              {t("rioCelesteDetail.scheduleVisit")}
             </Button>
           </div>
         </div>

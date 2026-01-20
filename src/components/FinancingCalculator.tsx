@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Calculator } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -19,16 +20,19 @@ interface FinancingCalculatorProps {
 export default function FinancingCalculator({
   onWhatsAppClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank"),
 }: FinancingCalculatorProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const [currency, setCurrency] = useState<"USD" | "CRC">("USD");
   const [lotValue, setLotValue] = useState("170000");
   const [term, setTerm] = useState("20");
-  const annualRate = "9"; // Fixed rate at 9%
   const [monthlyPayment, setMonthlyPayment] = useState("1529.53");
+  
+  // Interest rate depends on currency: USD = 9%, CRC = 8%
+  const annualRate = currency === "USD" ? 9 : 8;
 
   const calculatePayment = () => {
     const monto = parseFloat(lotValue);
     const plazo_anios = parseInt(term);
-    const tasa_anual = parseFloat(annualRate) / 100;
+    const tasa_anual = annualRate / 100;
 
     if (isNaN(monto) || isNaN(plazo_anios) || isNaN(tasa_anual)) {
       return;
@@ -42,16 +46,32 @@ export default function FinancingCalculator({
     setMonthlyPayment(pago_mensual.toFixed(2));
   };
 
+  // Recalculate when currency changes
+  useEffect(() => {
+    calculatePayment();
+  }, [currency, lotValue, term]);
+
   const formatCurrency = (value: string) => {
     const num = parseFloat(value);
-    if (isNaN(num)) return "$0";
-    return (
-      "$" +
-      num.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    );
+    if (isNaN(num)) return currency === "USD" ? "$0" : "₡0";
+    
+    if (currency === "USD") {
+      return (
+        "$" +
+        num.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      );
+    } else {
+      return (
+        "₡" +
+        num.toLocaleString("es-CR", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      );
+    }
   };
 
   return (
@@ -78,8 +98,33 @@ export default function FinancingCalculator({
                 {/* Left Column - Form */}
                 <div className="space-y-6">
                   <h3 className="text-xl font-semibold text-primary mb-4">
-                    Datos del financiamiento
+                    {t("calculator.financingData")}
                   </h3>
+
+                  {/* Currency Switch */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      {t("calculator.currency")}
+                    </label>
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                      <span className={`font-semibold ${currency === "USD" ? "text-primary" : "text-gray-400"}`}>
+                        USD ($)
+                      </span>
+                      <Switch
+                        checked={currency === "CRC"}
+                        onCheckedChange={(checked) => setCurrency(checked ? "CRC" : "USD")}
+                      />
+                      <span className={`font-semibold ${currency === "CRC" ? "text-primary" : "text-gray-400"}`}>
+                        CRC (₡)
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {currency === "USD" 
+                        ? t("calculator.rateUSD")
+                        : t("calculator.rateCRC")
+                      }
+                    </p>
+                  </div>
 
                   {/* Lot Value */}
                   <div>
@@ -87,16 +132,21 @@ export default function FinancingCalculator({
                       htmlFor="lotValue"
                       className="block text-sm font-medium text-gray-700 mb-2"
                     >
-                      {t("calculator.lotValue")}
+                      {currency === "USD" ? t("calculator.lotValue") : t("calculator.lotValueCRC")}
                     </label>
-                    <Input
-                      id="lotValue"
-                      type="number"
-                      value={lotValue}
-                      onChange={(e) => setLotValue(e.target.value)}
-                      placeholder="170000"
-                      className="w-full"
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">
+                        {currency === "USD" ? "$" : "₡"}
+                      </span>
+                      <Input
+                        id="lotValue"
+                        type="number"
+                        value={lotValue}
+                        onChange={(e) => setLotValue(e.target.value)}
+                        placeholder={currency === "USD" ? "170000" : "85000000"}
+                        className="w-full pl-8"
+                      />
+                    </div>
                   </div>
 
                   {/* Term */}
@@ -109,13 +159,13 @@ export default function FinancingCalculator({
                     </label>
                     <Select value={term} onValueChange={setTerm}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Seleccionar plazo" />
+                        <SelectValue placeholder={t("calculator.selectTerm")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="5">5 años</SelectItem>
-                        <SelectItem value="10">10 años</SelectItem>
-                        <SelectItem value="15">15 años</SelectItem>
-                        <SelectItem value="20">20 años</SelectItem>
+                        <SelectItem value="5">5 {t("calculator.years")}</SelectItem>
+                        <SelectItem value="10">10 {t("calculator.years")}</SelectItem>
+                        <SelectItem value="15">15 {t("calculator.years")}</SelectItem>
+                        <SelectItem value="20">20 {t("calculator.years")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -128,7 +178,7 @@ export default function FinancingCalculator({
                       {t("calculator.rate")}
                     </label>
                     <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-semibold">
-                      9%
+                      {annualRate}%
                     </div>
                   </div>
 
@@ -152,7 +202,7 @@ export default function FinancingCalculator({
                         </p>
                         <p className="text-4xl md:text-5xl font-bold text-primary">
                           {formatCurrency(monthlyPayment)}
-                          <span className="text-xl text-gray-600"> / mes</span>
+                          <span className="text-xl text-gray-600"> / {t("calculator.perMonth")}</span>
                         </p>
                       </div>
 
@@ -165,15 +215,12 @@ export default function FinancingCalculator({
                         </p>
                         <p>
                           <span className="font-semibold">
-                            Prima requerida:
+                            {t("calculator.downPaymentRequired")}:
                           </span>{" "}
-                          $0
+                          {currency === "USD" ? "$0" : "₡0"}
                         </p>
                         <p className="text-xs mt-4 text-gray-500">
-                          Aprobación inmediata. Sin fiador. Sin estudio
-                          crediticio.
-                          <br />
-                          Sujeto a disponibilidad del proyecto.
+                          {t("calculator.disclaimer")}
                         </p>
                       </div>
 
@@ -182,7 +229,7 @@ export default function FinancingCalculator({
                         className="w-full bg-accent hover:bg-accent/90 text-white"
                         size="lg"
                       >
-                        Quiero este financiamiento →
+                        {t("calculator.cta")} →
                       </Button>
                     </CardContent>
                   </Card>

@@ -11,21 +11,17 @@ export default function ProjectShowcase({ projects }: ProjectShowcaseProps) {
   const defaultProjects: ProjectCardData[] = [
     {
       id: "rio-celeste",
-      title: "Río Celeste Oasis",
-      location: "Katira, Guatuso · Zona Norte, Alajuela",
+      title: t("projects.rioCeleste.title"),
+      location: t("projects.rioCeleste.location"),
       image:
         "https://storage.googleapis.com/msgsndr/hdVpvshZP3RGJQbxx8GA/media/68f1ffe2175e59ba63672f87.jpeg",
-      price: "",
-      size: "Desde 1.300 m² hasta 5.000 m²",
-      features: [
-        "Acceso privado y directo al Río Celeste",
-        "15 quintas de 5.000 m² + lotes desde 1.300 m²",
-        "Seguridad: control de acceso + cámaras",
-        "Ranchos BBQ, baños, senderos y deck",
-      ],
-      badges: ["Disponible", "Acceso privado al río", "Balneario natural"],
+      price: t("projects.rioCeleste.price"),
+      size: t("projects.rioCeleste.size"),
+      features: t("projects.rioCeleste.features") as any,
+      badges: t("projects.rioCeleste.badges") as any,
       description: t("projects.rioCeleste.description"),
       financingDetails: t("projects.financingDetails") as any,
+      viewDetails: t("projects.rioCeleste.viewDetails"),
       gallery: [
         "https://storage.googleapis.com/msgsndr/hdVpvshZP3RGJQbxx8GA/media/68f1ffe2175e59ba63672f87.jpeg",
         "https://storage.googleapis.com/msgsndr/hdVpvshZP3RGJQbxx8GA/media/68f1ffe2a1e01a2679ee14be.jpeg",
@@ -38,12 +34,13 @@ export default function ProjectShowcase({ projects }: ProjectShowcaseProps) {
       title: t("projects.llanadaViews.title"),
       location: t("projects.llanadaViews.location"),
       image: "/images/llanada-1.jpeg",
-      price: "",
+      price: t("projects.llanadaViews.price"),
       size: t("projects.llanadaViews.size"),
       features: t("projects.llanadaViews.features") as any,
       badges: t("projects.llanadaViews.badges") as any,
       description: t("projects.llanadaViews.description"),
       financingDetails: t("projects.financingDetails") as any,
+      viewDetails: t("projects.llanadaViews.viewDetails"),
       gallery: [
         "/images/llanada-1.jpeg",
         "/images/llanada-2.jpeg",
