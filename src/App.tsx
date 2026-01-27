@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import Home from "./components/home";
 import RioCelesteDetail from "./components/RioCelesteDetail";
+import LomasLlanadaDetail from "./components/LomasLlanadaDetail";
 import BookingPage from "./components/BookingPage";
 import SurveyPage from "./components/SurveyPage";
 import ConfirmationPage from "./components/ConfirmationPage";
@@ -15,6 +16,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/rio-celeste-oasis-detalle" element={<RioCelesteDetail />} />
+            <Route path="/lomas-de-la-llanada-detalle" element={<LomasLlanadaDetail />} />
             <Route path="/agendar-visita" element={<BookingPage />} />
             <Route path="/survey" element={<SurveyPage />} />
             <Route path="/confirmation" element={<ConfirmationPage />} />

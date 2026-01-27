@@ -36,6 +36,8 @@ export default function ProjectCard({
   const handleCardClick = () => {
     if (project.id === "rio-celeste") {
       navigate("/rio-celeste-oasis-detalle");
+    } else if (project.id === "llanada-views") {
+      navigate("/lomas-de-la-llanada-detalle");
     }
   };
   
@@ -106,6 +108,8 @@ export default function ProjectCard({
                 e.stopPropagation();
                 if (project.id === "rio-celeste") {
                   navigate("/rio-celeste-oasis-detalle");
+                } else if (project.id === "llanada-views") {
+                  navigate("/lomas-de-la-llanada-detalle");
                 }
               }}
               className="w-full bg-primary hover:bg-primary/90 text-white"
