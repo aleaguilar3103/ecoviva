@@ -18,6 +18,11 @@ function Home() {
         const element = document.getElementById(id);
         element?.scrollIntoView({ behavior: "smooth" });
       }, 100);
+    } else if (location.state?.scrollTo) {
+      setTimeout(() => {
+        const element = document.getElementById(location.state.scrollTo);
+        element?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     }
   }, [location]);
 

@@ -36,7 +36,7 @@ export default function BookingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-y-auto" style={{ height: '100vh', overflowY: 'auto' }}>
       <Header />
 
       {/* Hero Section */}
@@ -73,65 +73,69 @@ export default function BookingPage() {
       </section>
 
       {/* Booking Calendar Section */}
-      <section className="py-16 bg-white">
+      <section className="py-20 bg-gradient-to-br from-gray-50 to-white">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-start max-w-6xl mx-auto">
-            {/* Benefits */}
-            <div className="space-y-8">
-              <div>
-                <h2 className="text-3xl md:text-4xl font-bold text-primary mb-4">
-                  {t("booking.whySchedule")}
-                </h2>
-                <p className="text-lg text-gray-600">
-                  {t("booking.whyScheduleDesc")}
-                </p>
+          {/* Calendar Widget - Centered and Primary */}
+          <div className="max-w-3xl mx-auto mb-16">
+            <div className="bg-white rounded-2xl shadow-2xl border border-accent/20 overflow-hidden">
+              <div className="bg-gradient-to-br from-primary to-primary/90 p-10 text-white text-center">
+                <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="w-10 h-10" />
+                </div>
+                <h2 className="text-4xl md:text-5xl font-bold mb-3">{t("booking.selectDateTime")}</h2>
+                <p className="text-white/90 text-xl leading-relaxed">{t("booking.selectDateTimeDesc")}</p>
               </div>
-
-              <div className="space-y-4">
-                {benefits.map((benefit, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg"
-                  >
-                    <CheckCircle className="w-6 h-6 text-accent flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">{benefit}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-gradient-to-br from-accent/10 to-accent/5 p-6 rounded-xl border border-accent/20">
-                <h3 className="text-xl font-bold text-primary mb-2">
-                  {t("booking.preferDirect")}
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  {t("booking.preferDirectDesc")}
-                </p>
-                <Button
-                  onClick={handleWhatsAppClick}
-                  className="bg-accent hover:bg-accent/90 text-white"
-                >
-                  <Phone className="w-4 h-4 mr-2" />
-                  {t("booking.contactWhatsApp")}
-                </Button>
-              </div>
-            </div>
-
-            {/* Calendar Widget */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="bg-primary p-6 text-white text-center">
-                <Calendar className="w-10 h-10 mx-auto mb-3" />
-                <h3 className="text-2xl font-bold">{t("booking.selectDateTime")}</h3>
-                <p className="text-white/80 mt-2">{t("booking.selectDateTimeDesc")}</p>
-              </div>
-              <div className="p-4">
+              <div className="p-6">
                 <iframe
                   src="https://link.bralto.io/widget/booking/3QOuxsC2g7z3y03vcY2a"
-                  style={{ width: "100%", border: "none", overflow: "hidden", minHeight: "600px" }}
-                  scrolling="no"
-                  id="3QOuxsC2g7z3y03vcY2a_1766446810907"
+                  style={{ width: "100%", border: "none", minHeight: "700px", height: "700px" }}
+                  id="3QOuxsC2g7z3y03vcY2a_1769534048294"
                   title="Calendario de citas"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Benefits - Below Calendar */}
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold text-primary mb-4">
+                {t("booking.whySchedule")}
+              </h2>
+              <p className="text-lg text-gray-600 leading-relaxed">
+                {t("booking.whyScheduleDesc")}
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mb-12">
+              {benefits.map((benefit, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-4 p-6 bg-white rounded-xl shadow-sm border border-accent/20 hover:shadow-lg transition-shadow"
+                >
+                  <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-6 h-6 text-accent" />
+                  </div>
+                  <span className="text-gray-700 font-medium text-lg">{benefit}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-gradient-to-br from-accent/10 to-accent/5 p-8 rounded-2xl border border-accent/20 text-center">
+              <h3 className="text-2xl font-bold text-primary mb-3">
+                {t("booking.preferDirect")}
+              </h3>
+              <p className="text-gray-700 mb-6 text-lg leading-relaxed">
+                {t("booking.preferDirectDesc")}
+              </p>
+              <Button
+                onClick={handleWhatsAppClick}
+                size="lg"
+                className="bg-accent hover:bg-accent/90 text-white px-8"
+              >
+                <Phone className="w-5 h-5 mr-2" />
+                {t("booking.contactWhatsApp")}
+              </Button>
             </div>
           </div>
         </div>

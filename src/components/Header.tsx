@@ -22,7 +22,7 @@ export default function Header({
       const element = document.getElementById(id);
       element?.scrollIntoView({ behavior: "smooth" });
     } else {
-      navigate(`/#${id}`);
+      navigate("/", { state: { scrollTo: id } });
     }
   };
 
