@@ -1,15 +1,59 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Info, Calendar, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
+
+// Data for Oasis Río Celeste lots
+const rioCelesteLots = [
+  // Lotes pequeños - $45 USD/m²
+  { id: 2, size: 1632, pricePerM2: 45, total: 73440, available: true },
+  { id: 3, size: 1300, pricePerM2: 45, total: 58500, available: true },
+  { id: 4, size: 1300, pricePerM2: 45, total: 58500, available: true },
+  { id: 5, size: 1300, pricePerM2: 45, total: 58500, available: true },
+  // Lotes grandes - $34 USD/m² - 5,000 m²
+  { id: 1, size: 5000, pricePerM2: 34, total: 170000, available: false },
+  { id: 6, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 7, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 8, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 9, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 10, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 11, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 12, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  // Lote 13 especial - 6,000 m²
+  { id: 13, size: 6000, pricePerM2: 34, total: 204000, available: false },
+  { id: 14, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 15, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 16, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 17, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 18, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 19, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 20, size: 5000, pricePerM2: 34, total: 170000, available: true },
+];
+
+const formatCurrencyUSD = (amount: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 
 export default function RioCelesteDetail() {
   const { t } = useLanguage();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [selectedLot, setSelectedLot] = useState<typeof rioCelesteLots[0] | null>(null);
+  
+  // Image zoom and pan states
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapPosition, setMapPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -17,6 +61,69 @@ export default function RioCelesteDetail() {
 
   const handleContactClick = () => {
     window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank");
+  };
+
+  // Map zoom and pan functions
+  const handleZoomIn = () => {
+    setMapZoom((prev) => Math.min(prev + 0.5, 4));
+  };
+
+  const handleZoomOut = () => {
+    setMapZoom((prev) => Math.max(prev - 0.5, 1));
+    if (mapZoom <= 1.5) {
+      setMapPosition({ x: 0, y: 0 });
+    }
+  };
+
+  const handleResetZoom = () => {
+    setMapZoom(1);
+    setMapPosition({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (mapZoom > 1) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - mapPosition.x,
+        y: e.clientY - mapPosition.y,
+      });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && mapZoom > 1) {
+      setMapPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (mapZoom > 1 && e.touches.length === 1) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.touches[0].clientX - mapPosition.x,
+        y: e.touches[0].clientY - mapPosition.y,
+      });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isDragging && mapZoom > 1 && e.touches.length === 1) {
+      setMapPosition({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
   };
 
   const projectImages = [
@@ -230,6 +337,56 @@ export default function RioCelesteDetail() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4 lg:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
+            Opciones de lotes disponibles
+          </h2>
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* Lotes Pequeños */}
+            <Card className="border-accent/20 hover:shadow-xl transition-shadow overflow-hidden">
+              <div className="bg-accent/10 p-4 text-center">
+                <span className="bg-accent text-white px-3 py-1 rounded-full text-sm font-medium">
+                  Desde 600 m²
+                </span>
+              </div>
+              <CardContent className="p-8 text-center">
+                <h3 className="text-2xl font-bold text-primary mb-2">
+                  Lotes pequeños desde 1,300 m²
+                </h3>
+                <p className="text-4xl font-bold text-accent mb-2">₡45,000</p>
+                <p className="text-gray-600 mb-2">por metro cuadrado</p>
+                <p className="text-2xl font-semibold text-primary mb-4">₡27,000,000</p>
+                <p className="text-gray-700">
+                  Ideales para construcción de vivienda familiar. Ubicados a orilla de calle con fácil acceso.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Lotes Grandes */}
+            <Card className="border-accent/20 hover:shadow-xl transition-shadow overflow-hidden ring-2 ring-accent">
+              <div className="bg-accent p-4 text-center">
+                <span className="text-white font-bold text-sm">
+                  Vista Panorámica
+                </span>
+              </div>
+              <CardContent className="p-8 text-center">
+                <h3 className="text-2xl font-bold text-primary mb-2">
+                  Lotes grandes desde 5,000 m²
+                </h3>
+                <p className="text-4xl font-bold text-accent mb-2">₡17,000</p>
+                <p className="text-gray-600 mb-2">por metro cuadrado</p>
+                <p className="text-2xl font-semibold text-primary mb-4">₡85,000,000</p>
+                <p className="text-gray-700">
+                  Lotes premium con vistas panorámicas espectaculares a Ciudad Quesada y el Volcán Arenal.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* Image Text Split - Investment Options */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
@@ -336,6 +493,228 @@ export default function RioCelesteDetail() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Interactive Lot Distribution Section */}
+      <section id="distribucion-lotes" className="py-20 bg-gradient-to-b from-white to-gray-50">
+        <div className="container mx-auto px-4 lg:px-8">
+          {/* Section Header */}
+          <div className="text-center mb-12">
+            <span className="inline-block bg-accent text-white px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
+              Oportunidad de Inversión
+            </span>
+            <h2 className="text-4xl md:text-5xl font-bold text-primary mb-3">
+              Oasis Río Celeste – Distribución de Lotes
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Lotes disponibles con precios aproximados según tamaño
+            </p>
+          </div>
+
+          <div className="max-w-7xl mx-auto">
+            <div className="grid lg:grid-cols-5 gap-8">
+              {/* Map Image */}
+              <div className="lg:col-span-3">
+                <div 
+                  ref={mapContainerRef}
+                  className="relative rounded-2xl overflow-hidden shadow-xl bg-white border border-gray-100"
+                  style={{ 
+                    height: '600px',
+                    cursor: mapZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  <img
+                    src="https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/697d22228b2c07b909ccfdf0.png"
+                    alt="Mapa Oasis Río Celeste - Distribución de Lotes"
+                    className="w-full h-full object-contain transition-transform duration-200"
+                    style={{
+                      transform: `scale(${mapZoom}) translate(${mapPosition.x / mapZoom}px, ${mapPosition.y / mapZoom}px)`,
+                      transformOrigin: 'center center',
+                    }}
+                    draggable={false}
+                  />
+                  
+                  {/* Zoom Controls */}
+                  <div className="absolute top-4 right-4 flex flex-col gap-2">
+                    <Button
+                      onClick={handleZoomIn}
+                      disabled={mapZoom >= 4}
+                      size="sm"
+                      className="bg-white hover:bg-gray-100 text-primary border border-gray-300 shadow-lg"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={handleZoomOut}
+                      disabled={mapZoom <= 1}
+                      size="sm"
+                      className="bg-white hover:bg-gray-100 text-primary border border-gray-300 shadow-lg"
+                    >
+                      <ZoomOut className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={handleResetZoom}
+                      disabled={mapZoom === 1}
+                      size="sm"
+                      className="bg-white hover:bg-gray-100 text-primary border border-gray-300 shadow-lg"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Zoom Level Indicator */}
+                  <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
+                    <span className="text-sm font-medium text-primary">
+                      {Math.round(mapZoom * 100)}%
+                    </span>
+                  </div>
+
+                  {/* Instructions overlay */}
+                  {mapZoom > 1 && (
+                    <div className="absolute top-4 left-4 bg-accent/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2 text-sm">
+                      <Move className="w-4 h-4" />
+                      <span>Arrastra para mover</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mt-3 text-center">
+                  Usa los controles de zoom para ver los detalles. Haz clic en un lote de la lista para ver información.
+                </p>
+              </div>
+
+              {/* Lot List */}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                  <div className="bg-primary p-4">
+                    <h3 className="text-xl font-bold text-white">
+                      Lotes Disponibles ({rioCelesteLots.filter(lot => lot.available).length})
+                    </h3>
+                  </div>
+                  <div className="max-h-[600px] overflow-y-auto">
+                    {rioCelesteLots.sort((a, b) => a.id - b.id).map((lot) => (
+                      <div
+                        key={lot.id}
+                        onClick={() => lot.available && setSelectedLot(selectedLot?.id === lot.id ? null : lot)}
+                        className={`p-4 border-b border-gray-100 transition-all ${
+                          lot.available ? 'cursor-pointer hover:bg-accent/5' : 'opacity-50 cursor-not-allowed bg-gray-50'
+                        } ${
+                          selectedLot?.id === lot.id ? 'bg-accent/10 border-l-4 border-l-accent' : ''
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-primary text-lg">Lote {lot.id}</span>
+                              {!lot.available && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                  No Disponible
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-gray-600 text-sm mt-1">
+                              {lot.size.toLocaleString('es-CR')} m²
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-accent">
+                              {formatCurrencyUSD(lot.total)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              ${lot.pricePerM2}/m²
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Expanded Details */}
+                        {selectedLot?.id === lot.id && lot.available && (
+                          <div className="mt-4 pt-4 border-t border-gray-200 animate-fadeIn">
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              <div className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-xs text-gray-500 mb-1">Tamaño</p>
+                                <p className="font-bold text-primary">{lot.size.toLocaleString('es-CR')} m²</p>
+                              </div>
+                              <div className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-xs text-gray-500 mb-1">Precio/m²</p>
+                                <p className="font-bold text-primary">${lot.pricePerM2} USD</p>
+                              </div>
+                            </div>
+                            <div className="bg-accent/10 rounded-lg p-3 mb-4">
+                              <p className="text-xs text-gray-500 mb-1">Precio Total Aprox.</p>
+                              <p className="font-bold text-accent text-xl">{formatCurrencyUSD(lot.total)}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open("https://api.whatsapp.com/send?phone=50684142111&text=" + encodeURIComponent(`Hola, me interesa el Lote ${lot.id} de ${lot.size.toLocaleString('es-CR')} m² en Oasis Río Celeste. Precio aproximado: ${formatCurrencyUSD(lot.total)}`), "_blank");
+                                }}
+                                size="sm"
+                                className="flex-1 bg-accent hover:bg-accent/90 text-white text-xs"
+                              >
+                                <Info className="w-3 h-3 mr-1" />
+                                Solicitar Info
+                              </Button>
+                              <Button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.location.href = "/agendar-visita";
+                                }}
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 border-primary text-primary hover:bg-primary/5 text-xs"
+                              >
+                                <Calendar className="w-3 h-3 mr-1" />
+                                Agendar Visita
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Stats */}
+          <div className="max-w-4xl mx-auto mt-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
+                <p className="text-3xl font-bold text-accent">{rioCelesteLots.filter(lot => lot.available).length}</p>
+                <p className="text-sm text-gray-600 mt-1">Lotes disponibles</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
+                <p className="text-3xl font-bold text-primary">1,300 m²</p>
+                <p className="text-sm text-gray-600 mt-1">Tamaño mínimo</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
+                <p className="text-3xl font-bold text-primary">6,000 m²</p>
+                <p className="text-sm text-gray-600 mt-1">Tamaño máximo</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
+                <p className="text-3xl font-bold text-accent">$34/m²</p>
+                <p className="text-sm text-gray-600 mt-1">Desde</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Disclaimer Note */}
+          <div className="max-w-3xl mx-auto mt-8">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+              <p className="text-amber-800 text-sm">
+                <strong>Nota:</strong> Los precios son aproximados y pueden variar según condiciones específicas del lote.
+              </p>
+            </div>
           </div>
         </div>
       </section>
