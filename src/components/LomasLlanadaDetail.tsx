@@ -4,6 +4,8 @@ import { Check, X, ChevronLeft, ChevronRight, MapPin, Building, TreePine, Shield
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
+import FinancingBanner from "@/components/FinancingBanner";
+import FinancingSection from "@/components/FinancingSection";
 
 // Data for Bloque 1 lots
 const bloque1Lots = [
@@ -224,6 +226,9 @@ export default function LomasLlanadaDetail() {
           </div>
         </div>
       </section>
+
+      {/* Financing Banner */}
+      <FinancingBanner />
 
       {/* Video Showcase Section */}
       <section className="py-16 bg-gradient-to-br from-gray-50 to-white">
@@ -657,6 +662,9 @@ export default function LomasLlanadaDetail() {
           </div>
         </div>
       </section>
+
+      {/* Financing Section */}
+      <FinancingSection onContactClick={handleContactClick} />
 
       {/* Strategic Location Highlight */}
       <section className="py-20 bg-gradient-to-br from-primary/10 to-accent/10">

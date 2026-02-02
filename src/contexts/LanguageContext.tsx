@@ -131,17 +131,27 @@ const translations: Record<LanguageCode, any> = {
       perMonth: "mes",
     },
     financing: {
-      title: "Financiamiento Real",
+      badge: "Inversión Inteligente",
+      title: "Financiamiento del 100%",
       subtitle:
-        "Sin prima, sin bancos, sin fiador y con aprobación inmediata. Elegís el lote, activamos el plan y empezás a invertir sin trámites bancarios ni papeleo eterno.",
+        "Sin prima, sin bancos, sin fiador. Elegís el lote, activamos el plan y empezás a invertir sin trámites bancarios ni papeleo eterno.",
+      highlight: "✨ Ofrecemos las mejores condiciones del mercado ✨",
       noPrima: "Sin Prima",
       noPrimaDesc: "Comienza tu inversión sin necesidad de pago inicial",
       noBanks: "Sin Bancos, Sin Fiador",
       noBanksDesc:
-        "Aprobación inmediata sin trámites bancarios ni papeleo eterno",
-      immediate: "Aprobación Inmediata",
-      immediateDesc: "Elegís el lote, activamos el plan y empezás a invertir",
+        "Proceso directo sin trámites bancarios ni papeleo eterno",
+      requirements: "Requisitos Mínimos",
+      requirementsDesc: "Solo cédula de identidad y visión",
+      conditionsTitle: "Las Mejores Condiciones del Mercado",
+      bestRates: "Tasas Competitivas",
+      bestRatesDesc: "Tasas de interés justas y transparentes, diseñadas para tu éxito",
+      flexibility: "Flexibilidad Total",
+      flexibilityDesc: "Plazos adaptables a tus necesidades, desde 2 hasta 10 años",
+      transparency: "Transparencia Absoluta",
+      transparencyDesc: "Sin costos ocultos ni sorpresas. Todo claro desde el inicio",
       cta: "Quiero mi aprobación",
+      ctaSubtext: "Respuesta en menos de 24 horas",
     },
     contact: {
       title: "Contáctanos",
@@ -179,6 +189,14 @@ const translations: Record<LanguageCode, any> = {
     survey: {
       title: "Encuesta",
       subtitle: "Ayúdanos a conocerte mejor para ofrecerte la mejor experiencia.",
+    },
+    financingBanner: {
+      headline: "Financiamiento del 100%",
+      subheadline: "Solo con tu cédula hacemos el estudio. Sin prima, sin fiador.",
+      noPrima: "Sin prima",
+      noFiador: "Sin fiador",
+      soloCedula: "Solo con cédula",
+      cta: "Aplicar ahora",
     },
     booking: {
       badge: "Agenda tu visita",
@@ -413,19 +431,28 @@ const translations: Record<LanguageCode, any> = {
       perMonth: "month",
     },
     financing: {
-      title: "Real Financing",
+      badge: "Smart Investment",
+      title: "100% Financing",
       subtitle:
-        "No down payment, no banks, no guarantor and with immediate approval. You choose the lot, we activate the plan and you start investing without bank procedures or endless paperwork.",
+        "No down payment, no banks, no guarantor. You choose the lot, we activate the plan and you start investing without bank procedures or endless paperwork.",
+      highlight: "✨ We offer the best market conditions ✨",
       noPrima: "No Down Payment",
       noPrimaDesc:
         "Start your investment without the need for an initial payment",
       noBanks: "No Banks, No Guarantor",
       noBanksDesc:
-        "Immediate approval without bank procedures or endless paperwork",
-      immediate: "Immediate Approval",
-      immediateDesc:
-        "You choose the lot, we activate the plan and you start investing",
+        "Direct process without bank procedures or endless paperwork",
+      requirements: "Minimal Requirements",
+      requirementsDesc: "Only ID and visa required",
+      conditionsTitle: "The Best Market Conditions",
+      bestRates: "Competitive Rates",
+      bestRatesDesc: "Fair and transparent interest rates, designed for your success",
+      flexibility: "Total Flexibility",
+      flexibilityDesc: "Payment terms adaptable to your needs, from 2 to 10 years",
+      transparency: "Absolute Transparency",
+      transparencyDesc: "No hidden costs or surprises. Everything clear from the start",
       cta: "I want my approval",
+      ctaSubtext: "Response in less than 24 hours",
     },
     contact: {
       title: "Contact Us",
@@ -463,6 +490,14 @@ const translations: Record<LanguageCode, any> = {
     survey: {
       title: "Survey",
       subtitle: "Help us get to know you better to offer you the best experience.",
+    },
+    financingBanner: {
+      headline: "We finance 100% of the land!",
+      subheadline: "Only with your ID we do the study. No down payment, no guarantor.",
+      noPrima: "No down payment",
+      noFiador: "No guarantor",
+      soloCedula: "Only ID required",
+      cta: "Apply now",
     },
     booking: {
       badge: "Schedule your visit",

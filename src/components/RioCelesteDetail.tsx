@@ -1,35 +1,37 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, X, ChevronLeft, ChevronRight, Info, Calendar, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Info, Calendar, ZoomIn, ZoomOut, Maximize2, Move, FileText } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
+import FinancingBanner from "@/components/FinancingBanner";
+import FinancingSection from "@/components/FinancingSection";
 
 // Data for Oasis Río Celeste lots
 const rioCelesteLots = [
   // Lotes pequeños - $45 USD/m²
   { id: 2, size: 1632, pricePerM2: 45, total: 73440, available: true },
-  { id: 3, size: 1300, pricePerM2: 45, total: 58500, available: true },
-  { id: 4, size: 1300, pricePerM2: 45, total: 58500, available: true },
-  { id: 5, size: 1300, pricePerM2: 45, total: 58500, available: true },
+  { id: 3, size: 1300, pricePerM2: 45, total: 58500, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f6803fc45e31.pdf" },
+  { id: 4, size: 1300, pricePerM2: 45, total: 58500, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b710efd660795e1e98.pdf" },
+  { id: 5, size: 1300, pricePerM2: 45, total: 58500, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7cab0330346a3.pdf" },
   // Lotes grandes - $34 USD/m² - 5,000 m²
   { id: 1, size: 5000, pricePerM2: 34, total: 170000, available: false },
-  { id: 6, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 7, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 8, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 9, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 10, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 11, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 12, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 6, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7caf78c03469e.pdf" },
+  { id: 7, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b77675770f0e3e8a77.pdf" },
+  { id: 8, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b718ecce76ce26b5e1.pdf" },
+  { id: 9, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7767577e8b83e8a7d.pdf" },
+  { id: 10, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7f7a87780474e9c07.pdf" },
+  { id: 11, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f65290c45e33.pdf" },
+  { id: 12, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca4e510346a7.pdf" },
   // Lote 13 especial - 6,000 m²
   { id: 13, size: 6000, pricePerM2: 34, total: 204000, available: false },
-  { id: 14, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 15, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 16, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 17, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 18, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 19, size: 5000, pricePerM2: 34, total: 170000, available: true },
-  { id: 20, size: 5000, pricePerM2: 34, total: 170000, available: true },
+  { id: 14, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757794463e8a7e.pdf" },
+  { id: 15, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b8f7a87718884e9c0b.pdf" },
+  { id: 16, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b83c458e581bd62b57.pdf" },
+  { id: 17, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf" },
+  { id: 18, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf" },
+  { id: 19, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757707553e8a78.pdf" },
+  { id: 20, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca56f70346a2.pdf" },
 ];
 
 const formatCurrencyUSD = (amount: number) => {
@@ -229,6 +231,9 @@ export default function RioCelesteDetail() {
         </div>
       </section>
 
+      {/* Financing Banner */}
+      <FinancingBanner />
+
       {/* Gallery Section */}
       <section className="py-16 bg-gradient-to-b from-white to-gray-50">
         <div className="container mx-auto px-4 lg:px-8">
@@ -348,16 +353,16 @@ export default function RioCelesteDetail() {
             <Card className="border-accent/20 hover:shadow-xl transition-shadow overflow-hidden">
               <div className="bg-accent/10 p-4 text-center">
                 <span className="bg-accent text-white px-3 py-1 rounded-full text-sm font-medium">
-                  Desde 600 m²
+                  Desde 1,300 m²
                 </span>
               </div>
               <CardContent className="p-8 text-center">
                 <h3 className="text-2xl font-bold text-primary mb-2">
                   Lotes pequeños desde 1,300 m²
                 </h3>
-                <p className="text-4xl font-bold text-accent mb-2">₡45,000</p>
+                <p className="text-4xl font-bold text-accent mb-2">$45</p>
                 <p className="text-gray-600 mb-2">por metro cuadrado</p>
-                <p className="text-2xl font-semibold text-primary mb-4">₡27,000,000</p>
+                <p className="text-2xl font-semibold text-primary mb-4">$58,500</p>
                 <p className="text-gray-700">
                   Ideales para construcción de vivienda familiar. Ubicados a orilla de calle con fácil acceso.
                 </p>
@@ -375,9 +380,9 @@ export default function RioCelesteDetail() {
                 <h3 className="text-2xl font-bold text-primary mb-2">
                   Lotes grandes desde 5,000 m²
                 </h3>
-                <p className="text-4xl font-bold text-accent mb-2">₡17,000</p>
+                <p className="text-4xl font-bold text-accent mb-2">$34</p>
                 <p className="text-gray-600 mb-2">por metro cuadrado</p>
-                <p className="text-2xl font-semibold text-primary mb-4">₡85,000,000</p>
+                <p className="text-2xl font-semibold text-primary mb-4">$170,000</p>
                 <p className="text-gray-700">
                   Lotes premium con vistas panorámicas espectaculares a Ciudad Quesada y el Volcán Arenal.
                 </p>
@@ -651,14 +656,14 @@ export default function RioCelesteDetail() {
                               <p className="text-xs text-gray-500 mb-1">Precio Total Aprox.</p>
                               <p className="font-bold text-accent text-xl">{formatCurrencyUSD(lot.total)}</p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex flex-col gap-2">
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   window.open("https://api.whatsapp.com/send?phone=50684142111&text=" + encodeURIComponent(`Hola, me interesa el Lote ${lot.id} de ${lot.size.toLocaleString('es-CR')} m² en Oasis Río Celeste. Precio aproximado: ${formatCurrencyUSD(lot.total)}`), "_blank");
                                 }}
                                 size="sm"
-                                className="flex-1 bg-accent hover:bg-accent/90 text-white text-xs"
+                                className="w-full bg-accent hover:bg-accent/90 text-white text-xs"
                               >
                                 <Info className="w-3 h-3 mr-1" />
                                 Solicitar Info
@@ -670,11 +675,25 @@ export default function RioCelesteDetail() {
                                 }}
                                 size="sm"
                                 variant="outline"
-                                className="flex-1 border-primary text-primary hover:bg-primary/5 text-xs"
+                                className="w-full border-primary text-primary hover:bg-primary/5 text-xs"
                               >
                                 <Calendar className="w-3 h-3 mr-1" />
                                 Agendar Visita
                               </Button>
+                              {lot.planoVisado && (
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(lot.planoVisado, "_blank");
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full border-accent text-accent hover:bg-accent/5 text-xs"
+                                >
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  Ver Plano Visado
+                                </Button>
+                              )}
                             </div>
                           </div>
                         )}
@@ -718,6 +737,9 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
+
+      {/* Financing Section */}
+      <FinancingSection onContactClick={handleContactClick} />
 
       {/* Image Text Split - Security */}
       <section className="py-20 bg-white">

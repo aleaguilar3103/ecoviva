@@ -11,7 +11,7 @@ export default function HeroSection({
 }: HeroSectionProps) {
   const { t } = useLanguage();
   return (
-    <section className="relative h-screen min-h-[600px] flex items-center overflow-hidden">
+    <section data-section="hero" className="relative h-screen min-h-[600px] flex items-center overflow-hidden pt-[120px]">
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-top bg-no-repeat"
