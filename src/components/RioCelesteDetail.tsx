@@ -1,6 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, X, ChevronLeft, ChevronRight, Info, Calendar, ZoomIn, ZoomOut, Maximize2, Move, FileText } from "lucide-react";
+import {
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Calendar,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Move,
+  FileText,
+} from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
@@ -11,33 +23,169 @@ import FinancingSection from "@/components/FinancingSection";
 const rioCelesteLots = [
   // Lotes pequeños - $45 USD/m²
   { id: 2, size: 1632, pricePerM2: 45, total: 73440, available: true },
-  { id: 3, size: 1300, pricePerM2: 45, total: 58500, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f6803fc45e31.pdf" },
-  { id: 4, size: 1300, pricePerM2: 45, total: 58500, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b710efd660795e1e98.pdf" },
-  { id: 5, size: 1300, pricePerM2: 45, total: 58500, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7cab0330346a3.pdf" },
+  {
+    id: 3,
+    size: 1300,
+    pricePerM2: 45,
+    total: 58500,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f6803fc45e31.pdf",
+  },
+  {
+    id: 4,
+    size: 1300,
+    pricePerM2: 45,
+    total: 58500,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b710efd660795e1e98.pdf",
+  },
+  {
+    id: 5,
+    size: 1300,
+    pricePerM2: 45,
+    total: 58500,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7cab0330346a3.pdf",
+  },
   // Lotes grandes - $34 USD/m² - 5,000 m²
   { id: 1, size: 5000, pricePerM2: 34, total: 170000, available: false },
-  { id: 6, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7caf78c03469e.pdf" },
-  { id: 7, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b77675770f0e3e8a77.pdf" },
-  { id: 8, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b718ecce76ce26b5e1.pdf" },
-  { id: 9, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7767577e8b83e8a7d.pdf" },
-  { id: 10, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7f7a87780474e9c07.pdf" },
-  { id: 11, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f65290c45e33.pdf" },
-  { id: 12, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca4e510346a7.pdf" },
+  {
+    id: 6,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7caf78c03469e.pdf",
+  },
+  {
+    id: 7,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b77675770f0e3e8a77.pdf",
+  },
+  {
+    id: 8,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b718ecce76ce26b5e1.pdf",
+  },
+  {
+    id: 9,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7767577e8b83e8a7d.pdf",
+  },
+  {
+    id: 10,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7f7a87780474e9c07.pdf",
+  },
+  {
+    id: 11,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f65290c45e33.pdf",
+  },
+  {
+    id: 12,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca4e510346a7.pdf",
+  },
   // Lote 13 especial - 6,000 m²
   { id: 13, size: 6000, pricePerM2: 34, total: 204000, available: false },
-  { id: 14, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757794463e8a7e.pdf" },
-  { id: 15, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b8f7a87718884e9c0b.pdf" },
-  { id: 16, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b83c458e581bd62b57.pdf" },
-  { id: 17, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf" },
-  { id: 18, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf" },
-  { id: 19, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757707553e8a78.pdf" },
-  { id: 20, size: 5000, pricePerM2: 34, total: 170000, available: true, planoVisado: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca56f70346a2.pdf" },
+  {
+    id: 14,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757794463e8a7e.pdf",
+  },
+  {
+    id: 15,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b8f7a87718884e9c0b.pdf",
+  },
+  {
+    id: 16,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b83c458e581bd62b57.pdf",
+  },
+  {
+    id: 17,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf",
+  },
+  {
+    id: 18,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf",
+  },
+  {
+    id: 19,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757707553e8a78.pdf",
+  },
+  {
+    id: 20,
+    size: 5000,
+    pricePerM2: 34,
+    total: 170000,
+    available: true,
+    planoVisado:
+      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca56f70346a2.pdf",
+  },
 ];
 
 const formatCurrencyUSD = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -48,8 +196,10 @@ export default function RioCelesteDetail() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [selectedLot, setSelectedLot] = useState<typeof rioCelesteLots[0] | null>(null);
-  
+  const [selectedLot, setSelectedLot] = useState<
+    (typeof rioCelesteLots)[0] | null
+  >(null);
+
   // Image zoom and pan states
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPosition, setMapPosition] = useState({ x: 0, y: 0 });
@@ -58,7 +208,7 @@ export default function RioCelesteDetail() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   const handleContactClick = () => {
@@ -154,7 +304,7 @@ export default function RioCelesteDetail() {
     "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6949d089adf7e4751ccdbe80.jpg",
     "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6949d089938f5c1938174c2d.jpg",
     "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6949d089ee99d04d65b0d535.jpg",
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6949d089b624f90a006172a2.jpg"
+    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6949d089b624f90a006172a2.jpg",
   ];
 
   const openLightbox = (index: number) => {
@@ -171,16 +321,24 @@ export default function RioCelesteDetail() {
   };
 
   const prevImage = () => {
-    setLightboxIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length);
+    setLightboxIndex(
+      (prev) => (prev - 1 + galleryImages.length) % galleryImages.length,
+    );
   };
 
-  const scrollGallery = (direction: 'left' | 'right') => {
+  const scrollGallery = (direction: "left" | "right") => {
     if (scrollContainerRef.current) {
       const scrollAmount = 300;
-      if (direction === 'left') {
-        scrollContainerRef.current.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      if (direction === "left") {
+        scrollContainerRef.current.scrollBy({
+          left: -scrollAmount,
+          behavior: "smooth",
+        });
       } else {
-        scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        scrollContainerRef.current.scrollBy({
+          left: scrollAmount,
+          behavior: "smooth",
+        });
       }
     }
   };
@@ -198,7 +356,7 @@ export default function RioCelesteDetail() {
         >
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         </div>
-        
+
         <div className="relative h-full container mx-auto px-4 lg:px-8 flex items-center">
           <div className="max-w-3xl text-white">
             <h1 className="text-5xl md:text-6xl font-bold mb-4">
@@ -219,7 +377,7 @@ export default function RioCelesteDetail() {
                 {t("rioCelesteDetail.requestInfo")}
               </Button>
               <Button
-                onClick={() => window.location.href = "/agendar-visita"}
+                onClick={() => (window.location.href = "/agendar-visita")}
                 size="lg"
                 variant="outline"
                 className="bg-white/10 hover:bg-white/20 text-white border-white/30"
@@ -230,10 +388,8 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Financing Banner */}
       <FinancingBanner />
-
       {/* Gallery Section */}
       <section className="py-16 bg-gradient-to-b from-white to-gray-50">
         <div className="container mx-auto px-4 lg:px-8">
@@ -250,7 +406,7 @@ export default function RioCelesteDetail() {
           <div className="relative max-w-6xl mx-auto">
             {/* Left Arrow */}
             <button
-              onClick={() => scrollGallery('left')}
+              onClick={() => scrollGallery("left")}
               className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 md:-translate-x-8 z-10 bg-primary hover:bg-primary/90 text-white p-2 rounded-full transition-all hover:scale-110 shadow-lg"
             >
               <ChevronLeft size={24} />
@@ -260,7 +416,7 @@ export default function RioCelesteDetail() {
             <div
               ref={scrollContainerRef}
               className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-4"
-              style={{ scrollBehavior: 'smooth' }}
+              style={{ scrollBehavior: "smooth" }}
             >
               {galleryImages.map((image, index) => (
                 <div
@@ -279,7 +435,7 @@ export default function RioCelesteDetail() {
 
             {/* Right Arrow */}
             <button
-              onClick={() => scrollGallery('right')}
+              onClick={() => scrollGallery("right")}
               className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 md:translate-x-8 z-10 bg-primary hover:bg-primary/90 text-white p-2 rounded-full transition-all hover:scale-110 shadow-lg"
             >
               <ChevronRight size={24} />
@@ -287,7 +443,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Lightbox Modal */}
       {lightboxOpen && (
         <div
@@ -329,7 +484,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       )}
-
       {/* Content Block 1 */}
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
@@ -341,7 +495,6 @@ export default function RioCelesteDetail() {
           </p>
         </div>
       </section>
-
       {/* Pricing Section */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
@@ -362,9 +515,8 @@ export default function RioCelesteDetail() {
                 </h3>
                 <p className="text-4xl font-bold text-accent mb-2">$45</p>
                 <p className="text-gray-600 mb-2">por metro cuadrado</p>
-                <p className="text-2xl font-semibold text-primary mb-4">$58,500</p>
-                <p className="text-gray-700">
-                  Ideales para construcción de vivienda familiar. Ubicados a orilla de calle con fácil acceso.
+                <p className="text-2xl font-semibold text-primary">
+                  $58,500
                 </p>
               </CardContent>
             </Card>
@@ -373,7 +525,7 @@ export default function RioCelesteDetail() {
             <Card className="border-accent/20 hover:shadow-xl transition-shadow overflow-hidden ring-2 ring-accent">
               <div className="bg-accent p-4 text-center">
                 <span className="text-white font-bold text-sm">
-                  Vista Panorámica
+                  Desde 5,000 m²
                 </span>
               </div>
               <CardContent className="p-8 text-center">
@@ -382,16 +534,14 @@ export default function RioCelesteDetail() {
                 </h3>
                 <p className="text-4xl font-bold text-accent mb-2">$34</p>
                 <p className="text-gray-600 mb-2">por metro cuadrado</p>
-                <p className="text-2xl font-semibold text-primary mb-4">$170,000</p>
-                <p className="text-gray-700">
-                  Lotes premium con vistas panorámicas espectaculares a Ciudad Quesada y el Volcán Arenal.
+                <p className="text-2xl font-semibold text-primary">
+                  $170,000
                 </p>
               </CardContent>
             </Card>
           </div>
         </div>
       </section>
-
       {/* Image Text Split - Investment Options */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
@@ -426,7 +576,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Highlight Block - River Access */}
       <section className="py-20 bg-gradient-to-br from-primary/10 to-accent/10">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl text-center">
@@ -453,7 +602,6 @@ export default function RioCelesteDetail() {
           </p>
         </div>
       </section>
-
       {/* Gallery Section */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
@@ -476,7 +624,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Features Grid - Common Areas */}
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8">
@@ -491,7 +638,10 @@ export default function RioCelesteDetail() {
               { icon: "🧘", text: t("rioCelesteDetail.commonArea4") },
               { icon: "🌿", text: t("rioCelesteDetail.commonArea5") },
             ].map((feature, index) => (
-              <Card key={index} className="border-accent/20 hover:shadow-lg transition-shadow">
+              <Card
+                key={index}
+                className="border-accent/20 hover:shadow-lg transition-shadow"
+              >
                 <CardContent className="p-6 flex items-center">
                   <div className="text-4xl mr-4">{feature.icon}</div>
                   <p className="text-gray-700 font-medium">{feature.text}</p>
@@ -501,9 +651,11 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Interactive Lot Distribution Section */}
-      <section id="distribucion-lotes" className="py-20 bg-gradient-to-b from-white to-gray-50">
+      <section
+        id="distribucion-lotes"
+        className="py-20 bg-gradient-to-b from-white to-gray-50"
+      >
         <div className="container mx-auto px-4 lg:px-8">
           {/* Section Header */}
           <div className="text-center mb-12">
@@ -522,12 +674,17 @@ export default function RioCelesteDetail() {
             <div className="grid lg:grid-cols-5 gap-8">
               {/* Map Image */}
               <div className="lg:col-span-3">
-                <div 
+                <div
                   ref={mapContainerRef}
                   className="relative rounded-2xl overflow-hidden shadow-xl bg-white border border-gray-100"
-                  style={{ 
-                    height: '600px',
-                    cursor: mapZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+                  style={{
+                    height: "600px",
+                    cursor:
+                      mapZoom > 1
+                        ? isDragging
+                          ? "grabbing"
+                          : "grab"
+                        : "default",
                   }}
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
@@ -543,11 +700,11 @@ export default function RioCelesteDetail() {
                     className="w-full h-full object-contain transition-transform duration-200"
                     style={{
                       transform: `scale(${mapZoom}) translate(${mapPosition.x / mapZoom}px, ${mapPosition.y / mapZoom}px)`,
-                      transformOrigin: 'center center',
+                      transformOrigin: "center center",
                     }}
                     draggable={false}
                   />
-                  
+
                   {/* Zoom Controls */}
                   <div className="absolute top-4 right-4 flex flex-col gap-2">
                     <Button
@@ -592,7 +749,8 @@ export default function RioCelesteDetail() {
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mt-3 text-center">
-                  Usa los controles de zoom para ver los detalles. Haz clic en un lote de la lista para ver información.
+                  Usa los controles de zoom para ver los detalles. Haz clic en
+                  un lote de la lista para ver información.
                 </p>
               </div>
 
@@ -601,104 +759,136 @@ export default function RioCelesteDetail() {
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   <div className="bg-primary p-4">
                     <h3 className="text-xl font-bold text-white">
-                      Lotes Disponibles ({rioCelesteLots.filter(lot => lot.available).length})
+                      Lotes Disponibles (
+                      {rioCelesteLots.filter((lot) => lot.available).length})
                     </h3>
                   </div>
                   <div className="max-h-[600px] overflow-y-auto">
-                    {rioCelesteLots.sort((a, b) => a.id - b.id).map((lot) => (
-                      <div
-                        key={lot.id}
-                        onClick={() => lot.available && setSelectedLot(selectedLot?.id === lot.id ? null : lot)}
-                        className={`p-4 border-b border-gray-100 transition-all ${
-                          lot.available ? 'cursor-pointer hover:bg-accent/5' : 'opacity-50 cursor-not-allowed bg-gray-50'
-                        } ${
-                          selectedLot?.id === lot.id ? 'bg-accent/10 border-l-4 border-l-accent' : ''
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-primary text-lg">Lote {lot.id}</span>
-                              {!lot.available && (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                                  No Disponible
+                    {rioCelesteLots
+                      .sort((a, b) => a.id - b.id)
+                      .map((lot) => (
+                        <div
+                          key={lot.id}
+                          onClick={() =>
+                            lot.available &&
+                            setSelectedLot(
+                              selectedLot?.id === lot.id ? null : lot,
+                            )
+                          }
+                          className={`p-4 border-b border-gray-100 transition-all ${
+                            lot.available
+                              ? "cursor-pointer hover:bg-accent/5"
+                              : "opacity-50 cursor-not-allowed bg-gray-50"
+                          } ${
+                            selectedLot?.id === lot.id
+                              ? "bg-accent/10 border-l-4 border-l-accent"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-primary text-lg">
+                                  Lote {lot.id}
                                 </span>
-                              )}
-                            </div>
-                            <p className="text-gray-600 text-sm mt-1">
-                              {lot.size.toLocaleString('es-CR')} m²
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-accent">
-                              {formatCurrencyUSD(lot.total)}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ${lot.pricePerM2}/m²
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Expanded Details */}
-                        {selectedLot?.id === lot.id && lot.available && (
-                          <div className="mt-4 pt-4 border-t border-gray-200 animate-fadeIn">
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                              <div className="bg-gray-50 rounded-lg p-3">
-                                <p className="text-xs text-gray-500 mb-1">Tamaño</p>
-                                <p className="font-bold text-primary">{lot.size.toLocaleString('es-CR')} m²</p>
+                                {!lot.available && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                    No Disponible
+                                  </span>
+                                )}
                               </div>
-                              <div className="bg-gray-50 rounded-lg p-3">
-                                <p className="text-xs text-gray-500 mb-1">Precio/m²</p>
-                                <p className="font-bold text-primary">${lot.pricePerM2} USD</p>
+                              <p className="text-gray-600 text-sm mt-1">
+                                {lot.size.toLocaleString("es-CR")} m²
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-accent">
+                                {formatCurrencyUSD(lot.total)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                ${lot.pricePerM2}/m²
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Expanded Details */}
+                          {selectedLot?.id === lot.id && lot.available && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 animate-fadeIn">
+                              <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <p className="text-xs text-gray-500 mb-1">
+                                    Tamaño
+                                  </p>
+                                  <p className="font-bold text-primary">
+                                    {lot.size.toLocaleString("es-CR")} m²
+                                  </p>
+                                </div>
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <p className="text-xs text-gray-500 mb-1">
+                                    Precio/m²
+                                  </p>
+                                  <p className="font-bold text-primary">
+                                    ${lot.pricePerM2} USD
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                            <div className="bg-accent/10 rounded-lg p-3 mb-4">
-                              <p className="text-xs text-gray-500 mb-1">Precio Total Aprox.</p>
-                              <p className="font-bold text-accent text-xl">{formatCurrencyUSD(lot.total)}</p>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                              <Button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open("https://api.whatsapp.com/send?phone=50684142111&text=" + encodeURIComponent(`Hola, me interesa el Lote ${lot.id} de ${lot.size.toLocaleString('es-CR')} m² en Oasis Río Celeste. Precio aproximado: ${formatCurrencyUSD(lot.total)}`), "_blank");
-                                }}
-                                size="sm"
-                                className="w-full bg-accent hover:bg-accent/90 text-white text-xs"
-                              >
-                                <Info className="w-3 h-3 mr-1" />
-                                Solicitar Info
-                              </Button>
-                              <Button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.location.href = "/agendar-visita";
-                                }}
-                                size="sm"
-                                variant="outline"
-                                className="w-full border-primary text-primary hover:bg-primary/5 text-xs"
-                              >
-                                <Calendar className="w-3 h-3 mr-1" />
-                                Agendar Visita
-                              </Button>
-                              {lot.planoVisado && (
+                              <div className="bg-accent/10 rounded-lg p-3 mb-4">
+                                <p className="text-xs text-gray-500 mb-1">
+                                  Precio Total Aprox.
+                                </p>
+                                <p className="font-bold text-accent text-xl">
+                                  {formatCurrencyUSD(lot.total)}
+                                </p>
+                              </div>
+                              <div className="flex flex-col gap-2">
                                 <Button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    window.open(lot.planoVisado, "_blank");
+                                    window.open(
+                                      "https://api.whatsapp.com/send?phone=50684142111&text=" +
+                                        encodeURIComponent(
+                                          `Hola, me interesa el Lote ${lot.id} de ${lot.size.toLocaleString("es-CR")} m² en Oasis Río Celeste. Precio aproximado: ${formatCurrencyUSD(lot.total)}`,
+                                        ),
+                                      "_blank",
+                                    );
+                                  }}
+                                  size="sm"
+                                  className="w-full bg-accent hover:bg-accent/90 text-white text-xs"
+                                >
+                                  <Info className="w-3 h-3 mr-1" />
+                                  Solicitar Info
+                                </Button>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.location.href = "/agendar-visita";
                                   }}
                                   size="sm"
                                   variant="outline"
-                                  className="w-full border-accent text-accent hover:bg-accent/5 text-xs"
+                                  className="w-full border-primary text-primary hover:bg-primary/5 text-xs"
                                 >
-                                  <FileText className="w-3 h-3 mr-1" />
-                                  Ver Plano Visado
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  Agendar Visita
                                 </Button>
-                              )}
+                                {lot.planoVisado && (
+                                  <Button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.open(lot.planoVisado, "_blank");
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full border-accent text-accent hover:bg-accent/5 text-xs"
+                                  >
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    Ver Plano Visado
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </div>
+                      ))}
                   </div>
                 </div>
               </div>
@@ -709,7 +899,9 @@ export default function RioCelesteDetail() {
           <div className="max-w-4xl mx-auto mt-12">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
-                <p className="text-3xl font-bold text-accent">{rioCelesteLots.filter(lot => lot.available).length}</p>
+                <p className="text-3xl font-bold text-accent">
+                  {rioCelesteLots.filter((lot) => lot.available).length}
+                </p>
                 <p className="text-sm text-gray-600 mt-1">Lotes disponibles</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
@@ -731,16 +923,15 @@ export default function RioCelesteDetail() {
           <div className="max-w-3xl mx-auto mt-8">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
               <p className="text-amber-800 text-sm">
-                <strong>Nota:</strong> Los precios son aproximados y pueden variar según condiciones específicas del lote.
+                <strong>Nota:</strong> Los precios son aproximados y pueden
+                variar según condiciones específicas del lote.
               </p>
             </div>
           </div>
         </div>
       </section>
-
       {/* Financing Section */}
       <FinancingSection onContactClick={handleContactClick} />
-
       {/* Image Text Split - Security */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
@@ -775,7 +966,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Location Content Block */}
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
@@ -787,7 +977,6 @@ export default function RioCelesteDetail() {
           </p>
         </div>
       </section>
-
       {/* Target Audience Cards */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
@@ -824,7 +1013,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* Summary Block */}
       <section className="py-20 bg-gradient-to-br from-primary/5 to-accent/5">
         <div className="container mx-auto px-4 lg:px-8">
@@ -842,7 +1030,10 @@ export default function RioCelesteDetail() {
               t("rioCelesteDetail.summary7"),
               t("rioCelesteDetail.summary8"),
             ].map((item, index) => (
-              <div key={index} className="flex items-center bg-white p-4 rounded-lg shadow-sm">
+              <div
+                key={index}
+                className="flex items-center bg-white p-4 rounded-lg shadow-sm"
+              >
                 <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center mr-3 flex-shrink-0">
                   <Check className="w-4 h-4 text-accent" />
                 </div>
@@ -852,7 +1043,6 @@ export default function RioCelesteDetail() {
           </div>
         </div>
       </section>
-
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-primary to-primary/90">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl text-center">
@@ -871,7 +1061,7 @@ export default function RioCelesteDetail() {
               {t("rioCelesteDetail.requestInfo")}
             </Button>
             <Button
-              onClick={() => window.location.href = "/agendar-visita"}
+              onClick={() => (window.location.href = "/agendar-visita")}
               size="lg"
               variant="outline"
               className="bg-white/10 hover:bg-white/20 text-white border-white/30"
