@@ -514,7 +514,9 @@ export default function RioCelesteDetail() {
                   {t("rioCelesteDetail.smallLotsTitle")}
                 </h3>
                 <p className="text-4xl font-bold text-accent mb-2">$45</p>
-                <p className="text-gray-600 mb-2">{t("rioCelesteDetail.perSquareMeter")}</p>
+                <p className="text-gray-600 mb-2">
+                  {t("rioCelesteDetail.perSquareMeter")}
+                </p>
                 <p className="text-2xl font-semibold text-primary">$58,500</p>
               </CardContent>
             </Card>
@@ -531,8 +533,10 @@ export default function RioCelesteDetail() {
                   {t("rioCelesteDetail.largeLotsTitle")}
                 </h3>
                 <p className="text-4xl font-bold text-accent mb-2">$30</p>
-                <p className="text-gray-600 mb-2">{t("rioCelesteDetail.perSquareMeter")}</p>
-                <p className="text-2xl font-semibold text-primary">$170,000</p>
+                <p className="text-gray-600 mb-2">
+                  {t("rioCelesteDetail.perSquareMeter")}
+                </p>
+                <p className="text-2xl font-semibold text-primary">$150,000</p>
               </CardContent>
             </Card>
           </div>
@@ -898,19 +902,27 @@ export default function RioCelesteDetail() {
                 <p className="text-3xl font-bold text-accent">
                   {rioCelesteLots.filter((lot) => lot.available).length}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.lotsAvailable")}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {t("rioCelesteDetail.lotsAvailable")}
+                </p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-primary">1,300 m²</p>
-                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.minimumSize")}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {t("rioCelesteDetail.minimumSize")}
+                </p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-primary">6,000 m²</p>
-                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.maximumSize")}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {t("rioCelesteDetail.maximumSize")}
+                </p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-accent">$34/m²</p>
-                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.from")}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {t("rioCelesteDetail.from")}
+                </p>
               </div>
             </div>
           </div>
@@ -919,7 +931,8 @@ export default function RioCelesteDetail() {
           <div className="max-w-3xl mx-auto mt-8">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
               <p className="text-amber-800 text-sm">
-                <strong>{t("rioCelesteDetail.priceNote")}</strong> {t("rioCelesteDetail.priceNoteText")}
+                <strong>{t("rioCelesteDetail.priceNote")}</strong>{" "}
+                {t("rioCelesteDetail.priceNoteText")}
               </p>
             </div>
           </div>
@@ -927,40 +940,6 @@ export default function RioCelesteDetail() {
       </section>
       {/* Financing Section */}
       <FinancingSection onContactClick={handleContactClick} />
-      {/* Image Text Split - Security */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
-            <div className="order-2 md:order-1">
-              <h2 className="text-3xl md:text-4xl font-bold text-primary mb-6">
-                {t("rioCelesteDetail.securityTitle")}
-              </h2>
-              <ul className="space-y-4">
-                {[
-                  t("rioCelesteDetail.security1"),
-                  t("rioCelesteDetail.security2"),
-                  t("rioCelesteDetail.security3"),
-                  t("rioCelesteDetail.security4"),
-                ].map((item, index) => (
-                  <li key={index} className="flex items-start">
-                    <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                      <Check className="w-4 h-4 text-accent" />
-                    </div>
-                    <span className="text-gray-700">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="order-1 md:order-2">
-              <img
-                src={projectImages[2]}
-                alt="Security and entrance"
-                className="rounded-2xl shadow-lg w-full h-[400px] object-cover"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
       {/* Location Content Block */}
       <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4 lg:px-8 max-w-4xl">
