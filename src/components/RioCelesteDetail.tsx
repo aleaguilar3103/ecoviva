@@ -499,25 +499,23 @@ export default function RioCelesteDetail() {
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 lg:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-12 text-center">
-            Opciones de lotes disponibles
+            {t("rioCelesteDetail.pricingTitle")}
           </h2>
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {/* Lotes Pequeños */}
             <Card className="border-accent/20 hover:shadow-xl transition-shadow overflow-hidden">
               <div className="bg-accent/10 p-4 text-center">
                 <span className="bg-accent text-white px-3 py-1 rounded-full text-sm font-medium">
-                  Desde 1,300 m²
+                  {t("rioCelesteDetail.smallLotsStarting")}
                 </span>
               </div>
               <CardContent className="p-8 text-center">
                 <h3 className="text-2xl font-bold text-primary mb-2">
-                  Lotes pequeños desde 1,300 m²
+                  {t("rioCelesteDetail.smallLotsTitle")}
                 </h3>
                 <p className="text-4xl font-bold text-accent mb-2">$45</p>
-                <p className="text-gray-600 mb-2">por metro cuadrado</p>
-                <p className="text-2xl font-semibold text-primary">
-                  $58,500
-                </p>
+                <p className="text-gray-600 mb-2">{t("rioCelesteDetail.perSquareMeter")}</p>
+                <p className="text-2xl font-semibold text-primary">$58,500</p>
               </CardContent>
             </Card>
 
@@ -525,18 +523,16 @@ export default function RioCelesteDetail() {
             <Card className="border-accent/20 hover:shadow-xl transition-shadow overflow-hidden ring-2 ring-accent">
               <div className="bg-accent p-4 text-center">
                 <span className="text-white font-bold text-sm">
-                  Desde 5,000 m²
+                  {t("rioCelesteDetail.largeLotsStarting")}
                 </span>
               </div>
               <CardContent className="p-8 text-center">
                 <h3 className="text-2xl font-bold text-primary mb-2">
-                  Lotes grandes desde 5,000 m²
+                  {t("rioCelesteDetail.largeLotsTitle")}
                 </h3>
-                <p className="text-4xl font-bold text-accent mb-2">$34</p>
-                <p className="text-gray-600 mb-2">por metro cuadrado</p>
-                <p className="text-2xl font-semibold text-primary">
-                  $170,000
-                </p>
+                <p className="text-4xl font-bold text-accent mb-2">$30</p>
+                <p className="text-gray-600 mb-2">{t("rioCelesteDetail.perSquareMeter")}</p>
+                <p className="text-2xl font-semibold text-primary">$170,000</p>
               </CardContent>
             </Card>
           </div>
@@ -660,13 +656,13 @@ export default function RioCelesteDetail() {
           {/* Section Header */}
           <div className="text-center mb-12">
             <span className="inline-block bg-accent text-white px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
-              Oportunidad de Inversión
+              {t("rioCelesteDetail.investmentOpportunity")}
             </span>
             <h2 className="text-4xl md:text-5xl font-bold text-primary mb-3">
-              Oasis Río Celeste – Distribución de Lotes
+              {t("rioCelesteDetail.mapTitle")}
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Lotes disponibles con precios aproximados según tamaño
+              {t("rioCelesteDetail.mapSubtitle")}
             </p>
           </div>
 
@@ -759,7 +755,7 @@ export default function RioCelesteDetail() {
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   <div className="bg-primary p-4">
                     <h3 className="text-xl font-bold text-white">
-                      Lotes Disponibles (
+                      {t("rioCelesteDetail.availableLots")} (
                       {rioCelesteLots.filter((lot) => lot.available).length})
                     </h3>
                   </div>
@@ -793,7 +789,7 @@ export default function RioCelesteDetail() {
                                 </span>
                                 {!lot.available && (
                                   <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                                    No Disponible
+                                    {t("rioCelesteDetail.noAvailable")}
                                   </span>
                                 )}
                               </div>
@@ -868,7 +864,7 @@ export default function RioCelesteDetail() {
                                   className="w-full border-primary text-primary hover:bg-primary/5 text-xs"
                                 >
                                   <Calendar className="w-3 h-3 mr-1" />
-                                  Agendar Visita
+                                  {t("rioCelesteDetail.scheduleVisit")}
                                 </Button>
                                 {lot.planoVisado && (
                                   <Button
@@ -881,7 +877,7 @@ export default function RioCelesteDetail() {
                                     className="w-full border-accent text-accent hover:bg-accent/5 text-xs"
                                   >
                                     <FileText className="w-3 h-3 mr-1" />
-                                    Ver Plano Visado
+                                    {t("rioCelesteDetail.viewPlan")}
                                   </Button>
                                 )}
                               </div>
@@ -902,19 +898,19 @@ export default function RioCelesteDetail() {
                 <p className="text-3xl font-bold text-accent">
                   {rioCelesteLots.filter((lot) => lot.available).length}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">Lotes disponibles</p>
+                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.lotsAvailable")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-primary">1,300 m²</p>
-                <p className="text-sm text-gray-600 mt-1">Tamaño mínimo</p>
+                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.minimumSize")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-primary">6,000 m²</p>
-                <p className="text-sm text-gray-600 mt-1">Tamaño máximo</p>
+                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.maximumSize")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-accent">$34/m²</p>
-                <p className="text-sm text-gray-600 mt-1">Desde</p>
+                <p className="text-sm text-gray-600 mt-1">{t("rioCelesteDetail.from")}</p>
               </div>
             </div>
           </div>
@@ -923,8 +919,7 @@ export default function RioCelesteDetail() {
           <div className="max-w-3xl mx-auto mt-8">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
               <p className="text-amber-800 text-sm">
-                <strong>Nota:</strong> Los precios son aproximados y pueden
-                variar según condiciones específicas del lote.
+                <strong>{t("rioCelesteDetail.priceNote")}</strong> {t("rioCelesteDetail.priceNoteText")}
               </p>
             </div>
           </div>

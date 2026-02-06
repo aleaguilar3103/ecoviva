@@ -558,7 +558,7 @@ export default function LomasLlanadaDetail() {
                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   <div className="bg-primary p-4">
                     <h3 className="text-xl font-bold text-white">
-                      Lotes Disponibles ({bloque1Lots.length})
+                      {t("lomasLlanadaDetail.availableLots")} ({bloque1Lots.length})
                     </h3>
                   </div>
                   <div className="max-h-[600px] overflow-y-auto">
@@ -644,19 +644,19 @@ export default function LomasLlanadaDetail() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-accent">{bloque1Lots.length}</p>
-                <p className="text-sm text-gray-600 mt-1">Lotes disponibles</p>
+                <p className="text-sm text-gray-600 mt-1">{t("lomasLlanadaDetail.lotsAvailable")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-primary">690 m²</p>
-                <p className="text-sm text-gray-600 mt-1">Tamaño mínimo</p>
+                <p className="text-sm text-gray-600 mt-1">{t("lomasLlanadaDetail.minimumSize")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-primary">8,141 m²</p>
-                <p className="text-sm text-gray-600 mt-1">Tamaño máximo</p>
+                <p className="text-sm text-gray-600 mt-1">{t("lomasLlanadaDetail.maximumSize")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
                 <p className="text-3xl font-bold text-accent">₡13K/m²</p>
-                <p className="text-sm text-gray-600 mt-1">Desde</p>
+                <p className="text-sm text-gray-600 mt-1">{t("lomasLlanadaDetail.from")}</p>
               </div>
             </div>
           </div>
