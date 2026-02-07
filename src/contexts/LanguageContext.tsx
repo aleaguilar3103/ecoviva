@@ -83,7 +83,7 @@ const translations: Record<LanguageCode, any> = {
         ],
         badges: ["Disponible", "Acceso privado al río", "Balneario natural"],
         description:
-          "El Río Celeste es famoso por su color turquesa único en el mundo. Ofrecemos lotes de 1300m2 y 5000m2 desde los $30 por m2, con acceso directo al río, privacidad total y un potencial extraordinario para Airbnb, glamping o finca de retiro.",
+          "El Río Celeste es famoso por su color turquesa único en el mundo. Ofrecemos lotes de 1300m2 y 5000m2 desde los $30 y los $45 por m2, con acceso directo al río, privacidad total y un potencial extraordinario para Airbnb, glamping o finca de retiro.",
         viewDetails: "Ver detalles",
       },
       llanadaViews: {
