@@ -76,12 +76,12 @@ const translations: Record<LanguageCode, any> = {
         features: [
           "Acceso privado y directo al Río Celeste",
           "15 quintas de 5.000 m² + lotes desde 1.300 m²",
-          "Seguridad: control de acceso + cámaras",
+          "Seguridad: control de acceso",
           "Ranchos BBQ, baños, senderos y deck",
         ],
         badges: ["Disponible", "Acceso privado al río", "Balneario natural"],
         description:
-          "Dentro del área del Parque Nacional Volcán Tenorio, el Río Celeste es famoso por su color turquesa único en el mundo. En este proyecto, cada quinta ofrece 5.000 m² por $170.000 USD, es decir, $34 por m², con acceso directo al río, privacidad total y un potencial extraordinario para Airbnb, glamping o finca de retiro.",
+          "El Río Celeste es famoso por su color turquesa único en el mundo. En este proyecto, cada quinta ofrece 5.000 m² por $170.000 USD, es decir, $34 por m², con acceso directo al río, privacidad total y un potencial extraordinario para Airbnb, glamping o finca de retiro.",
         viewDetails: "Ver detalles",
       },
       llanadaViews: {
