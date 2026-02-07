@@ -56,6 +56,8 @@ const translations: Record<LanguageCode, any> = {
       title:
         "Proyectos Inmobiliarios en las mejores locaciones de la Zona Norte de Costa Rica.",
       subtitle: "Financiamiento Con Aprobación Inmediata Sin Prima Ni Fiador.",
+      description:
+        "Creamos proyectos sostenibles con alto potencial de crecimiento. Financiamos al 100% — sin prima, sin fiador y sin estudio crediticio. Impulsamos inversiones seguras y proyectos que transforman la región.",
       description1:
         "Creamos proyectos sostenibles, con alto potencial de crecimiento.",
       financing:
@@ -379,6 +381,8 @@ const translations: Record<LanguageCode, any> = {
         "Real Estate Projects in the best locations of Northern Costa Rica.",
       subtitle:
         "Financing With Immediate Approval Without Down Payment or Guarantor.",
+      description:
+        "We create sustainable projects with high growth potential. 100% financing — no down payment, no guarantor, and no credit check. We promote safe investments and projects that transform the region.",
       description1:
         "We create sustainable projects with high growth potential.",
       financing:
