@@ -259,50 +259,53 @@ export default function LomasLlanadaDetail() {
       <FinancingBanner />
 
       {/* Video Showcase Section */}
-      <section className="py-16 bg-gradient-to-br from-gray-50 to-white">
+      <section className="py-8 md:py-16 bg-gradient-to-br from-gray-50 to-white">
         <div className="container mx-auto px-4 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
-            {/* Text Content */}
-            <div className="order-2 lg:order-1">
-              <h2 className="text-3xl md:text-4xl font-bold text-primary mb-4">
-                {t("lomasLlanadaDetail.videoTitle")}
-              </h2>
-              <p className="text-lg text-gray-600 mb-6">
-                {t("lomasLlanadaDetail.videoSubtitle")}
-              </p>
-              <ul className="space-y-3 mb-6">
-                <li className="flex items-center text-gray-700">
-                  <Check className="w-5 h-5 text-accent mr-3 flex-shrink-0" />
-                  {t("lomasLlanadaDetail.videoFeature1")}
-                </li>
-                <li className="flex items-center text-gray-700">
-                  <Check className="w-5 h-5 text-accent mr-3 flex-shrink-0" />
-                  {t("lomasLlanadaDetail.videoFeature2")}
-                </li>
-                <li className="flex items-center text-gray-700">
-                  <Check className="w-5 h-5 text-accent mr-3 flex-shrink-0" />
-                  {t("lomasLlanadaDetail.videoFeature3")}
-                </li>
-              </ul>
-              <Button
-                onClick={handleContactClick}
-                size="lg"
-                className="bg-accent hover:bg-accent/90 text-white"
-              >
-                {t("lomasLlanadaDetail.requestInfo")}
-              </Button>
-            </div>
+          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 md:gap-12 items-center max-w-6xl mx-auto">
             {/* Video */}
-            <div className="order-1 lg:order-2 flex justify-center">
-              <div className="rounded-2xl overflow-hidden shadow-2xl max-w-sm">
+            <div className="w-full lg:order-2 flex justify-center">
+              <div className="rounded-xl md:rounded-2xl overflow-hidden shadow-lg md:shadow-2xl w-full max-w-[280px] md:max-w-sm mx-auto">
                 <video
                   src={showcaseVideo}
                   controls
                   className="w-full h-auto"
                   poster={galleryImages[0]}
+                  playsInline
                 >
                   Tu navegador no soporta videos HTML5.
                 </video>
+              </div>
+            </div>
+            {/* Text Content */}
+            <div className="w-full lg:order-1 text-center lg:text-left">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-primary mb-3 md:mb-4">
+                {t("lomasLlanadaDetail.videoTitle")}
+              </h2>
+              <p className="text-base md:text-lg text-gray-600 mb-4 md:mb-6">
+                {t("lomasLlanadaDetail.videoSubtitle")}
+              </p>
+              <ul className="space-y-2 md:space-y-3 mb-4 md:mb-6 inline-block text-left">
+                <li className="flex items-center text-gray-700 text-sm md:text-base">
+                  <Check className="w-4 h-4 md:w-5 md:h-5 text-accent mr-2 md:mr-3 flex-shrink-0" />
+                  {t("lomasLlanadaDetail.videoFeature1")}
+                </li>
+                <li className="flex items-center text-gray-700 text-sm md:text-base">
+                  <Check className="w-4 h-4 md:w-5 md:h-5 text-accent mr-2 md:mr-3 flex-shrink-0" />
+                  {t("lomasLlanadaDetail.videoFeature2")}
+                </li>
+                <li className="flex items-center text-gray-700 text-sm md:text-base">
+                  <Check className="w-4 h-4 md:w-5 md:h-5 text-accent mr-2 md:mr-3 flex-shrink-0" />
+                  {t("lomasLlanadaDetail.videoFeature3")}
+                </li>
+              </ul>
+              <div className="flex justify-center lg:justify-start">
+                <Button
+                  onClick={handleContactClick}
+                  size="lg"
+                  className="bg-accent hover:bg-accent/90 text-white"
+                >
+                  {t("lomasLlanadaDetail.requestInfo")}
+                </Button>
               </div>
             </div>
           </div>
