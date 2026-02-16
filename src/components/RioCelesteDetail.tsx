@@ -50,13 +50,13 @@ const rioCelesteLots = [
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7cab0330346a3.pdf",
   },
-  // Lotes grandes - $34 USD/m² - 5,000 m²
-  { id: 1, size: 5000, pricePerM2: 34, total: 170000, available: false },
+  // Lotes grandes - $30 USD/m² - 5,000 m²
+  { id: 1, size: 5000, pricePerM2: 30, total: 150000, available: false },
   {
     id: 6,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7caf78c03469e.pdf",
@@ -64,8 +64,8 @@ const rioCelesteLots = [
   {
     id: 7,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b77675770f0e3e8a77.pdf",
@@ -73,8 +73,8 @@ const rioCelesteLots = [
   {
     id: 8,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b718ecce76ce26b5e1.pdf",
@@ -82,8 +82,8 @@ const rioCelesteLots = [
   {
     id: 9,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7767577e8b83e8a7d.pdf",
@@ -91,8 +91,8 @@ const rioCelesteLots = [
   {
     id: 10,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b7f7a87780474e9c07.pdf",
@@ -100,8 +100,8 @@ const rioCelesteLots = [
   {
     id: 11,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f65290c45e33.pdf",
@@ -109,19 +109,19 @@ const rioCelesteLots = [
   {
     id: 12,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca4e510346a7.pdf",
   },
   // Lote 13 especial - 6,000 m²
-  { id: 13, size: 6000, pricePerM2: 34, total: 204000, available: false },
+  { id: 13, size: 6000, pricePerM2: 30, total: 180000, available: false },
   {
     id: 14,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757794463e8a7e.pdf",
@@ -129,8 +129,8 @@ const rioCelesteLots = [
   {
     id: 15,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b8f7a87718884e9c0b.pdf",
@@ -138,8 +138,8 @@ const rioCelesteLots = [
   {
     id: 16,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b83c458e581bd62b57.pdf",
@@ -147,8 +147,8 @@ const rioCelesteLots = [
   {
     id: 17,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf",
@@ -156,8 +156,8 @@ const rioCelesteLots = [
   {
     id: 18,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf",
@@ -165,8 +165,8 @@ const rioCelesteLots = [
   {
     id: 19,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757707553e8a78.pdf",
@@ -174,8 +174,8 @@ const rioCelesteLots = [
   {
     id: 20,
     size: 5000,
-    pricePerM2: 34,
-    total: 170000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca56f70346a2.pdf",
@@ -347,7 +347,7 @@ export default function RioCelesteDetail() {
     <div className="bg-white animate-fadeIn">
       <Header />
       {/* Hero Section with Image */}
-      <section className="relative h-[60vh] min-h-[500px] bg-gray-900">
+      <section className="relative h-screen min-h-[500px] bg-gray-900">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -359,13 +359,13 @@ export default function RioCelesteDetail() {
 
         <div className="relative h-full container mx-auto px-4 lg:px-8 flex items-center">
           <div className="max-w-3xl text-white">
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 md:mb-4">
               {t("rioCelesteDetail.heroTitle")}
             </h1>
-            <p className="text-2xl mb-3 text-white/90">
+            <p className="text-base sm:text-lg md:text-2xl mb-2 md:mb-3 text-white/90">
               {t("rioCelesteDetail.heroSubtitle")}
             </p>
-            <p className="text-lg mb-8 text-white/80 leading-relaxed">
+            <p className="text-sm sm:text-base md:text-lg mb-6 md:mb-8 text-white/80 leading-relaxed">
               {t("rioCelesteDetail.heroDescription")}
             </p>
             <div className="flex flex-wrap gap-4">
@@ -919,7 +919,7 @@ export default function RioCelesteDetail() {
                 </p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
-                <p className="text-3xl font-bold text-accent">$34/m²</p>
+                <p className="text-3xl font-bold text-accent">$30/m²</p>
                 <p className="text-sm text-gray-600 mt-1">
                   {t("rioCelesteDetail.from")}
                 </p>

@@ -22,7 +22,7 @@ export default function FinancingCalculator({
 }: FinancingCalculatorProps) {
   const { t, language } = useLanguage();
   const [currency, setCurrency] = useState<"USD" | "CRC">("USD");
-  const [lotValue, setLotValue] = useState("170000");
+  const [lotValue, setLotValue] = useState("150000");
   const [term, setTerm] = useState("20");
   const [monthlyPayment, setMonthlyPayment] = useState("1529.53");
   
@@ -143,7 +143,7 @@ export default function FinancingCalculator({
                         type="number"
                         value={lotValue}
                         onChange={(e) => setLotValue(e.target.value)}
-                        placeholder={currency === "USD" ? "170000" : "85000000"}
+                        placeholder={currency === "USD" ? "150000" : "85000000"}
                         className="w-full pl-8"
                       />
                     </div>

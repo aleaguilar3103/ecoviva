@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface HeroSectionProps {
   onCTAClick?: () => void;
@@ -51,6 +52,7 @@ export default function HeroSection({
     document.getElementById("projects")?.scrollIntoView({ behavior: "smooth" }),
 }: HeroSectionProps) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,9 +99,9 @@ export default function HeroSection({
     if (slide.ctaAction === "projects") {
       document.getElementById("projects")?.scrollIntoView({ behavior: "smooth" });
     } else if (slide.ctaAction === "rioCeleste") {
-      window.location.hash = "#rio-celeste";
+      navigate("/rio-celeste-oasis-detalle");
     } else if (slide.ctaAction === "lomasLlanada") {
-      window.location.hash = "#lomas-llanada";
+      navigate("/lomas-de-la-llanada-detalle");
     } else if (slide.ctaAction === "financing") {
       document.getElementById("financing")?.scrollIntoView({ behavior: "smooth" });
     }

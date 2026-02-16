@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, X, ChevronLeft, ChevronRight, MapPin, Building, TreePine, Shield, Network, Landmark, Info, Calendar, ZoomIn, ZoomOut, Move, Maximize2 } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, MapPin, Building, TreePine, Shield, Network, Landmark, Info, Calendar, ZoomIn, ZoomOut, Move, Maximize2, FileDown } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
@@ -8,45 +8,64 @@ import FinancingBanner from "@/components/FinancingBanner";
 import FinancingSection from "@/components/FinancingSection";
 
 // Data for Bloque 1 lots
+// status: "available" | "not_available" | "sold" | "reserved"
 const bloque1Lots = [
-  { id: 1, size: 1300, pricePerM2: 45000, total: 58500000 },
-  { id: 2, size: 1300, pricePerM2: 45000, total: 58500000 },
-  { id: 3, size: 1404, pricePerM2: 45000, total: 63180000 },
-  { id: 4, size: 696, pricePerM2: 45000, total: 31320000 },
-  { id: 5, size: 690, pricePerM2: 45000, total: 31050000 },
-  { id: 6, size: 690, pricePerM2: 45000, total: 31050000 },
-  { id: 7, size: 690, pricePerM2: 45000, total: 31050000 },
-  { id: 8, size: 690, pricePerM2: 45000, total: 31050000 },
-  { id: 12, size: 1987, pricePerM2: 27000, total: 53650000 },
-  { id: 13, size: 6947, pricePerM2: 15000, total: 104205000 },
-  { id: 14, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 15, size: 5400, pricePerM2: 17000, total: 91800000 },
-  { id: 16, size: 6009, pricePerM2: 17000, total: 102153000 },
-  { id: 17, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 18, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 19, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 20, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 21, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 22, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 23, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 24, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 25, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 26, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 27, size: 5179, pricePerM2: 17000, total: 88000000 },
-  { id: 28, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 29, size: 5300, pricePerM2: 17000, total: 90000000 },
-  { id: 30, size: 5265, pricePerM2: 17000, total: 89500000 },
-  { id: 31, size: 7533, pricePerM2: 13275, total: 100000000 },
-  { id: 32, size: 6542, pricePerM2: 13000, total: 85000000 },
-  { id: 33, size: 8141, pricePerM2: 13000, total: 105800000 },
-  { id: 34, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 35, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 36, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 37, size: 5000, pricePerM2: 17000, total: 85000000 },
-  { id: 38, size: 5520, pricePerM2: 17000, total: 93850000 },
-  { id: 39, size: 5416, pricePerM2: 17000, total: 92072000 },
-  { id: 40, size: 5416, pricePerM2: 17000, total: 92072000 },
+  { id: 1, size: 1300, pricePerM2: 45000, total: 58500000, status: "not_available" as const },
+  { id: 2, size: 1300, pricePerM2: 45000, total: 58500000, status: "not_available" as const },
+  { id: 3, size: 1404, pricePerM2: 45000, total: 63180000, status: "not_available" as const },
+  { id: 4, size: 696, pricePerM2: 45000, total: 31320000, status: "not_available" as const },
+  { id: 5, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
+  { id: 6, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
+  { id: 7, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
+  { id: 8, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
+  { id: 12, size: 1987, pricePerM2: 27000, total: 53650000, status: "not_available" as const },
+  { id: 13, size: 6947, pricePerM2: 15000, total: 104205000, status: "available" as const },
+  { id: 14, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 15, size: 5400, pricePerM2: 17000, total: 91800000, status: "available" as const },
+  { id: 16, size: 6009, pricePerM2: 17000, total: 102153000, status: "reserved" as const },
+  { id: 17, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 18, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 19, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 20, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 21, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 22, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 23, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 24, size: 5000, pricePerM2: 17000, total: 85000000, status: "sold" as const },
+  { id: 25, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 26, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 27, size: 5179, pricePerM2: 17000, total: 88000000, status: "available" as const },
+  { id: 28, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 29, size: 5300, pricePerM2: 17000, total: 90000000, status: "sold" as const },
+  { id: 30, size: 5265, pricePerM2: 17000, total: 89500000, status: "available" as const },
+  { id: 31, size: 7533, pricePerM2: 13275, total: 100000000, status: "available" as const },
+  { id: 32, size: 6542, pricePerM2: 13000, total: 85000000, status: "available" as const },
+  { id: 33, size: 8141, pricePerM2: 13000, total: 105800000, status: "available" as const },
+  { id: 34, size: 5000, pricePerM2: 17000, total: 85000000, status: "reserved" as const },
+  { id: 35, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 36, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 37, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
+  { id: 38, size: 5520, pricePerM2: 17000, total: 93850000, status: "sold" as const },
+  { id: 39, size: 5416, pricePerM2: 17000, total: 92072000, status: "available" as const },
+  { id: 40, size: 5416, pricePerM2: 17000, total: 92072000, status: "available" as const },
 ];
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case "sold": return "Vendido";
+    case "reserved": return "Reservado";
+    case "not_available": return "No disponible";
+    default: return "Disponible";
+  }
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "sold": return "bg-red-100 text-red-700 border-red-200";
+    case "reserved": return "bg-amber-100 text-amber-700 border-amber-200";
+    case "not_available": return "bg-gray-100 text-gray-500 border-gray-200";
+    default: return "bg-green-100 text-green-700 border-green-200";
+  }
+};
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('es-CR', {
@@ -185,7 +204,7 @@ export default function LomasLlanadaDetail() {
     <div className="bg-white animate-fadeIn">
       <Header />
       {/* Hero Section with Image */}
-      <section className="relative h-[60vh] min-h-[500px] bg-gray-900">
+      <section className="relative h-screen min-h-[500px] bg-gray-900">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -197,13 +216,13 @@ export default function LomasLlanadaDetail() {
         
         <div className="relative h-full container mx-auto px-4 lg:px-8 flex items-center">
           <div className="max-w-3xl text-white">
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-3 md:mb-4">
               {t("lomasLlanadaDetail.heroTitle")}
             </h1>
-            <p className="text-2xl mb-3 text-white/90">
+            <p className="text-base sm:text-lg md:text-2xl mb-2 md:mb-3 text-white/90">
               {t("lomasLlanadaDetail.heroSubtitle")}
             </p>
-            <p className="text-lg mb-8 text-white/80 leading-relaxed">
+            <p className="text-sm sm:text-base md:text-lg mb-6 md:mb-8 text-white/80 leading-relaxed">
               {t("lomasLlanadaDetail.heroDescription")}
             </p>
             <div className="flex flex-wrap gap-4">
@@ -221,6 +240,15 @@ export default function LomasLlanadaDetail() {
                 className="bg-white/10 hover:bg-white/20 text-white border-white/30"
               >
                 {t("lomasLlanadaDetail.scheduleVisit")}
+              </Button>
+              <Button
+                onClick={() => window.open("https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6992aab1a9efde116d93226d.pdf", "_blank")}
+                size="lg"
+                variant="outline"
+                className="bg-white/10 hover:bg-white/20 text-white border-white/30 gap-2"
+              >
+                <FileDown className="w-5 h-5" />
+                {t("lomasLlanadaDetail.downloadInfo")}
               </Button>
             </div>
           </div>
@@ -495,7 +523,7 @@ export default function LomasLlanadaDetail() {
                   onTouchEnd={handleTouchEnd}
                 >
                   <img
-                    src="https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/697d1b9d5accfa53db315d07.png"
+                    src="https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6992a8533b3cc9dbffd5a339.png"
                     alt="Mapa Bloque 1 - Lomas de la Llanada"
                     className="w-full h-full object-contain transition-transform duration-200"
                     style={{
@@ -565,30 +593,39 @@ export default function LomasLlanadaDetail() {
                     {bloque1Lots.map((lot) => (
                       <div
                         key={lot.id}
-                        onClick={() => setSelectedLot(selectedLot?.id === lot.id ? null : lot)}
-                        className={`p-4 border-b border-gray-100 cursor-pointer transition-all hover:bg-accent/5 ${
+                        onClick={() => lot.status === "available" ? setSelectedLot(selectedLot?.id === lot.id ? null : lot) : null}
+                        className={`p-4 border-b border-gray-100 transition-all ${
+                          lot.status === "available" ? 'cursor-pointer hover:bg-accent/5' : 'opacity-70'
+                        } ${
                           selectedLot?.id === lot.id ? 'bg-accent/10 border-l-4 border-l-accent' : ''
                         }`}
                       >
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="font-bold text-primary text-lg">Lote {lot.id}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold text-lg ${lot.status === "available" ? 'text-primary' : 'text-gray-400'}`}>Lote {lot.id}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getStatusColor(lot.status)}`}>
+                                {getStatusLabel(lot.status)}
+                              </span>
+                            </div>
                             <p className="text-gray-600 text-sm mt-1">
                               {lot.size.toLocaleString('es-CR')} m²
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-accent">
-                              {formatCurrency(lot.total)}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatCurrency(lot.pricePerM2)}/m²
-                            </p>
-                          </div>
+                          {lot.status === "available" && (
+                            <div className="text-right">
+                              <p className="font-bold text-accent">
+                                {formatCurrency(lot.total)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatCurrency(lot.pricePerM2)}/m²
+                              </p>
+                            </div>
+                          )}
                         </div>
                         
                         {/* Expanded Details */}
-                        {selectedLot?.id === lot.id && (
+                        {selectedLot?.id === lot.id && lot.status === "available" && (
                           <div className="mt-4 pt-4 border-t border-gray-200 animate-fadeIn">
                             <div className="grid grid-cols-2 gap-3 mb-4">
                               <div className="bg-gray-50 rounded-lg p-3">
@@ -643,7 +680,7 @@ export default function LomasLlanadaDetail() {
           <div className="max-w-4xl mx-auto mt-12">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">
-                <p className="text-3xl font-bold text-accent">{bloque1Lots.length}</p>
+                <p className="text-3xl font-bold text-accent">{bloque1Lots.filter(l => l.status === "available").length}</p>
                 <p className="text-sm text-gray-600 mt-1">{t("lomasLlanadaDetail.lotsAvailable")}</p>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100 text-center">

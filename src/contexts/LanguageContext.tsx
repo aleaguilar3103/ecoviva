@@ -295,6 +295,7 @@ const translations: Record<LanguageCode, any> = {
       heroDescription: "Un proyecto inmobiliario con vistas panorámicas, clima único y ubicación estratégica en el corazón de Ciudad Quesada. Lotes desde 600 m² hasta 5,000 m² en una zona con planificación activa y desarrollo sostenible.",
       requestInfo: "Solicitar información",
       scheduleVisit: "Agendar visita",
+      downloadInfo: "Descarga información general",
       videoTitle: "Conoce Lomas de la Llanada",
       videoSubtitle: "Descubre las vistas y el entorno único de este proyecto",
       galleryTitle: "Galería del proyecto",
@@ -408,7 +409,7 @@ const translations: Record<LanguageCode, any> = {
         ],
         badges: ["Available", "Private river access", "Natural resort"],
         description:
-          "Within the Tenorio Volcano National Park area, Rio Celeste is famous for its unique turquoise color in the world. In this project, each quinta offers 5,000 m² for $170,000 USD, that is, $34 per m², with direct river access, total privacy and extraordinary potential for Airbnb, glamping or retreat farm.",
+          "Within the Tenorio Volcano National Park area, Rio Celeste is famous for its unique turquoise color in the world. In this project, each quinta offers 5,000 m² for $150,000 USD, that is, $30 per m², with direct river access, total privacy and extraordinary potential for Airbnb, glamping or retreat farm.",
         viewDetails: "View details",
       },
       llanadaViews: {
@@ -621,6 +622,7 @@ const translations: Record<LanguageCode, any> = {
       heroDescription: "A real estate project with panoramic views, unique climate and strategic location in the heart of Ciudad Quesada. Lots from 600 m² to 5,000 m² in an area with active planning and sustainable development.",
       requestInfo: "Request information",
       scheduleVisit: "Schedule visit",
+      downloadInfo: "Download General Information",
       videoTitle: "Discover Lomas de la Llanada",
       videoSubtitle: "Explore the views and unique environment of this project",
       galleryTitle: "Project Gallery",
