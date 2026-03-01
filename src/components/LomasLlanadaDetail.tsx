@@ -703,6 +703,64 @@ export default function LomasLlanadaDetail() {
         </div>
       </section>
 
+      {/* Small Lots Section */}
+      <section className="py-16 bg-gradient-to-br from-accent/5 to-primary/5">
+        <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
+          <div className="bg-white rounded-2xl shadow-xl border border-accent/20 overflow-hidden">
+            <div className="bg-gradient-to-r from-primary to-primary/80 p-6 md:p-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                {t("lomasLlanadaDetail.smallLotsTitle")}
+              </h2>
+            </div>
+            <div className="p-6 md:p-8">
+              <div className="flex flex-col lg:flex-row gap-8">
+                {/* Left: text + features + button */}
+                <div className="flex-1">
+                  <p className="text-gray-700 text-base md:text-lg leading-relaxed mb-8">
+                    {t("lomasLlanadaDetail.smallLotsDesc")}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                    {[
+                      t("lomasLlanadaDetail.smallLotsFeature1"),
+                      t("lomasLlanadaDetail.smallLotsFeature2"),
+                      t("lomasLlanadaDetail.smallLotsFeature3"),
+                      t("lomasLlanadaDetail.smallLotsFeature4"),
+                      t("lomasLlanadaDetail.smallLotsFeature5"),
+                    ].map((feature, i) => (
+                      <div key={i} className="flex items-center gap-3 bg-accent/5 rounded-lg px-4 py-3">
+                        <Check className="w-5 h-5 text-accent flex-shrink-0" />
+                        <span className="text-gray-800 font-medium text-sm md:text-base">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <a
+                    href="https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69a38db5167da40c2a8967b1.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-white font-semibold px-6 py-3 rounded-lg transition-colors shadow-md"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    {t("lomasLlanadaDetail.smallLotsDownload")}
+                  </a>
+                </div>
+                {/* Right: image */}
+                <div className="lg:w-80 xl:w-96 flex-shrink-0">
+                  <img
+                    src="https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69a39268753f157bbe49458c.png"
+                    alt="Small lots map"
+                    className="w-full h-full object-contain rounded-xl shadow-md"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Financing Section */}
       <FinancingSection onContactClick={handleContactClick} />
 
