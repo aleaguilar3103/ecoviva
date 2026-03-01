@@ -705,7 +705,7 @@ export default function LomasLlanadaDetail() {
 
       {/* Small Lots Section */}
       <section className="py-16 bg-gradient-to-br from-accent/5 to-primary/5">
-        <div className="container mx-auto px-4 lg:px-8 max-w-7xl">
+        <div className="container mx-auto px-4 lg:px-8 max-w-[90rem]">
           <div className="bg-white rounded-2xl shadow-xl border border-accent/20 overflow-hidden">
             <div className="bg-gradient-to-r from-primary to-primary/80 p-6 md:p-8">
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
