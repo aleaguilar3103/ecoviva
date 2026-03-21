@@ -22,36 +22,36 @@ import FinancingSection from "@/components/FinancingSection";
 // Data for Oasis Río Celeste lots
 const rioCelesteLots = [
   // Lotes pequeños - $45 USD/m²
-  { id: 2, size: 1632, pricePerM2: 45, total: 73440, available: true },
+  { id: 2, size: 1706.44, pricePerM2: 45, total: Math.round(1706.44 * 45), available: true },
   {
     id: 3,
-    size: 1300,
+    size: 1620.26,
     pricePerM2: 45,
-    total: 58500,
+    total: Math.round(1620.26 * 45),
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f6803fc45e31.pdf",
   },
   {
     id: 4,
-    size: 1300,
+    size: 1935.31,
     pricePerM2: 45,
-    total: 58500,
+    total: Math.round(1935.31 * 45),
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b710efd660795e1e98.pdf",
   },
+  // Lotes grandes - $30 USD/m² - 5,000 m²
+  { id: 1, size: 5000, pricePerM2: 30, total: 150000, available: false },
   {
     id: 5,
-    size: 1300,
-    pricePerM2: 45,
-    total: 58500,
+    size: 5000,
+    pricePerM2: 30,
+    total: 150000,
     available: true,
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7cab0330346a3.pdf",
   },
-  // Lotes grandes - $30 USD/m² - 5,000 m²
-  { id: 1, size: 5000, pricePerM2: 30, total: 150000, available: false },
   {
     id: 6,
     size: 5000,
@@ -106,17 +106,16 @@ const rioCelesteLots = [
     planoVisado:
       "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f65290c45e33.pdf",
   },
+  // Lote 12 especial - 6,000 m²
+  { id: 12, size: 6000, pricePerM2: 30, total: 180000, available: false },
+  // Lote 13 - 5,000 m²
   {
-    id: 12,
+    id: 13,
     size: 5000,
     pricePerM2: 30,
     total: 150000,
     available: true,
-    planoVisado:
-      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca4e510346a7.pdf",
   },
-  // Lote 13 especial - 6,000 m²
-  { id: 13, size: 6000, pricePerM2: 30, total: 180000, available: false },
   {
     id: 14,
     size: 5000,
@@ -695,7 +694,7 @@ export default function RioCelesteDetail() {
                   onTouchEnd={handleTouchEnd}
                 >
                   <img
-                    src="https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/697d22228b2c07b909ccfdf0.png"
+                    src="https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69bdff61fd43886343505b78.png"
                     alt="Mapa Oasis Río Celeste - Distribución de Lotes"
                     className="w-full h-full object-contain transition-transform duration-200"
                     style={{
