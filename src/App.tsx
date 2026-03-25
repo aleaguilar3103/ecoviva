@@ -8,6 +8,9 @@ import SurveyPage from "./components/SurveyPage";
 import ConfirmationPage from "./components/ConfirmationPage";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import BrandBook from "./components/BrandBook";
+import FunnelPage from "./components/FunnelPage";
+import FunnelThankYou from "./components/FunnelThankYou";
+import FunnelDiscard from "./components/FunnelDiscard";
 
 function App() {
   return (
@@ -22,6 +25,9 @@ function App() {
             <Route path="/survey" element={<SurveyPage />} />
             <Route path="/confirmation" element={<ConfirmationPage />} />
             <Route path="/brandbook" element={<BrandBook />} />
+            <Route path="/funnel" element={<FunnelPage />} />
+            <Route path="/funnel/gracias" element={<FunnelThankYou />} />
+            <Route path="/funnel/descartado" element={<FunnelDiscard />} />
           </Routes>
         </>
       </Suspense>
