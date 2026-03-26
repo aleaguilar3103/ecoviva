@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { DayPicker } from "react-day-picker";
 import { es } from "date-fns/locale";
-import { format, startOfToday, addDays } from "date-fns";
+import { format, startOfToday, addBusinessDays } from "date-fns";
 import "react-day-picker/dist/style.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,13 +60,14 @@ const PRESUPUESTOS = [
 ] as const;
 
 const TIME_SLOTS = [
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
+  { display: "8:00 AM",  key: "08:00" },
+  { display: "9:00 AM",  key: "09:00" },
+  { display: "10:00 AM", key: "10:00" },
+  { display: "11:00 AM", key: "11:00" },
+  // 12:00–13:30 = almuerzo
+  { display: "2:00 PM",  key: "14:00" },
+  { display: "3:00 PM",  key: "15:00" },
+  { display: "4:00 PM",  key: "16:00" },
 ];
 
 const PROYECTO_LABELS: Record<string, string> = {
@@ -142,6 +143,8 @@ export default function FunnelPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [paisKey, setPaisKey] = useState("Costa Rica");
   const paisActual = CODIGOS_PAIS.find((p) => p.pais === paisKey) ?? CODIGOS_PAIS[0];
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -189,13 +192,27 @@ export default function FunnelPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Fetch booked slots whenever the user picks a date
+  useEffect(() => {
+    if (!selectedDate) return;
+    setBookedSlots([]);
+    setSelectedTime(undefined);
+    setLoadingSlots(true);
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    fetch(`/api/slots?date=${dateStr}`)
+      .then((r) => r.json())
+      .then((data) => setBookedSlots(data.booked ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingSlots(false));
+  }, [selectedDate]);
+
   const onStep2Submit = async () => {
     if (!selectedDate || !selectedTime || !formData) return;
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const webhookUrl = (import.meta.env as Record<string, string>)
-      .NEXT_PUBLIC_N8N_WEBHOOK_URL;
+    const slotDisplay = TIME_SLOTS.find((s) => s.key === selectedTime)?.display ?? selectedTime;
+    const fecha = format(selectedDate, "yyyy-MM-dd");
 
     const payload = {
       nombre: formData.nombre,
@@ -207,36 +224,43 @@ export default function FunnelPage() {
       proyecto: PROYECTO_LABELS[formData.proyecto],
       presupuesto: PRESUPUESTO_LABELS[formData.presupuesto],
       calificado: true,
-      fecha: format(selectedDate, "yyyy-MM-dd"),
-      hora: selectedTime,
-      fechaLegible: format(
-        selectedDate,
-        "EEEE d 'de' MMMM 'de' yyyy",
-        { locale: es }
-      ),
+      fecha,
+      slotKey: selectedTime,
+      hora: slotDisplay,
+      fechaLegible: format(selectedDate, "EEEE d 'de' MMMM 'de' yyyy", { locale: es }),
     };
 
     try {
-      if (webhookUrl) {
-        const res = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error("webhook_error");
+      const res = await fetch("/api/reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status === 409) {
+        setSubmitError("Ese horario ya fue reservado. Por favor elige otro.");
+        // Refresh slots so the UI reflects the taken slot
+        fetch(`/api/slots?date=${fecha}`)
+          .then((r) => r.json())
+          .then((data) => {
+            setBookedSlots(data.booked ?? []);
+            setSelectedTime(undefined);
+          })
+          .catch(() => {});
+        return;
       }
+
+      if (!res.ok) throw new Error("reserve_error");
       navigate("/funnel/gracias");
     } catch {
-      setSubmitError(
-        "Hubo un problema al confirmar tu cita. Por favor intenta de nuevo."
-      );
+      setSubmitError("Hubo un problema al confirmar tu cita. Por favor intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const today = startOfToday();
-  const maxDate = addDays(today, 60);
+  const maxDate = addBusinessDays(today, 10);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -578,23 +602,34 @@ export default function FunnelPage() {
                     — {format(selectedDate, "d 'de' MMMM", { locale: es })}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {TIME_SLOTS.map((time) => (
-                    <button
-                      key={time}
-                      type="button"
-                      onClick={() => setSelectedTime(time)}
-                      className={cn(
-                        "py-2.5 px-2 rounded-xl text-sm font-medium border-2 transition-all duration-200",
-                        selectedTime === time
-                          ? "border-primary bg-primary text-white"
-                          : "border-gray-100 bg-gray-50 text-gray-700 hover:border-primary/30"
-                      )}
-                    >
-                      {time}
-                    </button>
-                  ))}
-                </div>
+                {loadingSlots ? (
+                  <div className="flex items-center justify-center py-4 text-sm text-gray-400 gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Verificando disponibilidad…
+                  </div>
+                ) : TIME_SLOTS.filter((s) => !bookedSlots.includes(s.key)).length === 0 ? (
+                  <p className="text-sm text-amber-600 bg-amber-50 rounded-xl px-4 py-3 border border-amber-200">
+                    No hay disponibilidad para esta fecha. Por favor elige otro día.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {TIME_SLOTS.filter((s) => !bookedSlots.includes(s.key)).map((slot) => (
+                      <button
+                        key={slot.key}
+                        type="button"
+                        onClick={() => setSelectedTime(slot.key)}
+                        className={cn(
+                          "py-2.5 px-2 rounded-xl text-sm font-medium border-2 transition-all duration-200",
+                          selectedTime === slot.key
+                            ? "border-primary bg-primary text-white"
+                            : "border-gray-100 bg-gray-50 text-gray-700 hover:border-primary/30"
+                        )}
+                      >
+                        {slot.display}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
