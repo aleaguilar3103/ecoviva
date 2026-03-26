@@ -161,27 +161,7 @@ export default function FunnelPage() {
   const proyectoSeleccionado = form.watch("proyecto");
 
   const onStep1Submit = (data: Step1Data) => {
-    const webhookUrl = (import.meta.env as Record<string, string>)
-      .NEXT_PUBLIC_N8N_WEBHOOK_URL;
-
     if (data.presupuesto === "menos-500") {
-      if (webhookUrl) {
-        fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            nombre: data.nombre,
-            apellido: data.apellido,
-            codigoPais: paisActual.codigo,
-            pais: paisActual.pais,
-            telefono: `${paisActual.codigo} ${data.telefono}`,
-            correo: data.correo,
-            proyecto: PROYECTO_LABELS[data.proyecto],
-            presupuesto: PRESUPUESTO_LABELS[data.presupuesto],
-            calificado: false,
-          }),
-        }).catch(() => {});
-      }
       localStorage.setItem("ecoviva_funnel_status", "discarded");
       navigate("/funnel/descartado", { replace: true });
       return;
