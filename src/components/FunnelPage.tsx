@@ -107,7 +107,8 @@ const CODIGOS_PAIS = [
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 const step1Schema = z.object({
-  nombre: z.string().min(2, "Ingresa tu nombre completo"),
+  nombre: z.string().min(2, "Ingresa tu nombre"),
+  apellido: z.string().min(2, "Ingresa tu apellido"),
   telefono: z.string().min(8, "Ingresa un teléfono válido"),
   correo: z.string().email("Ingresa un correo electrónico válido"),
   proyecto: z.enum(["lomas-de-la-llanada", "oasis-rio-celeste"], {
@@ -151,7 +152,7 @@ export default function FunnelPage() {
 
   const form = useForm<Step1Data>({
     resolver: zodResolver(step1Schema),
-    defaultValues: { nombre: "", telefono: "", correo: "" },
+    defaultValues: { nombre: "", apellido: "", telefono: "", correo: "" },
   });
 
   const proyectoSeleccionado = form.watch("proyecto");
@@ -167,6 +168,7 @@ export default function FunnelPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             nombre: data.nombre,
+            apellido: data.apellido,
             codigoPais: paisActual.codigo,
             pais: paisActual.pais,
             telefono: data.telefono,
@@ -197,6 +199,7 @@ export default function FunnelPage() {
 
     const payload = {
       nombre: formData.nombre,
+      apellido: formData.apellido,
       codigoPais: paisActual.codigo,
       pais: paisActual.pais,
       telefono: formData.telefono,
@@ -303,22 +306,34 @@ export default function FunnelPage() {
                     Tu información
                   </h2>
 
-                  <FormField
-                    control={form.control}
-                    name="nombre"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nombre completo</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej. María Rodríguez"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="nombre"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej. María" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="apellido"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Apellido</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej. Rodríguez" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <FormField
                     control={form.control}
