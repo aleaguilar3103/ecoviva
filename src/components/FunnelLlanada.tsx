@@ -91,7 +91,7 @@ export default function FunnelLlanada() {
           style={{ backgroundImage: `url(https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c58bd9e24981254b18a539.jpg)` }}
         />
         {/* Dark overlay + bottom fade so it blends seamlessly with next section */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/65 to-[#080e08]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/80 to-[#080e08]" />
 
         {/* ── Logo bar ── */}
         <div className="relative z-10 px-6 pt-6 sm:px-10 sm:pt-8">
@@ -177,6 +177,7 @@ export default function FunnelLlanada() {
 
       {/* ── PHOTO CAROUSEL ── */}
       <div className="px-5 sm:px-10 pb-10">
+        <div className="max-w-2xl mx-auto">
         <div
           className="relative rounded-2xl overflow-hidden"
           style={{ aspectRatio: "4/3" }}
@@ -220,6 +221,7 @@ export default function FunnelLlanada() {
               />
             ))}
           </div>
+        </div>
         </div>
       </div>
 
