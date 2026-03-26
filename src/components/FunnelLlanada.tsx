@@ -225,8 +225,8 @@ export default function FunnelLlanada() {
         </div>
       </div>
 
-      {/* ── IMAGE STRIP ── */}
-      <div className="flex h-40 sm:h-56 overflow-hidden">
+      {/* ── IMAGE STRIP — mobile only ── */}
+      <div className="flex h-40 overflow-hidden sm:hidden">
         {[IMG.lomas2, IMG.strip1, IMG.lomas1, IMG.strip2].map((src, i) => (
           <div key={i} className="flex-1 relative overflow-hidden">
             <img
