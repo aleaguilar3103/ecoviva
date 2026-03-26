@@ -14,11 +14,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const body = req.body ?? {};
-  const { fecha, slotKey, ...webhookPayload } = body as {
-    fecha?: string;
+  // slotKey is only needed for Redis — strip it from the n8n payload
+  // fecha stays in webhookPayload so n8n receives the appointment date
+  const { slotKey, ...webhookPayload } = body as {
     slotKey?: string;
     [key: string]: unknown;
   };
+  const fecha = webhookPayload.fecha as string | undefined;
 
   if (!fecha || !slotKey) {
     return res.status(400).json({ error: "Missing fecha or slotKey" });
@@ -49,14 +51,18 @@ export default async function handler(req: any, res: any) {
     return res.status(409).json({ error: "slot_taken" });
   }
 
-  // Slot reserved — fire n8n webhook (best-effort, don't fail the reservation)
+  // Slot reserved — call n8n webhook (awaited so serverless doesn't terminate early)
   const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
   if (webhookUrl) {
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(webhookPayload),
-    }).catch(() => {});
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(webhookPayload),
+      });
+    } catch {
+      // Don't fail the reservation if the webhook call fails
+    }
   }
 
   return res.status(200).json({ ok: true });
