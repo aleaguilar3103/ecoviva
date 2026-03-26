@@ -82,6 +82,28 @@ const PRESUPUESTO_LABELS: Record<string, string> = {
   "mas-5000": "Más de $5,000",
 };
 
+const CODIGOS_PAIS = [
+  { bandera: "🇨🇷", pais: "Costa Rica",       codigo: "+506"  },
+  { bandera: "🇺🇸", pais: "Estados Unidos",   codigo: "+1"    },
+  { bandera: "🇲🇽", pais: "México",            codigo: "+52"   },
+  { bandera: "🇬🇹", pais: "Guatemala",         codigo: "+502"  },
+  { bandera: "🇸🇻", pais: "El Salvador",       codigo: "+503"  },
+  { bandera: "🇭🇳", pais: "Honduras",          codigo: "+504"  },
+  { bandera: "🇳🇮", pais: "Nicaragua",         codigo: "+505"  },
+  { bandera: "🇵🇦", pais: "Panamá",            codigo: "+507"  },
+  { bandera: "🇨🇴", pais: "Colombia",          codigo: "+57"   },
+  { bandera: "🇻🇪", pais: "Venezuela",         codigo: "+58"   },
+  { bandera: "🇪🇨", pais: "Ecuador",           codigo: "+593"  },
+  { bandera: "🇵🇪", pais: "Perú",              codigo: "+51"   },
+  { bandera: "🇨🇱", pais: "Chile",             codigo: "+56"   },
+  { bandera: "🇦🇷", pais: "Argentina",         codigo: "+54"   },
+  { bandera: "🇧🇷", pais: "Brasil",            codigo: "+55"   },
+  { bandera: "🇩🇴", pais: "R. Dominicana",     codigo: "+1809" },
+  { bandera: "🇵🇷", pais: "Puerto Rico",       codigo: "+1787" },
+  { bandera: "🇪🇸", pais: "España",            codigo: "+34"   },
+  { bandera: "🇨🇦", pais: "Canadá",            codigo: "+1"    },
+];
+
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 const step1Schema = z.object({
@@ -117,6 +139,8 @@ export default function FunnelPage() {
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [paisKey, setPaisKey] = useState("Costa Rica");
+  const paisActual = CODIGOS_PAIS.find((p) => p.pais === paisKey) ?? CODIGOS_PAIS[0];
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -143,6 +167,8 @@ export default function FunnelPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             nombre: data.nombre,
+            codigoPais: paisActual.codigo,
+            pais: paisActual.pais,
             telefono: data.telefono,
             correo: data.correo,
             proyecto: PROYECTO_LABELS[data.proyecto],
@@ -171,6 +197,8 @@ export default function FunnelPage() {
 
     const payload = {
       nombre: formData.nombre,
+      codigoPais: paisActual.codigo,
+      pais: paisActual.pais,
       telefono: formData.telefono,
       correo: formData.correo,
       proyecto: PROYECTO_LABELS[formData.proyecto],
@@ -299,11 +327,28 @@ export default function FunnelPage() {
                       <FormItem>
                         <FormLabel>Teléfono</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="Ej. +506 8888-8888"
-                            type="tel"
-                            {...field}
-                          />
+                          <div className="flex gap-2">
+                            <select
+                              value={paisKey}
+                              onChange={(e) => setPaisKey(e.target.value)}
+                              className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                            >
+                              {CODIGOS_PAIS.map((p) => (
+                                <option
+                                  key={`${p.pais}-${p.codigo}`}
+                                  value={p.pais}
+                                >
+                                  {p.bandera} {p.codigo}
+                                </option>
+                              ))}
+                            </select>
+                            <Input
+                              placeholder="8888-8888"
+                              type="tel"
+                              className="flex-1"
+                              {...field}
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
