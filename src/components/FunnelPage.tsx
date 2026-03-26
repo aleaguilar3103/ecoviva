@@ -260,6 +260,7 @@ export default function FunnelPage() {
   };
 
   const today = startOfToday();
+  const tomorrow = addBusinessDays(today, 1);
   const maxDate = addBusinessDays(today, 10);
 
   return (
@@ -582,11 +583,11 @@ export default function FunnelPage() {
                   onSelect={setSelectedDate}
                   locale={es}
                   disabled={[
-                    { before: today },
+                    { before: tomorrow },
                     { after: maxDate },
                     { dayOfWeek: [0, 6] },
                   ]}
-                  fromDate={today}
+                  fromDate={tomorrow}
                   toDate={maxDate}
                 />
               </div>
