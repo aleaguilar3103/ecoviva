@@ -1,8 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
-  ChevronDown,
   Mountain,
   Droplets,
   TrendingUp,
@@ -15,7 +14,6 @@ const LOGO =
   "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d339e3092e1873e357.png";
 
 const IMG = {
-  hero:   "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e146bc515f6df1405.jpg",
   lomas1: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e6b0a70ae03223880.jpg",
   lomas2: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e52ad3bc301da4b5c.jpg",
   strip1: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e350cfe580a318cce.jpg",
@@ -52,82 +50,34 @@ const BENEFITS = [
 
 export default function FunnelLlanada() {
   const navigate = useNavigate();
-  const projectRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, []);
 
   const goToFunnel = () => navigate("/funnel");
-  const scrollDown = () => {
-    projectRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
 
   return (
     <div className="bg-[#080e08] text-white min-h-screen">
 
-      {/* ── HERO ── */}
-      {/* Mobile: 65vh so text below is visible on entry. Desktop: full screen. */}
-      <section className="relative h-[65vh] sm:h-screen min-h-[420px] flex flex-col">
-        {/* Background image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${IMG.hero})` }}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#080e08] via-black/60 to-black/30" />
+      {/* ── Logo bar ── */}
+      <div className="px-6 pt-6 sm:px-10 sm:pt-8">
+        <img src={LOGO} alt="Eco Viva Desarrollos" className="h-10 sm:h-12 w-auto" />
+      </div>
 
-        {/* Logo */}
-        <div className="relative z-10 px-6 pt-6 sm:px-10 sm:pt-8">
-          <img src={LOGO} alt="Eco Viva Desarrollos" className="h-10 sm:h-12 w-auto" />
-        </div>
-
-        {/* Hero content */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-5">
-          <div className="max-w-3xl">
-            <p className="text-sm sm:text-base font-medium text-green-400 tracking-widest uppercase mb-4">
-              Preventa de lotes · Ciudad Quesada
-            </p>
-
-            <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold leading-tight tracking-tight mb-6">
-              Lomas de la{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300">
-                Llanada
-              </span>
-            </h1>
-
-            <p className="text-base sm:text-xl text-white/75 max-w-xl mx-auto mb-10 leading-relaxed">
-              Una eco comunidad privada en el corazón de Ciudad Quesada, diseñada para quienes
-              buscan espacio, privacidad, tranquilidad y una inversión con visión a futuro.
-            </p>
-
-            <button
-              onClick={goToFunnel}
-              className="group inline-flex items-center gap-3 bg-green-500 hover:bg-green-400 text-white font-bold text-base sm:text-lg px-8 py-4 rounded-full transition-all duration-300 shadow-lg shadow-green-900/40 hover:shadow-green-500/30 hover:scale-105"
-            >
-              Descubrí si es para mí
-              <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
-            </button>
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <button
-          onClick={scrollDown}
-          className="relative z-10 mx-auto mb-8 flex flex-col items-center gap-1 text-white/40 hover:text-white/70 transition-colors"
-        >
-          <span className="text-xs tracking-widest uppercase">Ver proyecto</span>
-          <ChevronDown className="w-5 h-5 animate-bounce" />
-        </button>
-      </section>
-
-      {/* ── PROJECT DETAIL ── */}
-      <section ref={projectRef} className="py-20 px-5 sm:px-10">
+      {/* ── PROJECT DETAIL (now first section) ── */}
+      <section className="pt-10 pb-20 px-5 sm:px-10">
         <div className="max-w-5xl mx-auto">
           <p className="text-green-400 text-sm font-medium tracking-widest uppercase text-center mb-3">
-            El proyecto
+            Preventa de lotes · Ciudad Quesada
           </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-center leading-tight tracking-tight mb-3">
+            Lomas de la{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-300">
+              Llanada
+            </span>
+          </h1>
+          <h2 className="text-xl sm:text-2xl font-semibold text-white/70 text-center mb-4">
             Eco-Comunidad privada en Ciudad Quesada
           </h2>
           <p className="text-white/55 text-center max-w-xl mx-auto mb-14 leading-relaxed">
