@@ -90,8 +90,16 @@ export default function FunnelLlanada() {
       </div>
 
       {/* ── PROJECT DETAIL (now first section) ── */}
-      <section className="pt-10 pb-20 px-5 sm:px-10">
-        <div className="max-w-5xl mx-auto">
+      <section className="relative pt-10 pb-20 px-5 sm:px-10 overflow-hidden">
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${IMG.lomas1})` }}
+        />
+        {/* Dark overlay for readability + fade to bg color at bottom so there's no hard cut */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/70 to-[#080e08]" />
+
+        <div className="relative z-10 max-w-5xl mx-auto">
           <p className="text-green-400 text-sm font-medium tracking-widest uppercase text-center mb-3">
             Preventa de lotes · Ciudad Quesada
           </p>
