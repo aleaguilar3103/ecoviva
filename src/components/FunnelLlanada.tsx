@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   Mountain,
   Droplets,
   TrendingUp,
@@ -20,6 +22,13 @@ const IMG = {
   strip2: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e146bc5fcfedf1406.jpg",
   cta:    "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e81e6bc935b6b211c.jpg",
 };
+
+const CAROUSEL_IMGS = [
+  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e6b0a70ae03223880.jpg",
+  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e52ad3bc301da4b5c.jpg",
+  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e350cfe580a318cce.jpg",
+  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e146bc5fcfedf1406.jpg",
+];
 
 // ─── Benefit items ─────────────────────────────────────────────────────────────
 
@@ -50,12 +59,27 @@ const BENEFITS = [
 
 export default function FunnelLlanada() {
   const navigate = useNavigate();
+  const [slide, setSlide] = useState(0);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, []);
 
   const goToFunnel = () => navigate("/funnel");
+
+  const prev = () => setSlide((s) => (s - 1 + CAROUSEL_IMGS.length) % CAROUSEL_IMGS.length);
+  const next = () => setSlide((s) => (s + 1) % CAROUSEL_IMGS.length);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) diff > 0 ? next() : prev();
+    touchStartX.current = null;
+  };
 
   return (
     <div className="bg-[#080e08] text-white min-h-screen">
@@ -140,6 +164,54 @@ export default function FunnelLlanada() {
           </div>
         </div>
       </section>
+
+      {/* ── PHOTO CAROUSEL ── */}
+      <div className="px-5 sm:px-10 pb-10">
+        <div
+          className="relative rounded-2xl overflow-hidden"
+          style={{ aspectRatio: "4/3" }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <img
+            src={CAROUSEL_IMGS[slide]}
+            alt={`Vista ${slide + 1}`}
+            className="w-full h-full object-cover"
+          />
+
+          {/* Prev arrow */}
+          <button
+            onClick={prev}
+            aria-label="Anterior"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center backdrop-blur-sm transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5 text-white" />
+          </button>
+
+          {/* Next arrow */}
+          <button
+            onClick={next}
+            aria-label="Siguiente"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center backdrop-blur-sm transition-colors"
+          >
+            <ChevronRight className="w-5 h-5 text-white" />
+          </button>
+
+          {/* Dots */}
+          <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+            {CAROUSEL_IMGS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setSlide(i)}
+                aria-label={`Imagen ${i + 1}`}
+                className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                  i === slide ? "bg-white scale-125" : "bg-white/40"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* ── IMAGE STRIP ── */}
       <div className="flex h-40 sm:h-56 overflow-hidden">
