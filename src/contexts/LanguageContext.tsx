@@ -55,7 +55,7 @@ const translations: Record<LanguageCode, any> = {
     hero: {
       title:
         "Proyectos Inmobiliarios en las mejores locaciones de la Zona Norte de Costa Rica.",
-      subtitle: "Financiamiento Con Aprobación Inmediata Sin Prima Ni Fiador.",
+      subtitle: "Financiamiento Sin Prima Ni Fiador.",
       description:
         "Creamos proyectos sostenibles con alto potencial de crecimiento. Financiamos al 100% — sin prima, sin fiador y sin estudio crediticio. Impulsamos inversiones seguras y proyectos que transforman la región.",
       description1:
@@ -105,7 +105,7 @@ const translations: Record<LanguageCode, any> = {
       financingDetails: [
         "Financiamiento al 100% sin prima",
         "Sin fiador ni estudio crediticio",
-        "Aprobación inmediata",
+        "Trámite sencillo",
         "Mejores condiciones del mercado",
       ],
     },
@@ -128,7 +128,7 @@ const translations: Record<LanguageCode, any> = {
       totalPayment: "Monto Total",
       totalInterest: "Intereses Totales",
       downPaymentRequired: "Prima requerida",
-      disclaimer: "Aprobación inmediata. Sin fiador. Sin estudio crediticio. Sujeto a disponibilidad del proyecto.",
+      disclaimer: "Sin fiador. Sin estudio crediticio. Sujeto a disponibilidad del proyecto.",
       cta: "Quiero este financiamiento",
       perMonth: "mes",
     },

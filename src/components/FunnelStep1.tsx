@@ -36,7 +36,7 @@ const BENEFITS = [
   {
     icon: FileCheck,
     title: "Financiamiento directo",
-    desc: "Sin prima, sin fiador y con aprobación inmediata. Nosotros financiamos.",
+    desc: "Sin prima, sin fiador y con trámite sencillo. Nosotros financiamos.",
   },
   {
     icon: TrendingUp,
