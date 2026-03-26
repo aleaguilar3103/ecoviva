@@ -12,6 +12,7 @@ import FunnelPage from "./components/FunnelPage";
 import FunnelThankYou from "./components/FunnelThankYou";
 import FunnelDiscard from "./components/FunnelDiscard";
 import FunnelStep1 from "./components/FunnelStep1";
+import FunnelLlanada from "./components/FunnelLlanada";
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
             <Route path="/confirmation" element={<ConfirmationPage />} />
             <Route path="/brandbook" element={<BrandBook />} />
             <Route path="/funnel/step1" element={<FunnelStep1 />} />
+            <Route path="/funnel/llanada" element={<FunnelLlanada />} />
             <Route path="/funnel" element={<FunnelPage />} />
             <Route path="/funnel/gracias" element={<FunnelThankYou />} />
             <Route path="/funnel/descartado" element={<FunnelDiscard />} />
