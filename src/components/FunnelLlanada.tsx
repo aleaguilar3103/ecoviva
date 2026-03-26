@@ -84,22 +84,23 @@ export default function FunnelLlanada() {
   return (
     <div className="bg-[#080e08] text-white min-h-screen">
 
-      {/* ── Logo bar ── */}
-      <div className="px-6 pt-6 sm:px-10 sm:pt-8">
-        <img src={LOGO} alt="Eco Viva Desarrollos" className="h-10 sm:h-12 w-auto" />
-      </div>
-
-      {/* ── PROJECT DETAIL (now first section) ── */}
-      <section className="relative pt-10 pb-20 px-5 sm:px-10 overflow-hidden">
-        {/* Background image */}
+      {/* ── Logo bar + first section share one background image ── */}
+      <div className="relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${IMG.lomas1})` }}
+          style={{ backgroundImage: `url(https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c58bd9e24981254b18a539.jpg)` }}
         />
-        {/* Dark overlay for readability + fade to bg color at bottom so there's no hard cut */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/70 to-[#080e08]" />
+        {/* Dark overlay + bottom fade so it blends seamlessly with next section */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/65 to-[#080e08]" />
 
-        <div className="relative z-10 max-w-5xl mx-auto">
+        {/* ── Logo bar ── */}
+        <div className="relative z-10 px-6 pt-6 sm:px-10 sm:pt-8">
+          <img src={LOGO} alt="Eco Viva Desarrollos" className="h-10 sm:h-12 w-auto" />
+        </div>
+
+        {/* ── PROJECT DETAIL ── */}
+        <section className="relative z-10 pt-10 pb-20 px-5 sm:px-10">
+        <div className="max-w-5xl mx-auto">
           <p className="text-green-400 text-sm font-medium tracking-widest uppercase text-center mb-3">
             Preventa de lotes · Ciudad Quesada
           </p>
@@ -171,7 +172,8 @@ export default function FunnelLlanada() {
             </div>
           </div>
         </div>
-      </section>
+        </section>
+      </div>
 
       {/* ── PHOTO CAROUSEL ── */}
       <div className="px-5 sm:px-10 pb-10">
