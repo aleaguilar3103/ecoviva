@@ -47,15 +47,20 @@ const slides = [
   },
 ];
 
-const stats = [
-  { value: "2", label: "Proyectos" },
-  { value: "+40", label: "Lotes" },
-  { value: "$0", label: "Prima inicial" },
-  { value: "15", label: "Años plazo" },
-];
+// Stats labels resolved at render time via t()
+function useStats() {
+  const { t } = useLanguage();
+  return [
+    { value: "2", label: t("stats.projects") },
+    { value: "+40", label: t("stats.lots") },
+    { value: "$0", label: t("stats.downPayment") },
+    { value: "15", label: t("stats.term") },
+  ];
+}
 
 export default function HeroSection() {
   const { t } = useLanguage();
+  const stats = useStats();
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
   const [prev, setPrev] = useState<number | null>(null);
@@ -206,7 +211,7 @@ export default function HeroSection() {
                 className="rounded-xl font-semibold border-white/30 text-white hover:bg-white/10 backdrop-blur-sm"
                 style={{ padding: "14px 28px", fontSize: "0.95rem" }}
               >
-                Ver proyectos
+                {t("hero.ctaSecondary")}
               </Button>
             </div>
           </div>
