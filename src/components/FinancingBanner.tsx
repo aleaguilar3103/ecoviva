@@ -18,36 +18,37 @@ export default function FinancingBanner({ variant = "inline", className = "" }: 
 
   if (variant === "header") {
     return (
-      <div className={`bg-gradient-to-r from-accent to-accent/90 text-white py-2 ${className}`}>
+      <div className={`py-2 ${className}`} style={{ backgroundColor: "#080d09", borderBottom: "1px solid rgba(116,206,82,0.15)" }}>
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <CreditCard className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>
+              <CreditCard className="w-4 h-4" style={{ color: "#74CE52" }} />
               <span>{t("financingBanner.headline")}</span>
             </div>
-            <div className="hidden sm:flex items-center gap-4 text-xs">
+            <div className="hidden sm:flex items-center gap-4 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
               <span className="flex items-center gap-1">
-                <Check className="w-3 h-3" />
+                <Check className="w-3 h-3" style={{ color: "#74CE52" }} />
                 {t("financingBanner.noPrima")}
               </span>
               <span className="flex items-center gap-1">
-                <Check className="w-3 h-3" />
+                <Check className="w-3 h-3" style={{ color: "#74CE52" }} />
                 {t("financingBanner.noFiador")}
               </span>
               <span className="flex items-center gap-1">
-                <Check className="w-3 h-3" />
+                <Check className="w-3 h-3" style={{ color: "#74CE52" }} />
                 {t("financingBanner.soloCedula")}
               </span>
             </div>
-            <Button
+            <button
               onClick={handleApplyClick}
-              size="sm"
-              variant="secondary"
-              className="bg-white text-accent hover:bg-white/90 text-xs h-7 px-3"
+              className="text-xs h-7 px-3 rounded-md font-medium transition-all duration-200"
+              style={{ backgroundColor: "rgba(116,206,82,0.12)", color: "#74CE52", border: "1px solid rgba(116,206,82,0.25)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(116,206,82,0.2)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(116,206,82,0.12)"; }}
             >
               {t("financingBanner.cta")}
-              <ArrowRight className="w-3 h-3 ml-1" />
-            </Button>
+              <ArrowRight className="w-3 h-3 ml-1 inline" />
+            </button>
           </div>
         </div>
       </div>

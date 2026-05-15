@@ -1,16 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Calculator } from "lucide-react";
+import { Calculator, MessageCircle, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface FinancingCalculatorProps {
@@ -20,223 +9,205 @@ interface FinancingCalculatorProps {
 export default function FinancingCalculator({
   onWhatsAppClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank"),
 }: FinancingCalculatorProps) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const [currency, setCurrency] = useState<"USD" | "CRC">("USD");
   const [lotValue, setLotValue] = useState("150000");
   const [term, setTerm] = useState("20");
   const [monthlyPayment, setMonthlyPayment] = useState("1529.53");
-  
-  // Interest rate depends on currency: USD = 9%, CRC = 8%
+
+  // Interest rate: USD = 9%, CRC = 8%
   const annualRate = currency === "USD" ? 9 : 8;
 
   const calculatePayment = () => {
     const monto = parseFloat(lotValue);
     const plazo_anios = parseInt(term);
     const tasa_anual = annualRate / 100;
-
-    if (isNaN(monto) || isNaN(plazo_anios) || isNaN(tasa_anual)) {
-      return;
-    }
-
+    if (isNaN(monto) || isNaN(plazo_anios) || isNaN(tasa_anual)) return;
     const r = tasa_anual / 12;
     const n = plazo_anios * 12;
-
     const pago_mensual = (monto * r) / (1 - Math.pow(1 + r, -n));
-
     setMonthlyPayment(pago_mensual.toFixed(2));
   };
 
-  // Recalculate when currency changes
-  useEffect(() => {
-    calculatePayment();
-  }, [currency, lotValue, term]);
+  useEffect(() => { calculatePayment(); }, [currency, lotValue, term]);
 
-  const formatCurrency = (value: string) => {
+  const fmtCurrency = (value: string) => {
     const num = parseFloat(value);
     if (isNaN(num)) return currency === "USD" ? "$0" : "₡0";
-    
-    if (currency === "USD") {
-      return (
-        "$" +
-        num.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      );
-    } else {
-      return (
-        "₡" +
-        num.toLocaleString("es-CR", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      );
-    }
+    if (currency === "USD") return "$" + num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return "₡" + num.toLocaleString("es-CR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    color: "white",
+    fontSize: "0.9rem",
+    outline: "none",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: "8px",
+    color: "rgba(255,255,255,0.45)",
   };
 
   return (
-    <section id="calculadora-financiamiento" className="py-20 bg-gray-50">
-      <div className="container mx-auto px-4 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Section Header */}
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center mb-4">
-              <Calculator className="w-10 h-10 text-accent mr-3" />
-              <h2 className="text-3xl md:text-4xl font-bold text-primary">
-                {t("calculator.title")}
-              </h2>
-            </div>
-            <p className="text-base md:text-lg text-gray-600 max-w-2xl mx-auto">
-              {t("calculator.subtitle")}
-            </p>
-          </div>
+    <section id="calculadora-financiamiento" className="py-24 relative overflow-hidden" style={{ backgroundColor: "#0a0f0b" }}>
+      {/* Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full blur-[120px] pointer-events-none" style={{ backgroundColor: "rgba(116,206,82,0.04)" }} />
 
-          {/* Calculator Card */}
-          <Card className="bg-white shadow-lg">
-            <CardContent className="p-6 md:p-8">
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Left Column - Form */}
-                <div className="space-y-6">
-                  <h3 className="text-xl font-semibold text-primary mb-4">
-                    {t("calculator.financingData")}
-                  </h3>
+      <div className="container mx-auto px-4 lg:px-8 relative z-10">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <span className="inline-block text-xs font-semibold tracking-widest uppercase mb-3 px-3 py-1.5 rounded-full" style={{ backgroundColor: "rgba(116,206,82,0.1)", color: "#74CE52", border: "1px solid rgba(116,206,82,0.2)" }}>
+            Herramienta
+          </span>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 flex items-center justify-center gap-3">
+            <Calculator className="w-8 h-8" style={{ color: "#74CE52" }} />
+            {t("calculator.title")}
+          </h2>
+          <p className="text-base max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.45)" }}>
+            {t("calculator.subtitle")}
+          </p>
+        </div>
 
-                  {/* Currency Switch */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      {t("calculator.currency")}
-                    </label>
-                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                      <span className={`font-semibold ${currency === "USD" ? "text-primary" : "text-gray-400"}`}>
-                        USD ($)
-                      </span>
-                      <Switch
-                        checked={currency === "CRC"}
-                        onCheckedChange={(checked) => setCurrency(checked ? "CRC" : "USD")}
-                      />
-                      <span className={`font-semibold ${currency === "CRC" ? "text-primary" : "text-gray-400"}`}>
-                        CRC (₡)
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      {currency === "USD" 
-                        ? t("calculator.rateUSD")
-                        : t("calculator.rateCRC")
-                      }
-                    </p>
-                  </div>
+        {/* Card */}
+        <div className="max-w-5xl mx-auto rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.02)" }}>
+          <div className="grid md:grid-cols-2">
+            {/* Left – inputs */}
+            <div className="p-8 md:p-10" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
+              <h3 className="text-base font-semibold text-white mb-7">{t("calculator.financingData")}</h3>
 
-                  {/* Lot Value */}
-                  <div>
-                    <label
-                      htmlFor="lotValue"
-                      className="block text-sm font-medium text-gray-700 mb-2"
+              {/* Currency toggle */}
+              <div className="mb-6">
+                <span style={labelStyle}>{t("calculator.currency")}</span>
+                <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.04)" }}>
+                  {(["USD", "CRC"] as const).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setCurrency(c)}
+                      className="flex-1 py-2.5 text-sm font-semibold transition-all duration-200"
+                      style={{
+                        backgroundColor: currency === c ? "#74CE52" : "transparent",
+                        color: currency === c ? "#0d1a10" : "rgba(255,255,255,0.45)",
+                      }}
                     >
-                      {currency === "USD" ? t("calculator.lotValue") : t("calculator.lotValueCRC")}
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">
-                        {currency === "USD" ? "$" : "₡"}
-                      </span>
-                      <Input
-                        id="lotValue"
-                        type="number"
-                        value={lotValue}
-                        onChange={(e) => setLotValue(e.target.value)}
-                        placeholder={currency === "USD" ? "150000" : "85000000"}
-                        className="w-full pl-8"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Term */}
-                  <div>
-                    <label
-                      htmlFor="term"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      {t("calculator.term")}
-                    </label>
-                    <Select value={term} onValueChange={setTerm}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t("calculator.selectTerm")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5 {t("calculator.years")}</SelectItem>
-                        <SelectItem value="10">10 {t("calculator.years")}</SelectItem>
-                        <SelectItem value="15">15 {t("calculator.years")}</SelectItem>
-                        <SelectItem value="20">20 {t("calculator.years")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Annual Rate - Fixed Display */}
-                  <div>
-                    <label
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      {t("calculator.rate")}
-                    </label>
-                    <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-700 font-semibold">
-                      {annualRate}%
-                    </div>
-                  </div>
-
-                  {/* Calculate Button */}
-                  <Button
-                    onClick={calculatePayment}
-                    className="w-full bg-primary hover:bg-primary/90 text-white"
-                    size="lg"
-                  >
-                    {t("calculator.calculate")}
-                  </Button>
+                      {c === "USD" ? "USD ($)" : "CRC (₡)"}
+                    </button>
+                  ))}
                 </div>
+                <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {currency === "USD" ? t("calculator.rateUSD") : t("calculator.rateCRC")}
+                </p>
+              </div>
 
-                {/* Right Column - Result */}
-                <div className="flex flex-col justify-center">
-                  <Card className="bg-gradient-to-br from-accent/5 to-accent/10 border-accent/20">
-                    <CardContent className="p-6">
-                      <div className="text-center mb-6">
-                        <p className="text-sm font-semibold text-gray-600 mb-2">
-                          {t("calculator.monthlyPayment")}
-                        </p>
-                        <p className="text-4xl md:text-5xl font-bold text-primary">
-                          {formatCurrency(monthlyPayment)}
-                          <span className="text-xl text-gray-600"> / {t("calculator.perMonth")}</span>
-                        </p>
-                      </div>
-
-                      <div className="space-y-2 text-sm text-gray-600 mb-6">
-                        <p>
-                          <span className="font-semibold">
-                            {t("calculator.totalPayment")}:
-                          </span>{" "}
-                          {formatCurrency(lotValue)}
-                        </p>
-                        <p>
-                          <span className="font-semibold">
-                            {t("calculator.downPaymentRequired")}:
-                          </span>{" "}
-                          {currency === "USD" ? "$0" : "₡0"}
-                        </p>
-                        <p className="text-xs mt-4 text-gray-500">
-                          {t("calculator.disclaimer")}
-                        </p>
-                      </div>
-
-                      <Button
-                        onClick={onWhatsAppClick}
-                        className="w-full bg-accent hover:bg-accent/90 text-white"
-                        size="lg"
-                      >
-                        {t("calculator.cta")} →
-                      </Button>
-                    </CardContent>
-                  </Card>
+              {/* Lot value */}
+              <div className="mb-5">
+                <label style={labelStyle}>
+                  {currency === "USD" ? t("calculator.lotValue") : t("calculator.lotValueCRC")}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-sm" style={{ color: "#74CE52" }}>
+                    {currency === "USD" ? "$" : "₡"}
+                  </span>
+                  <input
+                    type="number"
+                    value={lotValue}
+                    onChange={e => setLotValue(e.target.value)}
+                    placeholder={currency === "USD" ? "150000" : "85000000"}
+                    style={{ ...inputStyle, paddingLeft: "32px" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(116,206,82,0.4)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                  />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* Term */}
+              <div className="mb-5">
+                <label style={labelStyle}>{t("calculator.term")}</label>
+                <div className="relative">
+                  <select
+                    value={term}
+                    onChange={e => setTerm(e.target.value)}
+                    style={{ ...inputStyle, appearance: "none", paddingRight: "36px", cursor: "pointer" }}
+                  >
+                    {["5", "10", "15", "20"].map(y => (
+                      <option key={y} value={y} style={{ backgroundColor: "#111a14", color: "white" }}>
+                        {y} {t("calculator.years")}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "rgba(255,255,255,0.4)" }} />
+                </div>
+              </div>
+
+              {/* Rate – fixed display */}
+              <div className="mb-7">
+                <label style={labelStyle}>{t("calculator.rate")}</label>
+                <div className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ backgroundColor: "rgba(116,206,82,0.08)", border: "1px solid rgba(116,206,82,0.2)", color: "#74CE52" }}>
+                  {annualRate}% anual
+                </div>
+              </div>
+
+              <button
+                onClick={calculatePayment}
+                className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all hover:scale-[1.02]"
+                style={{ backgroundColor: "#74CE52", color: "#0d1a10" }}
+              >
+                {t("calculator.calculate")}
+              </button>
+            </div>
+
+            {/* Right – result */}
+            <div className="p-8 md:p-10 flex flex-col justify-between" style={{ backgroundColor: "rgba(116,206,82,0.03)" }}>
+              <div>
+                <h3 className="text-base font-semibold text-white mb-7">{t("calculator.monthlyPayment")}</h3>
+
+                {/* Big payment number */}
+                <div className="mb-8">
+                  <div className="text-4xl md:text-5xl font-bold leading-tight" style={{ color: "#74CE52" }}>
+                    {fmtCurrency(monthlyPayment)}
+                  </div>
+                  <div className="text-sm mt-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    / {t("calculator.perMonth")}
+                  </div>
+                </div>
+
+                {/* Details rows */}
+                <div className="space-y-3 mb-8">
+                  {[
+                    { label: t("calculator.totalPayment"), value: fmtCurrency(lotValue) },
+                    { label: t("calculator.downPaymentRequired"), value: currency === "USD" ? "$0" : "₡0" },
+                  ].map(({ label, value }, i) => (
+                    <div key={i} className="flex items-center justify-between py-2.5 px-4 rounded-xl" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{label}</span>
+                      <span className="text-sm font-bold text-white">{value}</span>
+                    </div>
+                  ))}
+                  <p className="text-xs px-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    {t("calculator.disclaimer")}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={onWhatsAppClick}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm text-white transition-all hover:scale-[1.02]"
+                style={{ backgroundColor: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.3)", color: "#25D366" }}
+              >
+                <MessageCircle className="w-4 h-4" />
+                {t("calculator.cta")}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
