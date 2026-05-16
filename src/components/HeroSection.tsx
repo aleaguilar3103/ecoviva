@@ -97,19 +97,24 @@ export default function HeroSection() {
 
   return (
     <section data-section="hero" className="relative h-screen min-h-[680px] flex flex-col overflow-hidden">
-      {/* Slides background */}
+      {/* Slides background — pure opacity crossfade, no zIndex jump */}
       {slides.map((slide, i) => (
         <div
           key={slide.id}
-          className="absolute inset-0 transition-opacity duration-1000"
-          style={{ opacity: i === current ? 1 : 0, zIndex: i === current ? 1 : 0 }}
+          className="absolute inset-0"
+          style={{
+            opacity: i === current ? 1 : 0,
+            zIndex: 1,
+            transition: "opacity 1200ms ease-in-out",
+          }}
         >
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{
               backgroundImage: `url('${slide.image}')`,
-              transform: i === current ? "scale(1)" : "scale(1.05)",
-              transition: i === current ? "transform 8000ms linear" : "none",
+              // Always transition smoothly — prevents snap when slide becomes active
+              transform: i === current ? "scale(1.0)" : "scale(1.08)",
+              transition: "transform 9000ms linear",
             }}
           />
           {/* Multi-layer dark gradient */}
@@ -210,8 +215,14 @@ export default function HeroSection() {
                 onMouseLeave={() => setIsPaused(false)}
                 size="lg"
                 variant="outline"
-                className="rounded-xl font-semibold border-white/30 text-white hover:bg-white/10 backdrop-blur-sm"
-                style={{ padding: "14px 28px", fontSize: "0.95rem" }}
+                className="rounded-xl font-semibold backdrop-blur-sm hover:bg-white/10"
+                style={{
+                  padding: "14px 28px",
+                  fontSize: "0.95rem",
+                  backgroundColor: "transparent",
+                  color: "white",
+                  borderColor: "rgba(255,255,255,0.3)",
+                }}
               >
                 {t("hero.ctaSecondary")}
               </Button>
