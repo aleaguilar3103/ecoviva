@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useLocalePath } from "@/hooks/useLocalePath";
 import { ChevronLeft, ChevronRight, MapPin, ArrowDown } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -60,6 +61,7 @@ function useStats() {
 
 export default function HeroSection() {
   const { t } = useLanguage();
+  const localePath = useLocalePath();
   const stats = useStats();
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
@@ -88,8 +90,8 @@ export default function HeroSection() {
     setIsPaused(true);
     const a = slides[current].ctaAction;
     if (a === "projects") document.getElementById("projects")?.scrollIntoView({ behavior: "smooth" });
-    else if (a === "rioCeleste") navigate("/rio-celeste-oasis-detalle");
-    else if (a === "lomasLlanada") navigate("/lomas-de-la-llanada-detalle");
+    else if (a === "rioCeleste") navigate(localePath("/rio-celeste-oasis-detalle"));
+    else if (a === "lomasLlanada") navigate(localePath("/lomas-de-la-llanada-detalle"));
     else if (a === "financing") document.getElementById("financing")?.scrollIntoView({ behavior: "smooth" });
   };
 

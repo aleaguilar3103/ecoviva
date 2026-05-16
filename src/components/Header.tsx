@@ -3,6 +3,7 @@ import { MessageCircle, Menu, X } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import FinancingBanner from "@/components/FinancingBanner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useLocalePath } from "@/hooks/useLocalePath";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 
@@ -14,13 +15,14 @@ export default function Header({
   onWhatsAppClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank"),
 }: HeaderProps) {
   const { t } = useLanguage();
+  const localePath = useLocalePath();
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [visible, setVisible] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const lastScrollY = useRef(0);
-  const isHome = location.pathname === "/";
+  const isHome = location.pathname === "/" || location.pathname === "/en";
 
   useEffect(() => {
     const onScroll = () => {
@@ -38,14 +40,14 @@ export default function Header({
     if (isHome) {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     } else {
-      navigate("/", { state: { scrollTo: id } });
+      navigate(localePath("/"), { state: { scrollTo: id } });
     }
   };
 
   const goHome = () => {
     setMobileOpen(false);
     if (isHome) window.scrollTo({ top: 0, behavior: "smooth" });
-    else navigate("/");
+    else navigate(localePath("/"));
   };
 
   const navLinks = [

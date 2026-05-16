@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { MapPin, Check, ArrowRight, Maximize2 } from "lucide-react";
+import { useLocalePath } from "@/hooks/useLocalePath";
 
 export interface ProjectCardData {
   id: string;
@@ -24,10 +25,11 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   const navigate = useNavigate();
+  const localePath = useLocalePath();
 
   const go = () => {
-    if (project.id === "rio-celeste") navigate("/rio-celeste-oasis-detalle");
-    else if (project.id === "llanada-views") navigate("/lomas-de-la-llanada-detalle");
+    if (project.id === "rio-celeste") navigate(localePath("/rio-celeste-oasis-detalle"));
+    else if (project.id === "llanada-views") navigate(localePath("/lomas-de-la-llanada-detalle"));
   };
 
   return (

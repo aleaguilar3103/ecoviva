@@ -1,15 +1,17 @@
 import { Mail, Phone, MapPin, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useLocalePath } from "@/hooks/useLocalePath";
 import { useNavigate } from "react-router-dom";
 
 export default function Footer() {
   const { t } = useLanguage();
+  const localePath = useLocalePath();
   const navigate = useNavigate();
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth" });
-    else navigate("/", { state: { scrollTo: id } });
+    else navigate(localePath("/"), { state: { scrollTo: id } });
   };
 
   return (
