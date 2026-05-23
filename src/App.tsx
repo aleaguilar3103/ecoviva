@@ -2,7 +2,7 @@ import { Suspense, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import MaintenancePage from "./components/MaintenancePage";
 
-const MAINTENANCE = false;
+const MAINTENANCE = true;
 import Home from "./components/home";
 import RioCelesteDetail from "./components/RioCelesteDetail";
 import LomasLlanadaDetail from "./components/LomasLlanadaDetail";
