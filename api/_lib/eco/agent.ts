@@ -4,7 +4,8 @@ import { getBotConfig } from "./config.js";
 import { TOOLS, executeTool, type ConversationRow, type ToolContext } from "./tools.js";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
-const MAX_HISTORY = 20;
+const KEEP_RECENT = 12; // mensajes recientes que SIEMPRE van en crudo
+const MAX_RAW = 24; // si los mensajes sin resumir superan esto, se pliega el resumen rodante
 const MAX_TOOL_LOOPS = 8;
 
 let _client: Anthropic | null = null;
@@ -68,19 +69,69 @@ async function findOrCreateConversation(input: RunInput): Promise<ConversationRo
   return row;
 }
 
-async function loadHistory(conversationId: string): Promise<Anthropic.MessageParam[]> {
+// Carga los mensajes que aún NO están resumidos (posteriores a `offset`), en
+// orden cronológico. Lo anterior vive en el resumen rodante (memoria larga).
+// Con offset 0 (sin resumen todavía) traemos los más recientes, por si la
+// conversación ya era larga antes de existir el resumen.
+async function loadHistory(
+  conversationId: string,
+  offset: number
+): Promise<Anthropic.MessageParam[]> {
   const db = supabaseAdmin();
-  const { data } = await db
+  const base = db
     .from("messages")
     .select("role, content")
     .eq("conversation_id", conversationId)
-    .in("role", ["user", "assistant"])
+    .in("role", ["user", "assistant"]);
+  if (offset > 0) {
+    const { data } = await base
+      .order("created_at", { ascending: true })
+      .range(offset, offset + MAX_RAW + 10);
+    return (data || [])
+      .filter((r) => r.content)
+      .map((r) => ({ role: r.role as "user" | "assistant", content: r.content as string }));
+  }
+  const { data } = await base
     .order("created_at", { ascending: false })
-    .limit(MAX_HISTORY);
-  const rows = (data || []).reverse();
-  return rows
+    .limit(MAX_RAW + 10);
+  return (data || [])
+    .reverse()
     .filter((r) => r.content)
     .map((r) => ({ role: r.role as "user" | "assistant", content: r.content as string }));
+}
+
+// Pliega los mensajes viejos en el resumen rodante. Si falla, conserva el previo
+// (nunca rompe la respuesta al cliente).
+async function rollUpSummary(
+  prevSummary: string,
+  rows: { role: string; content: string }[]
+): Promise<string> {
+  if (!rows.length) return prevSummary;
+  const convoText = rows
+    .map((r) => `${r.role === "user" ? "Cliente" : "ECO"}: ${r.content}`)
+    .join("\n");
+  try {
+    const resp = await client().messages.create({
+      model: MODEL,
+      max_tokens: 500,
+      system:
+        "Mantenés un resumen breve y útil de una conversación de ventas de lotes (EcoViva) como memoria de largo plazo del asesor. Devolvé SOLO el resumen actualizado, en español, en prosa corta (máximo ~8 líneas), sin viñetas ni encabezados. Capturá: quién es el lead y sus datos (nombre, teléfono, correo si los dio), proyecto e interés, presupuesto y preferencias, qué se le ofreció o envió (folletos, precios), estado de la visita/cita, y pendientes. Conservá lo importante del resumen previo.",
+      messages: [
+        {
+          role: "user",
+          content: `Resumen actual:\n${prevSummary || "(vacío)"}\n\nNuevos mensajes a incorporar:\n${convoText}\n\nDevolvé el resumen actualizado y completo.`,
+        },
+      ],
+    });
+    const text = resp.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+    return text || prevSummary;
+  } catch {
+    return prevSummary;
+  }
 }
 
 export async function runAgent(input: RunInput): Promise<RunResult> {
@@ -105,7 +156,14 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
     if (Object.keys(patch).length) await patchConvo(patch);
   }
 
-  const history = await loadHistory(convo.id);
+  // Memoria de largo plazo: resumen rodante guardado en conversations.memory.
+  const mem = (convo.memory && typeof convo.memory === "object"
+    ? (convo.memory as Record<string, unknown>)
+    : {}) as Record<string, unknown>;
+  const summary = typeof mem.summary === "string" ? mem.summary : "";
+  const summaryCount = typeof mem.summary_count === "number" ? mem.summary_count : 0;
+
+  const history = await loadHistory(convo.id, summaryCount);
   const messages: Anthropic.MessageParam[] = [
     ...history,
     { role: "user", content: input.userMessage },
@@ -165,17 +223,26 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
       `Si ya tenés nombre, teléfono y correo, no preguntés nada: confirmá en una línea y agendá.`;
   }
 
+  // Bloques de system: prompt (cacheado) + resumen de largo plazo (si hay) + contexto del día.
+  const systemBlocks: Anthropic.TextBlockParam[] = [
+    { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+  ];
+  if (summary) {
+    systemBlocks.push({
+      type: "text",
+      text: `Resumen de lo conversado antes con este cliente (memoria de largo plazo; los mensajes recientes van aparte abajo): ${summary}`,
+    });
+  }
+  systemBlocks.push({
+    type: "text",
+    text: `Hoy es ${crISODate} (${crNow} en Costa Rica). Cuando llames a herramientas de calendario (consultar_horarios_disponibles, agendar_visita), las fechas SIEMPRE van en formato YYYY-MM-DD usando el año actual (${crISODate.slice(0, 4)}); nunca uses un año anterior ni una fecha pasada. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.${contactNote}`,
+  });
+
   for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
     const resp = await client().messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: [
-        { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
-        {
-          type: "text",
-          text: `Hoy es ${crISODate} (${crNow} en Costa Rica). Cuando llames a herramientas de calendario (consultar_horarios_disponibles, agendar_visita), las fechas SIEMPRE van en formato YYYY-MM-DD usando el año actual (${crISODate.slice(0, 4)}); nunca uses un año anterior ni una fecha pasada. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.${contactNote}`,
-        },
-      ],
+      system: systemBlocks,
       tools: TOOLS.map((t, idx) =>
         idx === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t
       ) as Anthropic.Tool[],
@@ -216,6 +283,35 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
     tool_calls: toolAudit.length ? toolAudit : null,
   });
   await db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convo.id);
+
+  // Resumen rodante: si se acumularon muchos mensajes sin resumir, plegamos los
+  // más viejos al resumen y dejamos los KEEP_RECENT más nuevos en crudo.
+  try {
+    const { count } = await db
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", convo.id)
+      .in("role", ["user", "assistant"]);
+    const total = count ?? 0;
+    if (total - summaryCount > MAX_RAW) {
+      const foldUpTo = total - KEEP_RECENT; // resumimos hasta acá (exclusivo)
+      const { data: foldRows } = await db
+        .from("messages")
+        .select("role, content")
+        .eq("conversation_id", convo.id)
+        .in("role", ["user", "assistant"])
+        .order("created_at", { ascending: true })
+        .range(summaryCount, foldUpTo - 1);
+      const rows = (foldRows || []).filter((r) => r.content) as {
+        role: string;
+        content: string;
+      }[];
+      const newSummary = await rollUpSummary(summary, rows);
+      await patchConvo({ memory: { ...mem, summary: newSummary, summary_count: foldUpTo } });
+    }
+  } catch (e) {
+    console.error("eco summary roll error", e);
+  }
 
   return {
     reply: finalText || "Disculpá, no logré procesar eso. ¿Lo intentamos de nuevo?",
