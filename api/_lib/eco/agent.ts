@@ -94,6 +94,17 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
   };
   const ctx: ToolContext = { db, convo, patchConvo, attachments: [] };
 
+  // Si el canal nos dio datos del contacto (WhatsApp/CRM trae nombre, teléfono y
+  // a veces correo) y la conversación aún no los tiene, los sembramos: así las
+  // tools de guardado/agenda tienen respaldo y no se duplican contactos.
+  if (input.contactSeed) {
+    const patch: Record<string, string> = {};
+    if (!convo.contact_name && input.contactSeed.name) patch.contact_name = input.contactSeed.name;
+    if (!convo.contact_email && input.contactSeed.email) patch.contact_email = input.contactSeed.email;
+    if (!convo.contact_phone && input.contactSeed.phone) patch.contact_phone = input.contactSeed.phone;
+    if (Object.keys(patch).length) await patchConvo(patch);
+  }
+
   const history = await loadHistory(convo.id);
   const messages: Anthropic.MessageParam[] = [
     ...history,
@@ -131,6 +142,29 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
     day: "2-digit",
   }).format(now);
 
+  // Datos que ya tenemos del contacto: el agente debe usarlos y NO volver a
+  // pedir lo que ya sabe. El nombre se confirma si parece real; si es basura
+  // (ej. "Dios es grande"), ahí sí se pide.
+  const seed = {
+    name: convo.contact_name || input.contactSeed?.name || undefined,
+    phone: convo.contact_phone || input.contactSeed?.phone || undefined,
+    email: convo.contact_email || input.contactSeed?.email || undefined,
+  };
+  let contactNote = "";
+  if (seed.name || seed.phone || seed.email) {
+    const have: string[] = [];
+    if (seed.name) have.push(`nombre "${seed.name}"`);
+    if (seed.phone) have.push(`teléfono ${seed.phone}`);
+    if (seed.email) have.push(`correo ${seed.email}`);
+    contactNote =
+      ` Datos que YA tenés de este contacto (de WhatsApp/CRM): ${have.join(", ")}. ` +
+      `Usalos a tu favor y NO vuelvas a pedir lo que ya tenés. Para agendar: si el nombre parece un nombre real de persona, ` +
+      `confirmalo en vez de preguntarlo (ej. "¿La agendo a nombre de Alejandro y con este mismo número del que me escribe?"). ` +
+      `Solo si el nombre NO parece de persona (ej. "Dios es grande", un apodo, una empresa, o está vacío) pedí el nombre correcto. ` +
+      `El número de WhatsApp ya sirve como teléfono. Pedí únicamente lo que falte (normalmente solo el correo). ` +
+      `Si ya tenés nombre, teléfono y correo, no preguntés nada: confirmá en una línea y agendá.`;
+  }
+
   for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
     const resp = await client().messages.create({
       model: MODEL,
@@ -139,7 +173,7 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
         { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
         {
           type: "text",
-          text: `Hoy es ${crISODate} (${crNow} en Costa Rica). Cuando llames a herramientas de calendario (consultar_horarios_disponibles, agendar_visita), las fechas SIEMPRE van en formato YYYY-MM-DD usando el año actual (${crISODate.slice(0, 4)}); nunca uses un año anterior ni una fecha pasada. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.`,
+          text: `Hoy es ${crISODate} (${crNow} en Costa Rica). Cuando llames a herramientas de calendario (consultar_horarios_disponibles, agendar_visita), las fechas SIEMPRE van en formato YYYY-MM-DD usando el año actual (${crISODate.slice(0, 4)}); nunca uses un año anterior ni una fecha pasada. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.${contactNote}`,
         },
       ],
       tools: TOOLS.map((t, idx) =>

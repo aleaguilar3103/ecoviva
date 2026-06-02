@@ -100,6 +100,35 @@ export async function upsertContact(input: UpsertContactInput): Promise<string> 
   return String(contact.id);
 }
 
+// Trae los datos actuales del contacto (nombre/correo/teléfono) para que el
+// agente use lo que YA tiene y no lo vuelva a pedir. Devuelve null si falla.
+export async function getContact(contactId: string): Promise<{
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+} | null> {
+  try {
+    const json = await ghlFetch(`/contacts/${contactId}`);
+    const c = (json.contact || json) as Record<string, unknown>;
+    if (!c || typeof c !== "object") return null;
+    const firstName = (c.firstName as string) || undefined;
+    const lastName = (c.lastName as string) || undefined;
+    const name =
+      (c.name as string) || [firstName, lastName].filter(Boolean).join(" ") || undefined;
+    return {
+      firstName,
+      lastName,
+      name,
+      email: (c.email as string) || undefined,
+      phone: (c.phone as string) || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function updateContactCustomFields(
   contactId: string,
   customFields: { id: string; value: string }[]
@@ -161,6 +190,51 @@ export async function bookAppointment(opts: {
       title: opts.title,
     },
   });
+}
+
+// Último mensaje ENTRANTE de texto del contacto. Respaldo para cuando el webhook
+// de GHL se dispara "vacío" (sin body): replica el nodo "get last message" que se
+// usaba en n8n. Buscamos la conversación más reciente del contacto y revisamos su
+// último mensaje.
+//
+// Anti-loop: solo devolvemos algo si el mensaje MÁS RECIENTE de la conversación es
+// entrante. Si el más reciente es saliente, significa que ya respondimos y no hay
+// nada pendiente → devolvemos null (no re-respondemos).
+export async function getLastInboundMessage(
+  contactId: string
+): Promise<{ message: string; conversationId: string } | null> {
+  const search = await ghlFetch("/conversations/search", {
+    version: "2021-04-15",
+    query: {
+      locationId: locationId(),
+      contactId,
+      sortBy: "last_message_date",
+      sort: "desc",
+      limit: "1",
+    },
+  });
+  const convos = ((search.conversations as unknown[]) || []) as Record<string, unknown>[];
+  const convo = convos[0];
+  if (!convo?.id) return null;
+  const conversationId = String(convo.id);
+
+  const msgs = await ghlFetch(`/conversations/${conversationId}/messages`, {
+    version: "2021-04-15",
+    query: { limit: "20" },
+  });
+  // Forma de la respuesta: { messages: { messages: [...newest first...] } }
+  const container = (msgs.messages as Record<string, unknown>) || {};
+  const list = ((container.messages as unknown[]) || []) as Record<string, unknown>[];
+  const newest = list[0];
+  if (!newest) return null;
+
+  // Si el último mensaje no es entrante, ya fue respondido → nada pendiente.
+  if (String(newest.direction || "").toLowerCase() !== "inbound") return null;
+
+  const body = typeof newest.body === "string" ? newest.body.trim() : "";
+  if (!body) return null; // último entrante sin texto (ej. imagen/audio): no lo manejamos acá
+
+  return { message: body, conversationId };
 }
 
 // Envía un mensaje por el canal indicado (respuesta del agente en WhatsApp/SMS).

@@ -1,7 +1,7 @@
 import { waitUntil } from "@vercel/functions";
 import { runAgent } from "../_lib/eco/agent.js";
 import { getBotConfig } from "../_lib/eco/config.js";
-import { sendMessage } from "../_lib/ghl.js";
+import { getContact, getLastInboundMessage, sendMessage } from "../_lib/ghl.js";
 import { supabaseAdmin } from "../_lib/supabase.js";
 
 // /api/ghl/webhook — recibe mensajes ENTRANTES desde GHL (WhatsApp y otros canales)
@@ -82,11 +82,12 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ ok: true, skipped: "outbound" });
   }
 
-  if (!contactId || !message) {
+  // Sin contactId no hay forma de responder ni de consultar a GHL.
+  if (!contactId) {
     return res.status(200).json({
       ok: true,
       logged: true,
-      note: "Payload capturado en webhook_events. Falta contactId o message de texto.",
+      note: "Payload capturado en webhook_events. Falta contactId.",
     });
   }
 
@@ -96,13 +97,38 @@ export default async function handler(req: any, res: any) {
     (async () => {
       try {
         await sleep(delayMs);
+
+        // Respaldo "get last message" (como en n8n): si el webhook llegó sin texto,
+        // le pedimos a GHL el último mensaje ENTRANTE del contacto. Solo responde si
+        // ese es el mensaje más reciente (si ya hay un saliente después, no hace nada).
+        let text = message;
+        let convId = conversationId;
+        if (!text) {
+          const last = await getLastInboundMessage(contactId);
+          if (last) {
+            text = last.message;
+            convId = convId || last.conversationId;
+          }
+        }
+        if (!text) {
+          console.warn("ghl webhook: sin texto en payload ni mensaje entrante pendiente", contactId);
+          return;
+        }
+
+        // Datos que ya tenemos del contacto (nombre/correo/teléfono): así el
+        // agente confirma en vez de preguntar lo que ya sabe.
+        const known = await getContact(contactId);
+
         const { reply, attachments } = await runAgent({
           channel: "whatsapp",
           ghlContactId: contactId,
-          ghlConversationId: conversationId,
-          userMessage: message,
+          ghlConversationId: convId,
+          userMessage: text,
+          contactSeed: known
+            ? { name: known.name, email: known.email, phone: known.phone }
+            : undefined,
         });
-        await sendMessage({ contactId, message: reply, type: messageType, conversationId, attachments });
+        await sendMessage({ contactId, message: reply, type: messageType, conversationId: convId, attachments });
       } catch (e) {
         console.error("ghl webhook bg error", e);
       }
