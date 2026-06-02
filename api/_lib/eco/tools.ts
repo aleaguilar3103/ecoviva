@@ -25,6 +25,13 @@ const PROYECTO_LABEL: Record<string, string> = {
   llanada: "Lomas de la Llanada",
 };
 
+const ESTADO_LABEL: Record<string, string> = {
+  available: "disponible",
+  reserved: "reservado",
+  sold: "vendido",
+  not_available: "no disponible",
+};
+
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
@@ -56,11 +63,15 @@ export const TOOLS = [
   {
     name: "consultar_disponibilidad",
     description:
-      "Consulta el inventario VIVO de lotes (disponibles/reservados/vendidos) de un proyecto. Úsala antes de afirmar disponibilidad o dar precios de lotes específicos.",
+      "Consulta el inventario VIVO de lotes (disponibles/reservados/vendidos) de un proyecto. Úsala antes de afirmar disponibilidad o dar precios de lotes específicos. Si el cliente pregunta por un lote puntual (ej. 'el lote 25'), pasá numero_lote y te dice su estado exacto aunque esté vendido/reservado, más alternativas disponibles parecidas.",
     input_schema: {
       type: "object",
       properties: {
         proyecto: { type: "string", enum: ["rio_celeste", "llanada"] },
+        numero_lote: {
+          type: "number",
+          description: "Número de lote específico. Devuelve su estado (disponible/reservado/vendido) y alternativas si no está libre.",
+        },
         seccion: {
           type: "string",
           enum: ["bloque_1", "frente_a_calle", "general"],
@@ -207,6 +218,54 @@ export async function executeTool(
   switch (name) {
     case "consultar_disponibilidad": {
       const proyecto = input.proyecto as string;
+
+      // Consulta de un lote puntual por número: trae su estado real aunque esté vendido/reservado.
+      if (input.numero_lote != null) {
+        const numeroLote = input.numero_lote as number;
+        const { data: lote, error: errLote } = await ctx.db
+          .from("lots")
+          .select("*")
+          .eq("project", proyecto)
+          .eq("lot_number", numeroLote)
+          .maybeSingle();
+        if (errLote) return `Error consultando el lote: ${errLote.message}`;
+        if (!lote)
+          return JSON.stringify({
+            proyecto: PROYECTO_LABEL[proyecto],
+            numero_lote: numeroLote,
+            encontrado: false,
+          });
+        const moneda = lote.currency;
+        const detalle: Record<string, unknown> = {
+          proyecto: PROYECTO_LABEL[proyecto],
+          numero_lote: lote.lot_number,
+          estado: ESTADO_LABEL[lote.status] ?? lote.status,
+          m2: Number(lote.size_m2),
+          precio_total: formatMoneda(Number(lote.price_total), moneda),
+          precio_m2: formatMoneda(Number(lote.price_per_m2), moneda),
+          requiere_prima: lote.requires_prima ? `${lote.prima_pct}%` : "no",
+        };
+        // Si no está disponible, sugerí los lotes libres de tamaño más parecido.
+        if (lote.status !== "available") {
+          const { data: libres } = await ctx.db
+            .from("lots")
+            .select("*")
+            .eq("project", proyecto)
+            .eq("status", "available");
+          detalle.alternativas = (libres ?? [])
+            .map((l) => ({ l, diff: Math.abs(Number(l.size_m2) - Number(lote.size_m2)) }))
+            .sort((a, b) => a.diff - b.diff)
+            .slice(0, 3)
+            .map(({ l }) => ({
+              lote: l.lot_number,
+              m2: Number(l.size_m2),
+              precio_total: formatMoneda(Number(l.price_total), l.currency),
+              requiere_prima: l.requires_prima ? `${l.prima_pct}%` : "no",
+            }));
+        }
+        return JSON.stringify(detalle);
+      }
+
       const soloDisp = input.solo_disponibles !== false;
       let q = ctx.db.from("lots").select("*").eq("project", proyecto).order("size_m2");
       if (input.seccion) q = q.eq("section", input.seccion as string);
