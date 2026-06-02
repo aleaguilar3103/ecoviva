@@ -36,13 +36,22 @@ export default async function handler(req: any, res: any) {
   }
 
   const b = (req.body ?? {}) as Record<string, any>;
-  const contactId: string | undefined = b.contactId || b.contact_id || b.contact?.id;
-  const message: string | undefined = b.message || b.body || b.messageBody || b.text;
-  const conversationId: string | undefined = b.conversationId || b.conversation_id;
-  const messageType: string = b.messageType || b.type || "WhatsApp";
-  const direction: string | undefined = b.direction;
+  const contactId: string | undefined = b.contact_id || b.contactId || b.contact?.id;
+  // GHL manda `message` como objeto { body, type } (no string)
+  const msg = b.message;
+  const message: string | undefined =
+    typeof msg === "string" ? msg : msg?.body || b.body || b.messageBody || b.text;
+  const conversationId: string | undefined =
+    b.conversationId || b.conversation_id || msg?.conversationId;
+  const messageType = "WhatsApp"; // canal de respuesta
+  const direction: string | undefined = b.direction || msg?.direction;
   const attachments =
-    b.attachments || b.attachmentUrls || b.attachment || b.mediaUrl || b.media || null;
+    (msg && (msg.attachments || msg.media)) ||
+    b.attachments ||
+    b.attachmentUrls ||
+    b.attachment ||
+    b.mediaUrl ||
+    null;
 
   // Solo respondemos a mensajes entrantes
   if (direction && String(direction).toLowerCase() === "outbound") {
