@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { supabaseAdmin } from "../supabase";
-import { SYSTEM_PROMPT } from "./prompt";
-import { TOOLS, executeTool, type ConversationRow, type ToolContext } from "./tools";
+import { supabaseAdmin } from "../supabase.js";
+import { SYSTEM_PROMPT } from "./prompt.js";
+import { TOOLS, executeTool, type ConversationRow, type ToolContext } from "./tools.js";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MAX_HISTORY = 20;

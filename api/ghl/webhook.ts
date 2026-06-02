@@ -1,5 +1,5 @@
-import { runAgent } from "../_lib/eco/agent";
-import { sendMessage } from "../_lib/ghl";
+import { runAgent } from "../_lib/eco/agent.js";
+import { sendMessage } from "../_lib/ghl.js";
 
 // /api/ghl/webhook — recibe mensajes ENTRANTES desde GHL (WhatsApp y otros canales)
 // y responde por el mismo canal usando la API de GHL.

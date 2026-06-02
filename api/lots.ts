@@ -1,4 +1,4 @@
-import { supabaseAdmin, isAuthorizedAdmin } from "./_lib/supabase";
+import { supabaseAdmin, isAuthorizedAdmin } from "./_lib/supabase.js";
 
 // /api/lots
 //   GET  ?project=&section=&status=&onlyAvailable=true&minSize=&maxSize=  → lista de lotes

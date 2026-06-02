@@ -1,4 +1,4 @@
-import { runAgent } from "./_lib/eco/agent";
+import { runAgent } from "./_lib/eco/agent.js";
 
 // /api/chat — endpoint del widget web.
 // POST { message: string, sessionId: string, contact?: {name,email,phone} }

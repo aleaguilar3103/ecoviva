@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { calcularCuota, formatMoneda, type Moneda } from "../finance";
-import * as ghl from "../ghl";
+import { calcularCuota, formatMoneda, type Moneda } from "../finance.js";
+import * as ghl from "../ghl.js";
 
 // ── URLs de documentos (bucket público "documentos" en Supabase Storage) ──
 const DOC_BASE =
