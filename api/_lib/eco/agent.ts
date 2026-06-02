@@ -108,11 +108,27 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
   let finalText = "";
   const toolAudit: { name: string; input: unknown; result: string }[] = [];
 
+  const crNow = new Intl.DateTimeFormat("es-CR", {
+    timeZone: "America/Costa_Rica",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date());
+
   for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
     const resp = await client().messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+      system: [
+        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+        {
+          type: "text",
+          text: `Hora actual en Costa Rica: ${crNow}. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.`,
+        },
+      ],
       tools: TOOLS.map((t, idx) =>
         idx === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t
       ) as Anthropic.Tool[],
