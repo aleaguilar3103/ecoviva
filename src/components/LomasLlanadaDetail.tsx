@@ -77,6 +77,33 @@ export default function LomasLlanadaDetail() {
   const mapPanelRef = useRef<HTMLDivElement>(null);
   const [mapPanelHeight, setMapPanelHeight] = useState<number | undefined>(undefined);
 
+  // Disponibilidad VIVA desde Supabase (panel admin = fuente de verdad).
+  // Arranca con los datos locales como respaldo; si el fetch falla, el sitio nunca se rompe.
+  const [lots, setLots] = useState(bloque1Lots);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/lots?project=llanada")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { lots: any[] }) => {
+        if (!active || !Array.isArray(data?.lots) || !data.lots.length) return;
+        const mapped = data.lots
+          .slice()
+          .sort((a, b) => a.lot_number - b.lot_number)
+          .map((l) => ({
+            id: l.lot_number,
+            size: Number(l.size_m2),
+            pricePerM2: Number(l.price_per_m2),
+            total: Number(l.price_total),
+            status: l.status as "available" | "not_available" | "sold" | "reserved",
+          }));
+        setLots(mapped as typeof bloque1Lots);
+      })
+      .catch(() => {/* respaldo: datos locales */});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     const t = setTimeout(() => setHeroZoomed(true), 80);
@@ -173,7 +200,7 @@ export default function LomasLlanadaDetail() {
               {/* Stats pills */}
               <div className="flex flex-wrap gap-2 mb-7">
                 {[
-                  { value: `${bloque1Lots.filter(l => l.status === "available").length}`, label: "lotes disponibles" },
+                  { value: `${lots.filter(l => l.status === "available").length}`, label: "lotes disponibles" },
                   { value: "690 – 8,141 m²", label: "tamaño" },
                   { value: "₡0", label: "prima inicial" },
                 ].map(({ value, label }) => (
@@ -228,7 +255,7 @@ export default function LomasLlanadaDetail() {
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-white/5">
             {[
-              { value: `${bloque1Lots.filter(l => l.status === "available").length}`, label: "Lotes disponibles" },
+              { value: `${lots.filter(l => l.status === "available").length}`, label: "Lotes disponibles" },
               { value: "690 m²", label: "Tamaño mínimo" },
               { value: "8,141 m²", label: "Tamaño máximo" },
               { value: "₡13K/m²", label: "Desde" },
@@ -376,7 +403,7 @@ export default function LomasLlanadaDetail() {
             {/* Map */}
             <div className="lg:col-span-3">
               <div ref={mapPanelRef} className="rounded-2xl p-4 pb-3" style={{ backgroundColor: "#0a0f0b", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <LotMapInteractive lots={bloque1Lots} selectedLot={selectedLot} onLotSelect={handleLotSelectFromMap} />
+                <LotMapInteractive lots={lots} selectedLot={selectedLot} onLotSelect={handleLotSelectFromMap} />
                 <p className="text-xs mt-2 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
                   Pasa el cursor sobre un lote · Haz clic para seleccionar
                 </p>
@@ -388,11 +415,11 @@ export default function LomasLlanadaDetail() {
               <div className="rounded-2xl overflow-hidden flex flex-col flex-1" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
                 <div className="px-5 py-4 flex-shrink-0" style={{ backgroundColor: "#080d09", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                   <h3 className="font-bold text-white">
-                    Lotes disponibles <span style={{ color: "#74CE52" }}>({bloque1Lots.filter(l => l.status === "available").length})</span>
+                    Lotes disponibles <span style={{ color: "#74CE52" }}>({lots.filter(l => l.status === "available").length})</span>
                   </h3>
                 </div>
                 <div ref={lotListRef} className="overflow-y-auto flex-1 min-h-0" style={{ backgroundColor: "#0a0f0b" }}>
-                  {bloque1Lots.map((lot) => {
+                  {lots.map((lot) => {
                     const isSelected = selectedLot?.id === lot.id;
                     return (
                       <div

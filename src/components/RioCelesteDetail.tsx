@@ -14,7 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
 import FinancingSection from "@/components/FinancingSection";
-import RioCelesteMapInteractive from "@/components/RioCelesteMapInteractive";
+import RioCelesteMapInteractive, { type RioCelesteLotData } from "@/components/RioCelesteMapInteractive";
 
 const rioCelesteLots = [
   { id: 2, size: 1706.44, pricePerM2: 45, total: Math.round(1706.44 * 45), available: true },
@@ -46,12 +46,40 @@ export default function RioCelesteDetail() {
   const { t } = useLanguage();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [selectedLot, setSelectedLot] = useState<(typeof rioCelesteLots)[0] | null>(null);
+  const [selectedLot, setSelectedLot] = useState<RioCelesteLotData | null>(null);
   const [heroZoomed, setHeroZoomed] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lotListRef = useRef<HTMLDivElement>(null);
   const mapPanelRef = useRef<HTMLDivElement>(null);
   const [mapPanelHeight, setMapPanelHeight] = useState<number | undefined>(undefined);
+
+  // Disponibilidad VIVA desde Supabase (panel admin = fuente de verdad).
+  // Arranca con los datos locales como respaldo; si el fetch falla, el sitio nunca se rompe.
+  const [lots, setLots] = useState<RioCelesteLotData[]>(rioCelesteLots);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/lots?project=rio_celeste")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { lots: any[] }) => {
+        if (!active || !Array.isArray(data?.lots) || !data.lots.length) return;
+        const mapped = data.lots
+          .slice()
+          .sort((a, b) => a.lot_number - b.lot_number)
+          .map((l) => ({
+            id: l.lot_number,
+            size: Number(l.size_m2),
+            pricePerM2: Number(l.price_per_m2),
+            total: Number(l.price_total),
+            available: l.status === "available",
+            ...(l.plano_visado_url ? { planoVisado: l.plano_visado_url } : {}),
+          }));
+        setLots(mapped as RioCelesteLotData[]);
+      })
+      .catch(() => {/* respaldo: datos locales */});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -150,7 +178,7 @@ export default function RioCelesteDetail() {
               {/* Stats pills */}
               <div className="flex flex-wrap gap-2 mb-7">
                 {[
-                  { value: `${rioCelesteLots.filter(l => l.available).length}`, label: "lotes disponibles" },
+                  { value: `${lots.filter(l => l.available).length}`, label: "lotes disponibles" },
                   { value: "1,700 – 6,000 m²", label: "tamaño" },
                   { value: "$0", label: "down payment" },
                 ].map(({ value, label }) => (
@@ -197,7 +225,7 @@ export default function RioCelesteDetail() {
         <div className="container mx-auto px-4 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4">
             {[
-              { value: `${rioCelesteLots.filter(l => l.available).length}`, label: "Lotes disponibles" },
+              { value: `${lots.filter(l => l.available).length}`, label: "Lotes disponibles" },
               { value: "1,300 m²", label: "Tamaño mínimo" },
               { value: "6,000 m²", label: "Tamaño máximo" },
               { value: "$30/m²", label: "Desde" },
@@ -372,7 +400,7 @@ export default function RioCelesteDetail() {
             <div className="lg:col-span-3">
               <div ref={mapPanelRef} className="rounded-2xl p-4 pb-3" style={{ backgroundColor: "#0a0f0b", border: "1px solid rgba(255,255,255,0.07)" }}>
                 <RioCelesteMapInteractive
-                  lots={rioCelesteLots}
+                  lots={lots}
                   selectedLot={selectedLot}
                   onLotSelect={(lot) => {
                     setSelectedLot(lot);
@@ -393,11 +421,11 @@ export default function RioCelesteDetail() {
               <div className="rounded-2xl overflow-hidden flex flex-col flex-1" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
                 <div className="px-5 py-4 flex-shrink-0" style={{ backgroundColor: "#080d09", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                   <h3 className="font-bold text-white">
-                    {t("rioCelesteDetail.availableLots")} <span style={{ color: "#74CE52" }}>({rioCelesteLots.filter(l => l.available).length})</span>
+                    {t("rioCelesteDetail.availableLots")} <span style={{ color: "#74CE52" }}>({lots.filter(l => l.available).length})</span>
                   </h3>
                 </div>
                 <div ref={lotListRef} className="overflow-y-auto flex-1 min-h-0" style={{ backgroundColor: "#0a0f0b" }}>
-                  {[...rioCelesteLots].sort((a, b) => a.id - b.id).map((lot) => {
+                  {[...lots].sort((a, b) => a.id - b.id).map((lot) => {
                     const isSelected = selectedLot?.id === lot.id;
                     return (
                       <div

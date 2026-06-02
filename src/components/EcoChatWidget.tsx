@@ -8,6 +8,7 @@ const DARK = "#0f2e1b";
 interface Msg {
   role: "user" | "assistant";
   text: string;
+  attachments?: string[];
 }
 
 function getSessionId(): string {
@@ -59,6 +60,7 @@ export default function EcoChatWidget() {
         {
           role: "assistant",
           text: data.reply || (isEN ? "Sorry, something went wrong." : "Disculpá, algo salió mal."),
+          attachments: Array.isArray(data.attachments) ? data.attachments : undefined,
         },
       ]);
     } catch {
@@ -155,6 +157,30 @@ export default function EcoChatWidget() {
                   }}
                 >
                   {m.text}
+                  {m.attachments?.map((url, j) => (
+                    <a
+                      key={j}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginTop: 8,
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        background: "#f0f6ee",
+                        border: "1px solid #d7e6d2",
+                        color: DARK,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textDecoration: "none",
+                      }}
+                    >
+                      📄 {isEN ? "Project brochure (PDF)" : "Folleto del proyecto (PDF)"}
+                    </a>
+                  ))}
                 </div>
               ))}
               {loading && (

@@ -1,5 +1,6 @@
 import { waitUntil } from "@vercel/functions";
 import { runAgent } from "../_lib/eco/agent.js";
+import { getBotConfig } from "../_lib/eco/config.js";
 import { sendMessage } from "../_lib/ghl.js";
 import { supabaseAdmin } from "../_lib/supabase.js";
 
@@ -63,6 +64,14 @@ export default async function handler(req: any, res: any) {
   const messageType = "WhatsApp"; // canal de respuesta
   const direction: string | undefined = b.direction || msg?.direction;
 
+  // Kill switch global: si el bot está apagado desde el panel, no respondemos.
+  try {
+    const { botEnabled } = await getBotConfig(supabaseAdmin());
+    if (!botEnabled) return res.status(200).json({ ok: true, skipped: "bot_disabled" });
+  } catch (e) {
+    console.error("webhook bot_config error", e);
+  }
+
   // Kill switch: si el contacto tiene el tag "stop bot", el flujo muere aquí.
   if (tieneStopTag(b.tags)) {
     return res.status(200).json({ ok: true, skipped: "stop_bot_tag" });
@@ -87,13 +96,13 @@ export default async function handler(req: any, res: any) {
     (async () => {
       try {
         await sleep(delayMs);
-        const { reply } = await runAgent({
+        const { reply, attachments } = await runAgent({
           channel: "whatsapp",
           ghlContactId: contactId,
           ghlConversationId: conversationId,
           userMessage: message,
         });
-        await sendMessage({ contactId, message: reply, type: messageType, conversationId });
+        await sendMessage({ contactId, message: reply, type: messageType, conversationId, attachments });
       } catch (e) {
         console.error("ghl webhook bg error", e);
       }

@@ -1,6 +1,9 @@
-import { Suspense, useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import MaintenancePage from "./components/MaintenancePage";
+
+// Panel admin: carga diferida para no inflar el bundle del sitio público.
+const AdminApp = lazy(() => import("./components/admin/AdminApp"));
 
 const MAINTENANCE = false;
 import Home from "./components/home";
@@ -52,13 +55,23 @@ function SharedRoutes() {
   );
 }
 
+// Muestra el widget de ECO en todo el sitio menos en el panel admin.
+function ChatWidgetGate() {
+  const location = useLocation();
+  if (location.pathname.startsWith("/admin")) return null;
+  return <EcoChatWidget />;
+}
+
 function App() {
   if (MAINTENANCE) return <MaintenancePage />;
 
   return (
     <Suspense fallback={<p>Loading...</p>}>
-      <EcoChatWidget />
+      <ChatWidgetGate />
       <Routes>
+        {/* Panel admin — sin locale, sin widget de chat */}
+        <Route path="/admin/*" element={<AdminApp />} />
+
         {/* EN locale — /en and /en/* */}
         <Route
           path="/en/*"

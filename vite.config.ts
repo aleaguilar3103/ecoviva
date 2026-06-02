@@ -21,5 +21,9 @@ export default defineConfig({
   server: {
     // @ts-ignore
     allowedHosts: true,
+    // DEV ONLY (temporal para pruebas locales): proxya /api a las funciones de vercel dev.
+    proxy: {
+      "/api": "http://localhost:3001",
+    },
   }
 });

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "../supabase.js";
-import { SYSTEM_PROMPT } from "./prompt.js";
+import { getBotConfig } from "./config.js";
 import { TOOLS, executeTool, type ConversationRow, type ToolContext } from "./tools.js";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
@@ -25,6 +25,7 @@ export interface RunInput {
 export interface RunResult {
   reply: string;
   conversationId: string;
+  attachments: string[];
 }
 
 async function findOrCreateConversation(input: RunInput): Promise<ConversationRow> {
@@ -84,13 +85,14 @@ async function loadHistory(conversationId: string): Promise<Anthropic.MessagePar
 
 export async function runAgent(input: RunInput): Promise<RunResult> {
   const db = supabaseAdmin();
+  const { systemPrompt } = await getBotConfig(db);
   const convo = await findOrCreateConversation(input);
 
   const patchConvo: ToolContext["patchConvo"] = async (fields) => {
     Object.assign(convo, fields);
     await db.from("conversations").update(fields).eq("id", convo.id);
   };
-  const ctx: ToolContext = { db, convo, patchConvo };
+  const ctx: ToolContext = { db, convo, patchConvo, attachments: [] };
 
   const history = await loadHistory(convo.id);
   const messages: Anthropic.MessageParam[] = [
@@ -108,6 +110,7 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
   let finalText = "";
   const toolAudit: { name: string; input: unknown; result: string }[] = [];
 
+  const now = new Date();
   const crNow = new Intl.DateTimeFormat("es-CR", {
     timeZone: "America/Costa_Rica",
     weekday: "long",
@@ -116,17 +119,27 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  }).format(new Date());
+  }).format(now);
+  // Fecha ISO en zona de Costa Rica (en-CA → "YYYY-MM-DD"). Imprescindible para
+  // que el agente pase fechas con el AÑO correcto a las tools de calendario;
+  // sin el año, el modelo asume uno de su entrenamiento (pasado) y GHL no
+  // devuelve cupos para fechas pasadas.
+  const crISODate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Costa_Rica",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
 
   for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
     const resp = await client().messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: [
-        { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+        { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
         {
           type: "text",
-          text: `Hora actual en Costa Rica: ${crNow}. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.`,
+          text: `Hoy es ${crISODate} (${crNow} en Costa Rica). Cuando llames a herramientas de calendario (consultar_horarios_disponibles, agendar_visita), las fechas SIEMPRE van en formato YYYY-MM-DD usando el año actual (${crISODate.slice(0, 4)}); nunca uses un año anterior ni una fecha pasada. Si la persona saluda, saludá según la hora (buenos días / buenas tardes / buenas noches), siempre corto.`,
         },
       ],
       tools: TOOLS.map((t, idx) =>
@@ -170,5 +183,9 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
   });
   await db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convo.id);
 
-  return { reply: finalText || "Disculpá, no logré procesar eso. ¿Lo intentamos de nuevo?", conversationId: convo.id };
+  return {
+    reply: finalText || "Disculpá, no logré procesar eso. ¿Lo intentamos de nuevo?",
+    conversationId: convo.id,
+    attachments: ctx.attachments,
+  };
 }

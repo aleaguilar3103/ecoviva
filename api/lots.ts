@@ -1,4 +1,4 @@
-import { supabaseAdmin, isAuthorizedAdmin } from "./_lib/supabase.js";
+import { supabaseAdmin, requireAdmin } from "./_lib/supabase.js";
 
 // /api/lots
 //   GET  ?project=&section=&status=&onlyAvailable=true&minSize=&maxSize=  → lista de lotes
@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
 
     // ── A partir de aquí, solo administración ──
     if (req.method === "PATCH" || req.method === "POST" || req.method === "DELETE") {
-      if (!isAuthorizedAdmin(req)) return res.status(401).json({ error: "No autorizado" });
+      if (!(await requireAdmin(req))) return res.status(401).json({ error: "No autorizado" });
     }
 
     const body = (req.body ?? {}) as Record<string, unknown>;

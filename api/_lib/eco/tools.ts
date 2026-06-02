@@ -1,15 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { calcularCuota, formatMoneda, type Moneda } from "../finance.js";
 import * as ghl from "../ghl.js";
+import { getBrochureUrl } from "./brochure.js";
 
-// ── URLs de documentos (bucket público "documentos" en Supabase Storage) ──
-const DOC_BASE =
-  (process.env.SUPABASE_URL || "https://hujuifwfknlpdqgvogkf.supabase.co") +
-  "/storage/v1/object/public/documentos";
-const DOCS: Record<string, Record<string, string>> = {
-  rio_celeste: { es: `${DOC_BASE}/rio-celeste-es.pdf`, en: `${DOC_BASE}/rio-celeste-en.pdf` },
-  llanada: { es: `${DOC_BASE}/llanada-es.pdf` },
-  llanada_frente_calle: { es: `${DOC_BASE}/llanada-frente-a-calle-es.pdf` },
+// ── Páginas vivas del proyecto (reemplazan los PDFs desactualizados) ──
+// Son las rutas reales del sitio: fotos, mapa interactivo de lotes,
+// disponibilidad en vivo y financiamiento. Una sola fuente de verdad.
+const SITE = (process.env.SITE_URL || "https://www.ecovivadesarrollos.com").replace(/\/$/, "");
+const PAGINAS: Record<string, Record<string, string>> = {
+  rio_celeste: {
+    es: `${SITE}/rio-celeste-oasis-detalle`,
+    en: `${SITE}/en/rio-celeste-oasis-detalle`,
+  },
+  // La página de Llanada ya incluye tanto el bloque principal como los lotes
+  // "frente a calle", así que ambas variantes apuntan al mismo enlace.
+  llanada: {
+    es: `${SITE}/lomas-de-la-llanada-detalle`,
+    en: `${SITE}/en/lomas-de-la-llanada-detalle`,
+  },
 };
 
 const PROYECTO_LABEL: Record<string, string> = {
@@ -38,6 +46,9 @@ export interface ToolContext {
   db: SupabaseClient;
   convo: ConversationRow;
   patchConvo: (fields: Record<string, unknown>) => Promise<void>;
+  // Archivos (URLs) que el agente quiere adjuntar a su respuesta (ej. el folleto).
+  // El canal de salida (webhook de WhatsApp / widget web) los entrega.
+  attachments: string[];
 }
 
 // ── Definiciones de tools para la API de Anthropic ──
@@ -105,13 +116,13 @@ export const TOOLS = [
   },
   {
     name: "enviar_documento_proyecto",
-    description: "Comparte el material (PDF) del proyecto. Pregunta antes idioma y, en Llanada, si quiere el de frente a calle.",
+    description:
+      "Comparte la PÁGINA del proyecto (enlace web con fotos, mapa interactivo de lotes, disponibilidad y financiamiento). Reemplaza al viejo PDF. Pregunta antes el idioma.",
     input_schema: {
       type: "object",
       properties: {
         proyecto: { type: "string", enum: ["rio_celeste", "llanada"] },
         idioma: { type: "string", enum: ["es", "en"] },
-        frente_a_calle: { type: "boolean", description: "Solo Llanada: documento de lotes frente a calle" },
       },
       required: ["proyecto", "idioma"],
     },
@@ -160,6 +171,15 @@ export const TOOLS = [
 ];
 
 // ── Helpers ──
+// Fecha de hoy en Costa Rica como "YYYY-MM-DD" (en-CA da ese formato).
+function hoyCR(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Costa_Rica",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 function crISO(fecha: string, hora: string): string {
   // Costa Rica = UTC-6 fijo (sin horario de verano). Sin el hack de -1h de n8n.
   const [h, m] = hora.split(":");
@@ -267,11 +287,25 @@ export async function executeTool(
 
     case "enviar_documento_proyecto": {
       const proyecto = input.proyecto as string;
-      const idioma = (input.idioma as string) || "es";
-      const key = proyecto === "llanada" && input.frente_a_calle ? "llanada_frente_calle" : proyecto;
-      const url = DOCS[key]?.[idioma] || DOCS[key]?.es;
-      if (!url) return "No hay documento disponible para esa combinación.";
-      return JSON.stringify({ enviado: true, url, nota: "Comparte este enlace con el cliente." });
+      const idioma = ((input.idioma as string) === "en" ? "en" : "es") as "es" | "en";
+      try {
+        // Folleto de marca generado al momento con precios y disponibilidad vivos.
+        const url = await getBrochureUrl(ctx.db, proyecto, idioma);
+        ctx.attachments.push(url);
+        return JSON.stringify({
+          adjuntado: true,
+          nota: "El folleto se ADJUNTA automáticamente a tu respuesta (no pegues la URL en el texto). Solo escribí una frase corta y humana avisando que ahí le va el folleto del proyecto con precios y disponibilidad actuales.",
+        });
+      } catch (e) {
+        // Si falla la generación, caé al enlace de la página viva como respaldo.
+        const fallback = PAGINAS[proyecto]?.[idioma] || PAGINAS[proyecto]?.es;
+        if (!fallback) return `No pude preparar el material: ${(e as Error).message}`;
+        return JSON.stringify({
+          adjuntado: false,
+          url: fallback,
+          nota: "No se pudo generar el folleto; comparte este enlace a la página del proyecto con una frase corta.",
+        });
+      }
     }
 
     case "enviar_formulario_financiamiento": {
@@ -280,10 +314,17 @@ export async function executeTool(
     }
 
     case "consultar_horarios_disponibles": {
-      const desde = input.fecha_desde as string;
-      const hasta = (input.fecha_hasta as string) || desde;
+      const hoy = hoyCR();
+      // Red de seguridad: si el agente pide una fecha pasada (típico cuando
+      // asume un año equivocado), no hay cupos en el pasado → corregir a hoy.
+      let desde = input.fecha_desde as string;
+      if (!desde || desde < hoy) desde = hoy;
+      const hastaIn = input.fecha_hasta as string | undefined;
+      const tieneHasta = !!(hastaIn && hastaIn >= desde);
+      const hasta = tieneHasta ? (hastaIn as string) : desde;
       const startMs = new Date(`${desde}T00:00:00-06:00`).getTime();
-      const endMs = new Date(`${hasta}T23:59:59-06:00`).getTime() + 7 * 24 * 3600 * 1000 * (input.fecha_hasta ? 0 : 1);
+      // Sin fecha_hasta explícita, abrimos una ventana de +7 días.
+      const endMs = new Date(`${hasta}T23:59:59-06:00`).getTime() + 7 * 24 * 3600 * 1000 * (tieneHasta ? 0 : 1);
       try {
         const slots = await ghl.getFreeSlots({ startMs, endMs });
         const out = Object.entries(slots).map(([fecha, v]) => ({

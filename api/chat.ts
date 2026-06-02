@@ -1,4 +1,6 @@
 import { runAgent } from "./_lib/eco/agent.js";
+import { getBotConfig } from "./_lib/eco/config.js";
+import { supabaseAdmin } from "./_lib/supabase.js";
 
 // /api/chat — endpoint del widget web.
 // POST { message: string, sessionId: string, contact?: {name,email,phone} }
@@ -14,6 +16,20 @@ export default async function handler(req: any, res: any) {
   };
   if (!body.message || !body.sessionId) {
     return res.status(400).json({ error: "Faltan message o sessionId" });
+  }
+
+  // Si el bot está apagado desde el panel, respondemos cortésmente sin invocar al agente.
+  try {
+    const { botEnabled } = await getBotConfig(supabaseAdmin());
+    if (!botEnabled) {
+      return res.status(200).json({
+        reply:
+          "Gracias por escribir. En este momento el asistente no está disponible; un asesor le contactará pronto. También puede llamarnos al +506 8414 2111.",
+        disabled: true,
+      });
+    }
+  } catch (e) {
+    console.error("chat bot_config error", e);
   }
 
   try {

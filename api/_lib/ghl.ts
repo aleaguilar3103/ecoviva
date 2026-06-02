@@ -25,6 +25,26 @@ export const CF = {
   horaCita: "MXfzhnoWkBr3fgiVu6rl",
 } as const;
 
+// Custom field IDs del survey "Aplicación de Financiamiento" (/survey).
+export const SURVEY_CF = {
+  tipoId: "RXXNG2fNEO80ycjsYbvM", // SINGLE_OPTIONS: Nacional / Extranjero
+  numeroId: "WenhxdnejuE5NjJeD7wD", // NUMERICAL
+  casaHabitacion: "OQpCw1kLHLKkcKGmRaZ5", // RADIO: Propia. / Gratuita. / Alquilada.
+  ubicacionResidencia: "dSBHObhEIpx6o2BnUkJY", // RADIO: Rural. / Urbana.
+  poseeInmuebles: "3wMWP6OISePYMx7V1xrp", // RADIO: Si. / No.
+  poseeVehiculo: "AxlHDqwdVxP9WlvDKYot", // RADIO: Si. / No.
+  estadoCivil: "j6Td6h9ZkvuBEqnxnrMm", // SINGLE_OPTIONS
+  gradoAcademico: "XoiHc9WCp3IMuBh2ACYZ", // SINGLE_OPTIONS
+  dependientes: "sx7qtq83GvU9z6oNrosP", // SINGLE_OPTIONS
+  poseeDeudas: "Wb6SI8N6KLt6Hcd0JrCG", // RADIO: Si. / No.
+  pensionado: "wT1zs4pqFSjrHL4wg3FF", // RADIO: Si. / No.
+  tarjetasCredito: "yVS6uAyGVLbx48AC15rr", // RADIO: Si. / No.
+  sugef: "fnAw0KtRXxYgx6oylhoS", // RADIO: Si. / No.
+  cedulaFrontal: "oeMZqHqYsgiGnZZFbLW1", // FILE_UPLOAD
+  cedulaPosterior: "Osi32CkDQeWBjc37W4uL", // FILE_UPLOAD
+  firma: "grvoqumQ6HxDkN8z39r6", // SIGNATURE
+} as const;
+
 async function ghlFetch(
   path: string,
   opts: { method?: string; body?: unknown; version?: string; query?: Record<string, string> } = {}
@@ -94,6 +114,11 @@ export async function addTags(contactId: string, tags: string[]) {
   return ghlFetch(`/contacts/${contactId}/tags`, { method: "POST", body: { tags } });
 }
 
+// Agrega una nota al contacto (queda visible en su timeline de GHL).
+export async function addNote(contactId: string, body: string) {
+  return ghlFetch(`/contacts/${contactId}/notes`, { method: "POST", body: { body } });
+}
+
 // Disponibilidad real del calendario para un rango (epoch ms).
 // Devuelve un objeto { "YYYY-MM-DD": { slots: ["2026-06-10T08:00:00-06:00", ...] } }
 export async function getFreeSlots(opts: {
@@ -139,20 +164,25 @@ export async function bookAppointment(opts: {
 }
 
 // Envía un mensaje por el canal indicado (respuesta del agente en WhatsApp/SMS).
+// `attachments` es un arreglo de URLs públicas (PDF, imágenes…) que GHL entrega
+// como adjuntos en WhatsApp.
 export async function sendMessage(opts: {
   contactId: string;
   message: string;
   type?: string; // "WhatsApp" | "SMS" | "Live_Chat" ...
   conversationId?: string;
+  attachments?: string[];
 }) {
+  const body: Record<string, unknown> = {
+    type: opts.type || "WhatsApp",
+    contactId: opts.contactId,
+    message: opts.message,
+    conversationId: opts.conversationId,
+  };
+  if (opts.attachments?.length) body.attachments = opts.attachments;
   return ghlFetch("/conversations/messages", {
     version: "2021-04-15",
     method: "POST",
-    body: {
-      type: opts.type || "WhatsApp",
-      contactId: opts.contactId,
-      message: opts.message,
-      conversationId: opts.conversationId,
-    },
+    body,
   });
 }

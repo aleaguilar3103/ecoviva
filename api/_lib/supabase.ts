@@ -17,14 +17,42 @@ export function supabaseAdmin(): SupabaseClient {
   return _admin;
 }
 
-// Verifica el token de administración para endpoints protegidos.
-export function isAuthorizedAdmin(req: { headers: Record<string, unknown> }): boolean {
-  const expected = process.env.ADMIN_API_TOKEN;
-  if (!expected) return false;
+function bearerToken(req: { headers: Record<string, unknown> }): string | null {
   const auth = (req.headers["authorization"] || req.headers["Authorization"]) as
     | string
     | undefined;
-  if (!auth) return false;
+  if (!auth) return null;
   const token = auth.replace(/^Bearer\s+/i, "").trim();
-  return token === expected;
+  return token || null;
+}
+
+// Lista blanca de correos con acceso al panel (env ADMIN_EMAILS, separada por comas).
+function adminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS || "aguilartradesfx@gmail.com")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+// Verifica acceso de administrador. Acepta:
+//   1) Un Bearer token que sea igual a ADMIN_API_TOKEN (uso servidor-a-servidor), o
+//   2) Un JWT de Supabase Auth de un usuario cuyo correo esté en la lista blanca.
+// Devuelve el correo del admin (o "service" para el token), o null si no autorizado.
+export async function requireAdmin(req: {
+  headers: Record<string, unknown>;
+}): Promise<string | null> {
+  const token = bearerToken(req);
+  if (!token) return null;
+
+  const serviceToken = process.env.ADMIN_API_TOKEN;
+  if (serviceToken && token === serviceToken) return "service";
+
+  try {
+    const { data, error } = await supabaseAdmin().auth.getUser(token);
+    const email = data?.user?.email?.toLowerCase();
+    if (error || !email) return null;
+    return adminEmails().includes(email) ? email : null;
+  } catch {
+    return null;
+  }
 }
