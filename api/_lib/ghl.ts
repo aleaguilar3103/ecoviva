@@ -129,6 +129,20 @@ export async function getContact(contactId: string): Promise<{
   }
 }
 
+// Actualiza un contacto EXISTENTE por su id (no hace match por correo/teléfono,
+// así que nunca crea un duplicado). Solo manda los campos definidos.
+export async function updateContact(
+  contactId: string,
+  fields: { firstName?: string; lastName?: string; email?: string; phone?: string }
+) {
+  const body: Record<string, unknown> = {};
+  if (fields.firstName !== undefined) body.firstName = fields.firstName;
+  if (fields.lastName !== undefined) body.lastName = fields.lastName;
+  if (fields.email !== undefined) body.email = fields.email;
+  if (fields.phone !== undefined) body.phone = fields.phone;
+  return ghlFetch(`/contacts/${contactId}`, { method: "PUT", body });
+}
+
 export async function updateContactCustomFields(
   contactId: string,
   customFields: { id: string; value: string }[]

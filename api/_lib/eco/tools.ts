@@ -258,12 +258,26 @@ export async function executeTool(
       const codigo = (input.codigo_pais as string) || "";
       const tel = input.telefono as string | undefined;
       const phone = tel ? `${codigo}${tel}`.replace(/\s+/g, "") : ctx.convo.contact_phone || undefined;
-      const contactId = await ghl.upsertContact({
-        firstName: nombre,
-        lastName: apellido,
-        email: correo,
-        phone,
-      });
+      // Si ya conocemos el contacto (WhatsApp siempre trae ghl_contact_id),
+      // ACTUALIZAMOS ese contacto. Usar upsert (match por correo/teléfono)
+      // creaba un contacto duplicado y rompía la continuidad de la conversación.
+      let contactId: string;
+      if (ctx.convo.ghl_contact_id) {
+        contactId = ctx.convo.ghl_contact_id;
+        await ghl.updateContact(contactId, {
+          firstName: nombre,
+          lastName: apellido,
+          email: correo,
+          phone,
+        });
+      } else {
+        contactId = await ghl.upsertContact({
+          firstName: nombre,
+          lastName: apellido,
+          email: correo,
+          phone,
+        });
+      }
       await ctx.patchConvo({
         ghl_contact_id: contactId,
         contact_name: [nombre, apellido].filter(Boolean).join(" ") || ctx.convo.contact_name,
