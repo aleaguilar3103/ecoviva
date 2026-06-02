@@ -1,3 +1,4 @@
+import { waitUntil } from "@vercel/functions";
 import { runAgent } from "../_lib/eco/agent.js";
 import { sendMessage } from "../_lib/ghl.js";
 import { supabaseAdmin } from "../_lib/supabase.js";
@@ -5,9 +6,25 @@ import { supabaseAdmin } from "../_lib/supabase.js";
 // /api/ghl/webhook — recibe mensajes ENTRANTES desde GHL (WhatsApp y otros canales)
 // y responde por el mismo canal usando la API de GHL.
 //
-// Registra cada payload crudo en la tabla webhook_events (para inspección: texto,
-// imágenes, audio, canal). Configurar en GHL un Workflow con trigger "Customer
-// Replied / Inbound Message" → Custom Webhook (POST) hacia aquí.
+// - Registra cada payload crudo en webhook_events (inspección).
+// - Si el contacto tiene el tag "stop bot", el flujo muere (no corre el agente).
+// - Responde con una espera aleatoria (15–45s) para sentirse humano; el envío se
+//   hace en segundo plano (waitUntil) para no bloquear el webhook de GHL.
+
+const STOP_TAG = (process.env.GHL_STOP_TAG || "stop bot").toLowerCase().replace(/[\s_-]/g, "");
+const DELAY_MIN_MS = 15_000;
+const DELAY_MAX_MS = 45_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const norm = (t: string) => t.toLowerCase().trim().replace(/[\s_-]/g, "");
+
+function tieneStopTag(tagsField: unknown): boolean {
+  let tags: string[] = [];
+  if (Array.isArray(tagsField)) tags = tagsField.map(String);
+  else if (typeof tagsField === "string") tags = tagsField.split(",");
+  return tags.map(norm).includes(STOP_TAG);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any) {
   res.setHeader("Cache-Control", "no-store");
@@ -45,40 +62,44 @@ export default async function handler(req: any, res: any) {
     b.conversationId || b.conversation_id || msg?.conversationId;
   const messageType = "WhatsApp"; // canal de respuesta
   const direction: string | undefined = b.direction || msg?.direction;
-  const attachments =
-    (msg && (msg.attachments || msg.media)) ||
-    b.attachments ||
-    b.attachmentUrls ||
-    b.attachment ||
-    b.mediaUrl ||
-    null;
+
+  // Kill switch: si el contacto tiene el tag "stop bot", el flujo muere aquí.
+  if (tieneStopTag(b.tags)) {
+    return res.status(200).json({ ok: true, skipped: "stop_bot_tag" });
+  }
 
   // Solo respondemos a mensajes entrantes
   if (direction && String(direction).toLowerCase() === "outbound") {
     return res.status(200).json({ ok: true, skipped: "outbound" });
   }
 
-  // Durante la captura: si no hay texto/contacto, igual ya quedó registrado para inspección.
   if (!contactId || !message) {
     return res.status(200).json({
       ok: true,
       logged: true,
       note: "Payload capturado en webhook_events. Falta contactId o message de texto.",
-      hasAttachments: !!attachments,
     });
   }
 
-  try {
-    const { reply } = await runAgent({
-      channel: "whatsapp",
-      ghlContactId: contactId,
-      ghlConversationId: conversationId,
-      userMessage: message,
-    });
-    await sendMessage({ contactId, message: reply, type: messageType, conversationId });
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    console.error("ghl webhook error", e);
-    return res.status(200).json({ ok: false, error: (e as Error).message });
-  }
+  // Espera aleatoria humana (15–45s) + respuesta, en segundo plano.
+  const delayMs = DELAY_MIN_MS + Math.floor(Math.random() * (DELAY_MAX_MS - DELAY_MIN_MS + 1));
+  waitUntil(
+    (async () => {
+      try {
+        await sleep(delayMs);
+        const { reply } = await runAgent({
+          channel: "whatsapp",
+          ghlContactId: contactId,
+          ghlConversationId: conversationId,
+          userMessage: message,
+        });
+        await sendMessage({ contactId, message: reply, type: messageType, conversationId });
+      } catch (e) {
+        console.error("ghl webhook bg error", e);
+      }
+    })()
+  );
+
+  // Respondemos a GHL de inmediato para no bloquear el workflow.
+  return res.status(200).json({ ok: true, queued: true, delayMs });
 }
