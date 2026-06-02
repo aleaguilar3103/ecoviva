@@ -16,6 +16,7 @@ import FunnelThankYou from "./components/FunnelThankYou";
 import FunnelDiscard from "./components/FunnelDiscard";
 import FunnelStep1 from "./components/FunnelStep1";
 import FunnelLlanada from "./components/FunnelLlanada";
+import EcoChatWidget from "./components/EcoChatWidget";
 
 // Silently redirects first-time EN-browser visitors from / to /en.
 // Runs only once (no stored preference). URL is always the source of truth after that.
@@ -56,6 +57,7 @@ function App() {
 
   return (
     <Suspense fallback={<p>Loading...</p>}>
+      <EcoChatWidget />
       <Routes>
         {/* EN locale — /en and /en/* */}
         <Route
