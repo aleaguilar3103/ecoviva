@@ -118,7 +118,12 @@ export default function BotPromptManager() {
   const field = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500";
 
   return (
-    <div className="space-y-8 max-w-3xl">
+    <div className="space-y-6 max-w-3xl">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">Bot & Prompt</h1>
+        <p className="text-sm text-slate-500">Controlá a ECO y su comportamiento.</p>
+      </div>
+
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>
       )}
@@ -129,7 +134,7 @@ export default function BotPromptManager() {
       )}
 
       {/* Interruptor del bot */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5">
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-slate-900">Estado del bot (ECO)</h2>
@@ -157,7 +162,7 @@ export default function BotPromptManager() {
       </section>
 
       {/* Editor de prompt */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5">
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="font-semibold text-slate-900">Prompt de ECO</h2>
@@ -189,7 +194,7 @@ export default function BotPromptManager() {
               <button
                 onClick={savePrompt}
                 disabled={savingPrompt}
-                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
               >
                 {savingPrompt ? "Guardando…" : "Guardar"}
               </button>
@@ -208,7 +213,7 @@ export default function BotPromptManager() {
       </section>
 
       {/* Asistente de IA */}
-      <section className="bg-white border border-slate-200 rounded-xl p-5">
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <h2 className="font-semibold text-slate-900">Asistente de prompt (IA)</h2>
         <p className="text-sm text-slate-500 mt-0.5 mb-3">
           Escribí lo que querés agregar o cambiar. La IA redacta el bloque en el estilo de ECO y,
@@ -226,7 +231,7 @@ export default function BotPromptManager() {
           <button
             onClick={onGenerate}
             disabled={generating || !instruction.trim()}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
           >
             {generating ? "Generando…" : "Generar con IA"}
           </button>
