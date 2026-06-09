@@ -118,7 +118,7 @@ export default function BotPromptManager() {
   const field = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500";
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900">Bot & Prompt</h1>
         <p className="text-sm text-slate-500">Controlá a ECO y su comportamiento.</p>
