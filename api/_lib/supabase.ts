@@ -26,12 +26,16 @@ function bearerToken(req: { headers: Record<string, unknown> }): string | null {
   return token || null;
 }
 
-// Lista blanca de correos con acceso al panel (env ADMIN_EMAILS, separada por comas).
+// Correos siempre permitidos en el panel, además de los que traiga ADMIN_EMAILS.
+const BASE_ADMINS = ["aguilartradesfx@gmail.com", "gerencia@duphomes.com"];
+
+// Lista blanca de correos con acceso al panel: base + env ADMIN_EMAILS (coma-separada).
 function adminEmails(): string[] {
-  return (process.env.ADMIN_EMAILS || "aguilartradesfx@gmail.com")
+  const fromEnv = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
+  return Array.from(new Set([...BASE_ADMINS, ...fromEnv]));
 }
 
 // Verifica acceso de administrador. Acepta:
