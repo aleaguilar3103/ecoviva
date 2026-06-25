@@ -5,44 +5,55 @@ import Header from "@/components/Header";
 import FinancingSection from "@/components/FinancingSection";
 import LotMapInteractive from "@/components/LotMapInteractive";
 
-const bloque1Lots = [
-  { id: 1, size: 1300, pricePerM2: 45000, total: 58500000, status: "not_available" as const },
-  { id: 2, size: 1300, pricePerM2: 45000, total: 58500000, status: "not_available" as const },
-  { id: 3, size: 1404, pricePerM2: 45000, total: 63180000, status: "not_available" as const },
-  { id: 4, size: 696, pricePerM2: 45000, total: 31320000, status: "not_available" as const },
-  { id: 5, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
-  { id: 6, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
-  { id: 7, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
-  { id: 8, size: 690, pricePerM2: 45000, total: 31050000, status: "not_available" as const },
-  { id: 12, size: 1987, pricePerM2: 27000, total: 53650000, status: "not_available" as const },
-  { id: 13, size: 6947, pricePerM2: 15000, total: 104205000, status: "available" as const },
-  { id: 14, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 15, size: 5400, pricePerM2: 17000, total: 91800000, status: "available" as const },
-  { id: 16, size: 6009, pricePerM2: 17000, total: 102153000, status: "reserved" as const },
-  { id: 17, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 18, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 19, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 20, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 21, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 22, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 23, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 24, size: 5000, pricePerM2: 17000, total: 85000000, status: "sold" as const },
-  { id: 25, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 26, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 27, size: 5179, pricePerM2: 17000, total: 88000000, status: "available" as const },
-  { id: 28, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 29, size: 5300, pricePerM2: 17000, total: 90000000, status: "sold" as const },
-  { id: 30, size: 5265, pricePerM2: 17000, total: 89500000, status: "available" as const },
-  { id: 31, size: 7533, pricePerM2: 13275, total: 100000000, status: "available" as const },
-  { id: 32, size: 6542, pricePerM2: 13000, total: 85000000, status: "available" as const },
-  { id: 33, size: 8141, pricePerM2: 13000, total: 105800000, status: "available" as const },
-  { id: 34, size: 5000, pricePerM2: 17000, total: 85000000, status: "reserved" as const },
-  { id: 35, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 36, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 37, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const },
-  { id: 38, size: 5520, pricePerM2: 17000, total: 93850000, status: "sold" as const },
-  { id: 39, size: 5416, pricePerM2: 17000, total: 92072000, status: "available" as const },
-  { id: 40, size: 5416, pricePerM2: 17000, total: 92072000, status: "available" as const },
+// Respaldo local (medidas reales de planos visados, mayo 2026). La fuente de verdad
+// en vivo es Supabase (/api/lots); esto solo se usa en el primer render y si el fetch falla.
+// total = round(size * pricePerM2) — igual que la columna generada en la BD.
+type LlanadaLot = {
+  id: number;
+  size: number;
+  pricePerM2: number;
+  total: number;
+  status: "available" | "not_available" | "sold" | "reserved";
+  planoVisado: string;
+};
+const bloque1Lots: LlanadaLot[] = [
+  { id: 1, size: 1300, pricePerM2: 40000, total: 52000000, status: "available" as const, planoVisado: "/planos/llanada/lote-1.pdf" },
+  { id: 2, size: 1222.94, pricePerM2: 40000, total: 48917600, status: "available" as const, planoVisado: "/planos/llanada/lote-2.pdf" },
+  { id: 3, size: 1379.41, pricePerM2: 40000, total: 55176400, status: "available" as const, planoVisado: "/planos/llanada/lote-3.pdf" },
+  { id: 4, size: 775.02, pricePerM2: 40000, total: 31000800, status: "available" as const, planoVisado: "/planos/llanada/lote-4.pdf" },
+  { id: 5, size: 675, pricePerM2: 40000, total: 27000000, status: "available" as const, planoVisado: "/planos/llanada/lote-5.pdf" },
+  { id: 6, size: 675, pricePerM2: 40000, total: 27000000, status: "available" as const, planoVisado: "/planos/llanada/lote-6.pdf" },
+  { id: 7, size: 675, pricePerM2: 40000, total: 27000000, status: "available" as const, planoVisado: "/planos/llanada/lote-7.pdf" },
+  { id: 8, size: 676.15, pricePerM2: 40000, total: 27046000, status: "available" as const, planoVisado: "/planos/llanada/lote-8.pdf" },
+  { id: 12, size: 1810.36, pricePerM2: 27000, total: 48879720, status: "available" as const, planoVisado: "/planos/llanada/lote-12.pdf" },
+  { id: 13, size: 5000, pricePerM2: 15000, total: 75000000, status: "available" as const, planoVisado: "/planos/llanada/lote-13.pdf" },
+  { id: 14, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-14.pdf" },
+  { id: 15, size: 5063.72, pricePerM2: 17000, total: 86083240, status: "available" as const, planoVisado: "/planos/llanada/lote-15.pdf" },
+  { id: 16, size: 5403.38, pricePerM2: 17000, total: 91857460, status: "reserved" as const, planoVisado: "/planos/llanada/lote-16.pdf" },
+  { id: 17, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-17.pdf" },
+  { id: 18, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-18.pdf" },
+  { id: 19, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-19.pdf" },
+  { id: 20, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-20.pdf" },
+  { id: 21, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-21.pdf" },
+  { id: 22, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-22.pdf" },
+  { id: 23, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-23.pdf" },
+  { id: 24, size: 5000, pricePerM2: 17000, total: 85000000, status: "sold" as const, planoVisado: "/planos/llanada/lote-24.pdf" },
+  { id: 25, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-25.pdf" },
+  { id: 26, size: 5322.67, pricePerM2: 17000, total: 90485390, status: "available" as const, planoVisado: "/planos/llanada/lote-26.pdf" },
+  { id: 27, size: 5686.71, pricePerM2: 17000, total: 96674070, status: "available" as const, planoVisado: "/planos/llanada/lote-27.pdf" },
+  { id: 28, size: 5101.85, pricePerM2: 17000, total: 86731450, status: "available" as const, planoVisado: "/planos/llanada/lote-28.pdf" },
+  { id: 29, size: 5254.74, pricePerM2: 17000, total: 89330580, status: "sold" as const, planoVisado: "/planos/llanada/lote-29.pdf" },
+  { id: 30, size: 5579.93, pricePerM2: 17000, total: 94858810, status: "available" as const, planoVisado: "/planos/llanada/lote-30.pdf" },
+  { id: 31, size: 7533, pricePerM2: 13275, total: 100000575, status: "available" as const, planoVisado: "/planos/llanada/lote-31.pdf" },
+  { id: 32, size: 5333.66, pricePerM2: 13000, total: 69337580, status: "available" as const, planoVisado: "/planos/llanada/lote-32.pdf" },
+  { id: 33, size: 7563.75, pricePerM2: 13000, total: 98328750, status: "available" as const, planoVisado: "/planos/llanada/lote-33.pdf" },
+  { id: 34, size: 5000, pricePerM2: 17000, total: 85000000, status: "reserved" as const, planoVisado: "/planos/llanada/lote-34.pdf" },
+  { id: 35, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-35.pdf" },
+  { id: 36, size: 5000, pricePerM2: 17000, total: 85000000, status: "available" as const, planoVisado: "/planos/llanada/lote-36.pdf" },
+  { id: 37, size: 5028.76, pricePerM2: 17000, total: 85488920, status: "available" as const, planoVisado: "/planos/llanada/lote-37.pdf" },
+  { id: 38, size: 5022.91, pricePerM2: 17000, total: 85389470, status: "sold" as const, planoVisado: "/planos/llanada/lote-38.pdf" },
+  { id: 39, size: 5454.22, pricePerM2: 17000, total: 92721740, status: "available" as const, planoVisado: "/planos/llanada/lote-39.pdf" },
+  { id: 40, size: 5405.63, pricePerM2: 17000, total: 91895710, status: "available" as const, planoVisado: "/planos/llanada/lote-40.pdf" },
 ];
 
 const getStatusLabel = (status: string) => {
@@ -95,6 +106,7 @@ export default function LomasLlanadaDetail() {
             pricePerM2: Number(l.price_per_m2),
             total: Number(l.price_total),
             status: l.status as "available" | "not_available" | "sold" | "reserved",
+            planoVisado: (l.plano_visado_url as string | null) ?? "",
           }));
         setLots(mapped as typeof bloque1Lots);
       })
@@ -485,6 +497,15 @@ export default function LomasLlanadaDetail() {
                                 <Calendar className="w-3 h-3" /> Agendar
                               </button>
                             </div>
+                            {lot.planoVisado && (
+                              <button
+                                onClick={e => { e.stopPropagation(); window.open(lot.planoVisado, "_blank"); }}
+                                className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all hover:bg-white/10"
+                                style={{ color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.15)" }}
+                              >
+                                <FileDown className="w-3 h-3" /> Ver plano
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
