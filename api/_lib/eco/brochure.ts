@@ -136,7 +136,7 @@ const T = {
     noPrima: "Sin prima",
     financingTitle: "Financiamiento directo",
     financingBody:
-      "Directo con la desarrolladora, sin fiador. Plazo hasta 20 años, tasa {rate}% anual (cuota fija). Llená el formulario y hay respuesta en hasta 72 horas.",
+      "Directo con la desarrolladora, sin fiador. Plazo hasta 15 años, tasa {rate}% anual (cuota fija). Llená el formulario y hay respuesta en hasta 72 horas.",
     example: "Ejemplo de cuota",
     forLot: "para un lote de",
     perMonth: "/mes",
@@ -165,7 +165,7 @@ const T = {
     noPrima: "No down payment",
     financingTitle: "Direct financing",
     financingBody:
-      "Directly with the developer, no co-signer. Term up to 20 years, {rate}% annual rate (fixed payment). Fill out the form and get an answer within 72 hours.",
+      "Directly with the developer, no co-signer. Term up to 15 years, {rate}% annual rate (fixed payment). Fill out the form and get an answer within 72 hours.",
     example: "Sample payment",
     forLot: "for a lot of",
     perMonth: "/mo",
@@ -444,16 +444,16 @@ export async function buildBrochure(proyecto: string, idioma: Idioma, lots: Lot[
   const ref = sample[Math.floor(sample.length / 2)] || available[0] || lots[0];
   if (ref) {
     const primaPct = ref.requires_prima ? ref.prima_pct || 25 : 0;
-    const r20 = calcularCuota({ monto: ref.price_total, moneda: meta.moneda, plazoAnios: 20, primaPct });
+    const r15 = calcularCuota({ monto: ref.price_total, moneda: meta.moneda, plazoAnios: 15, primaPct });
     d.ensure(54);
     d.page.drawRectangle({ x: MARGIN, y: d.y - 50, width: CONTENT_W, height: 50, color: C.panel });
     d.page.drawText(`${t.example} · ${t.forLot} ${ref.size_m2.toLocaleString()} m²`, {
       x: MARGIN + 14, y: d.y - 20, size: 10, font: f.semi, color: C.muted,
     });
-    d.page.drawText(`${fmt(r20.cuotaMensual, meta.moneda)}${t.perMonth}`, {
+    d.page.drawText(`${fmt(r15.cuotaMensual, meta.moneda)}${t.perMonth}`, {
       x: MARGIN + 14, y: d.y - 42, size: 20, font: f.bold, color: C.green,
     });
-    const note = `20 ${t.years} · ${rate}%${primaPct ? ` · ${t.withPrima}` : ` · ${t.noPrima}`}`;
+    const note = `15 ${t.years} · ${rate}%${primaPct ? ` · ${t.withPrima}` : ` · ${t.noPrima}`}`;
     d.page.drawText(note, { x: MARGIN + 200, y: d.y - 35, size: 10, font: f.reg, color: C.muted });
     d.y -= 62;
   }

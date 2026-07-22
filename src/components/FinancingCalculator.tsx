@@ -12,8 +12,8 @@ export default function FinancingCalculator({
   const { t } = useLanguage();
   const [currency, setCurrency] = useState<"USD" | "CRC">("USD");
   const [lotValue, setLotValue] = useState("150000");
-  const [term, setTerm] = useState("20");
-  const [monthlyPayment, setMonthlyPayment] = useState("1529.53");
+  const [term, setTerm] = useState("15");
+  const [monthlyPayment, setMonthlyPayment] = useState("1521.40");
 
   // Interest rate: USD = 9%, CRC = 8%
   const annualRate = currency === "USD" ? 9 : 8;
@@ -139,7 +139,7 @@ export default function FinancingCalculator({
                     onChange={e => setTerm(e.target.value)}
                     style={{ ...inputStyle, appearance: "none", paddingRight: "36px", cursor: "pointer" }}
                   >
-                    {["5", "10", "15", "20"].map(y => (
+                    {["5", "10", "15"].map(y => (
                       <option key={y} value={y} style={{ backgroundColor: "#111a14", color: "white" }}>
                         {y} {t("calculator.years")}
                       </option>

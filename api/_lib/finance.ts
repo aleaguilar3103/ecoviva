@@ -1,13 +1,13 @@
 // Cálculo de financiamiento EcoViva.
 // Tasas: USD 9% anual, CRC 8% anual. Amortización francesa (cuota fija).
-// Plazo hasta 20 años. Prima solo en lotes "frente a calle" de Llanada (25%).
+// Plazo hasta 15 años. Prima solo en lotes "frente a calle" de Llanada (25%).
 
 export type Moneda = "USD" | "CRC";
 
 export interface CuotaInput {
   monto: number;        // precio total del lote
   moneda: Moneda;
-  plazoAnios: number;   // 5, 10, 15, 20
+  plazoAnios: number;   // 5, 10, 15
   primaPct?: number;    // 0 por defecto; 25 en frente a calle
 }
 

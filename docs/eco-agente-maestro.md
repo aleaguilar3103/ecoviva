@@ -19,7 +19,7 @@
 - **Precios (cotizar por rango):**
   - Lotes de ~1.300 m² → **$40/m²** (≈ $52.000)
   - Lotes de ~5.000 m² → **$30/m²** (≈ $150.000)
-- **Sin prima.** Financiamiento directo, plazo hasta 20 años, tasa **9 % anual (USD)**.
+- **Sin prima.** Financiamiento directo, plazo hasta 15 años, tasa **9 % anual (USD)**.
 - **NO mencionar:** quintas premium ni el "lote exclusivo de $1.5M" (eliminados del discurso).
 - **Atractivos:** acceso privado al Río Celeste; a 10 min del Volcán Tenorio, 1 h de La Fortuna, 1.5 h del aeropuerto de Liberia; zona de alta seguridad (índices oficiales cantón Guatuso); naturaleza, plusvalía.
 
@@ -30,7 +30,7 @@
   **A) Bloque principal (con/sin vista) — cotizar por rango:**
   - Lotes de ~5.000 m² → **₡17.000/m²** (≈ ₡85.000.000)
   - Lotes grandes (6.500–8.141 m²) → desde **₡13.000/m²**
-  - **Sin prima.** Plazo hasta 20 años, tasa **8 % anual (CRC)**.
+  - **Sin prima.** Plazo hasta 15 años, tasa **8 % anual (CRC)**.
 
   **B) Lotes "frente a calle" (compactos):**
   - **₡40.000/m²** (lotes de 690 a ~1.400 m²).
@@ -49,7 +49,7 @@
 
 ## 4. Financiamiento
 - Directo con la desarrolladora. **Sin fiador.** **Sin prima** (excepto lotes "frente a calle" de Llanada = **25 % prima**).
-- **Plazo hasta 20 años.** Tasa **USD 9 % / CRC 8 %** (amortización francesa, cuota fija).
+- **Plazo hasta 15 años.** Tasa **USD 9 % / CRC 8 %** (amortización francesa, cuota fija).
 - Proceso: el cliente **llena el formulario** → EcoViva lo envía a un estudio crediticio (SUGEF) → **respuesta en hasta 72 horas**.
 - 🚫 **PROHIBIDO decir "aprobación inmediata".** Detalle del estudio SUGEF = info interna, no se comparte con el cliente.
 
@@ -72,7 +72,7 @@
 | `upsert_contacto(nombre, apellido, correo, telefono, codigoPais, pais)` | Crea/actualiza contacto. **codigoPais obligatorio** (que GHL no asuma +1). | GHL API |
 | `set_proyecto_interes(proyecto)` | `"Oasis Río Celeste"` \| `"Lomas de la Llanada"`. | GHL custom field `NhbY1rHi2BnUuNLcgja7` |
 | `consultar_disponibilidad(proyecto, filtros?)` | Devuelve lotes disponibles (tamaño, ₡/$ por m², estado). | Supabase `lots` |
-| `calcular_financiamiento(proyecto, monto, moneda, plazo, prima?)` | Cuota mensual (USD 9 % / CRC 8 %, francés, hasta 20 a). Aplica 25 % prima si es frente a calle. | Interno |
+| `calcular_financiamiento(proyecto, monto, moneda, plazo, prima?)` | Cuota mensual (USD 9 % / CRC 8 %, francés, hasta 15 a). Aplica 25 % prima si es frente a calle. | Interno |
 | `enviar_documento_proyecto(proyecto, idioma)` | Manda el PDF correcto (RC es/en, Llanada es). | GHL / web |
 | `enviar_formulario_financiamiento()` | Manda el **formulario propio** (no el embed de GHL). | URL propia |
 | `agendar_visita(proyecto, fecha, hora)` | Replica el flujo n8n nativo: upsert contacto + custom fields + tag `Leads 2026` + book en calendario `wMbDKSJh3px5ZYucw5pP`. Maneja **CR = UTC−6** (sin el hack de −1 h). | GHL calendar |

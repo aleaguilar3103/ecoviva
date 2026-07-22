@@ -93,7 +93,7 @@ export const TOOLS = [
       properties: {
         monto: { type: "number", description: "Precio total del lote" },
         moneda: { type: "string", enum: ["USD", "CRC"] },
-        plazo_anios: { type: "number", enum: [5, 10, 15, 20] },
+        plazo_anios: { type: "number", enum: [5, 10, 15] },
         prima_pct: { type: "number", description: "0 por defecto; 25 en frente a calle" },
       },
       required: ["monto", "moneda", "plazo_anios"],
