@@ -19,6 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
+import { trackAppointmentBooked } from "@/lib/tracking";
 import {
   ArrowLeft,
   Calendar,
@@ -231,6 +232,18 @@ export default function FunnelPage() {
       }
 
       if (!res.ok) throw new Error("reserve_error");
+      trackAppointmentBooked(
+        {
+          email: formData.correo,
+          phone: `${paisActual.codigo} ${formData.telefono}`,
+          firstName: formData.nombre,
+          lastName: formData.apellido,
+        },
+        {
+          proyecto: PROYECTO_LABELS[formData.proyecto],
+          presupuesto: PRESUPUESTO_LABELS[formData.presupuesto],
+        },
+      );
       navigate("/funnel/gracias");
     } catch {
       setSubmitError("Hubo un problema al confirmar tu cita. Por favor intenta de nuevo.");

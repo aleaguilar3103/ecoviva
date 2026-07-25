@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { trackViewContent } from "@/lib/tracking";
 import {
   ArrowRight,
   ChevronLeft,
@@ -64,6 +65,7 @@ export default function FunnelLlanada() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
+    trackViewContent("Lomas de la Llanada");
   }, []);
 
   const goToFunnel = () => navigate("/funnel");

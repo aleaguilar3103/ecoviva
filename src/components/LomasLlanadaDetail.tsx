@@ -1,5 +1,6 @@
 import { Check, X, ChevronLeft, ChevronRight, MapPin, Building, TreePine, Shield, Network, Landmark, Info, Calendar, FileDown, MessageCircle, ArrowDown } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { trackViewContent } from "@/lib/tracking";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
 import FinancingSection from "@/components/FinancingSection";
@@ -79,6 +80,9 @@ const formatCurrency = (amount: number) =>
 
 export default function LomasLlanadaDetail() {
   const { t } = useLanguage();
+  useEffect(() => {
+    trackViewContent("Lomas de la Llanada");
+  }, []);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedLot, setSelectedLot] = useState<typeof bloque1Lots[0] | null>(null);

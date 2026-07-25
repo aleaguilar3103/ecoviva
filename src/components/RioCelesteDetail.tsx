@@ -11,6 +11,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { trackViewContent } from "@/lib/tracking";
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
 import FinancingSection from "@/components/FinancingSection";
@@ -44,6 +45,9 @@ const formatUSD = (n: number) =>
 
 export default function RioCelesteDetail() {
   const { t } = useLanguage();
+  useEffect(() => {
+    trackViewContent("Oasis Río Celeste");
+  }, []);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedLot, setSelectedLot] = useState<RioCelesteLotData | null>(null);
