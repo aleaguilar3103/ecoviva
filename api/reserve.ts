@@ -1,9 +1,16 @@
-import { Redis } from "@upstash/redis";
+import { CF, updateContactCustomFields, addTags, bookAppointment } from "./_lib/ghl.js";
+import { capturarLead, fechaLegibleES } from "./_lib/funnel.js";
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+// /api/reserve — paso 2 del funnel: agenda la cita REAL en el calendario de GHL.
+//
+// Antes esto apartaba el horario en Upstash Redis y le pasaba el lead a n8n.
+// Ese diseño tenía dos fallas: Redis no sabía de las citas de ECO ni de las que
+// agenda el equipo a mano (se ofrecían horas ocupadas), y si Redis fallaba la
+// función devolvía 500 ANTES de entregar el lead, así que el prospecto se perdía.
+// Ahora GHL es la única fuente de verdad, igual que para ECO.
+//
+// Regla que no se rompe: el lead nunca se pierde. El contacto se guarda primero;
+// si el agendamiento falla después, queda etiquetado para seguimiento manual.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any) {
@@ -13,57 +20,74 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const body = req.body ?? {};
-  // slotKey is only needed for Redis — strip it from the n8n payload
-  // fecha stays in webhookPayload so n8n receives the appointment date
-  const { slotKey, ...webhookPayload } = body as {
-    slotKey?: string;
-    [key: string]: unknown;
+  const body = (req.body ?? {}) as {
+    contactId?: string;
+    nombre?: string;
+    apellido?: string;
+    telefono?: string;
+    correo?: string;
+    proyecto?: string;
+    presupuesto?: string;
+    fecha?: string;
+    slotIso?: string;
+    hora?: string;
   };
-  const fecha = webhookPayload.fecha as string | undefined;
 
-  if (!fecha || !slotKey) {
-    return res.status(400).json({ error: "Missing fecha or slotKey" });
+  const { fecha, slotIso } = body;
+  if (!fecha || !slotIso) {
+    return res.status(400).json({ error: "Faltan fecha o slotIso" });
+  }
+  // slotIso viene tal cual de /api/slots (ISO con offset de CR).
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[-+]\d{2}:\d{2}$/.test(slotIso)) {
+    return res.status(400).json({ error: "slotIso inválido" });
   }
 
-  // TTL = seconds until midnight of the appointment day (local Costa Rica time, UTC-6)
-  // Using UTC midnight + offset to approximate; for simplicity we use UTC midnight of next day
-  const [y, m, d] = fecha.split("-").map(Number);
-  const midnight = new Date(Date.UTC(y, m - 1, d + 1, 6, 0, 0)); // UTC 06:00 = CR midnight (UTC-6)
-  const ttl = Math.floor((midnight.getTime() - Date.now()) / 1000);
-
-  if (ttl <= 0) {
-    return res.status(400).json({ error: "Cannot book slots for past dates" });
-  }
-
-  const key = `slot:${fecha}:${slotKey}`;
-
-  // Atomic: only set if key does not already exist
-  let result: string | null;
-  try {
-    result = await redis.set(key, "booked", { nx: true, ex: ttl });
-  } catch {
-    return res.status(500).json({ error: "Failed to reserve slot" });
-  }
-
-  if (result === null) {
-    // Another user already claimed this slot
-    return res.status(409).json({ error: "slot_taken" });
-  }
-
-  // Slot reserved — call n8n webhook (awaited so serverless doesn't terminate early)
-  const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
-  if (webhookUrl) {
+  // 1) El contacto primero. Si el paso 1 ya lo creó reusamos ese id.
+  let contactId = body.contactId;
+  if (!contactId) {
     try {
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(webhookPayload),
-      });
-    } catch {
-      // Don't fail the reservation if the webhook call fails
+      contactId = await capturarLead(body);
+    } catch (err) {
+      console.error("[reserve] no se pudo guardar el contacto en GHL:", err);
+      return res.status(502).json({ error: "crm_unavailable" });
     }
   }
 
-  return res.status(200).json({ ok: true });
+  // 2) Datos de la cita en el contacto. Secundario: si falla, seguimos.
+  const fechaLeg = fechaLegibleES(fecha);
+  const horaLeg = body.hora || slotIso.slice(11, 16);
+  try {
+    await updateContactCustomFields(contactId, [
+      { id: CF.fechaVisita, value: fecha },
+      { id: CF.fechaLegible, value: fechaLeg },
+      { id: CF.horaCita, value: horaLeg },
+    ]);
+  } catch (err) {
+    console.error("[reserve] no se pudieron guardar los datos de la cita:", err);
+  }
+
+  // 3) La cita real en el calendario.
+  const proyecto = body.proyecto || "EcoViva";
+  const nombre = [body.nombre, body.apellido].filter(Boolean).join(" ") || "Lead";
+  try {
+    await bookAppointment({
+      contactId,
+      startTime: slotIso,
+      title: `Visita ${proyecto} — ${nombre}`,
+    });
+  } catch (err) {
+    console.error("[reserve] no se pudo agendar la cita:", err);
+    // El lead YA está en GHL. Lo marcamos para que alguien lo agende a mano
+    // en vez de dejarlo pasar como si nada.
+    try {
+      await addTags(contactId, ["cita-fallida"]);
+    } catch {
+      /* la etiqueta es lo de menos: el contacto ya existe */
+    }
+    // El horario pudo habérselo ganado otra persona entre que cargó la página
+    // y confirmó. Que reintente con la lista fresca.
+    return res.status(409).json({ error: "slot_unavailable", contactId });
+  }
+
+  return res.status(200).json({ ok: true, contactId });
 }

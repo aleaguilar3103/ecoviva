@@ -60,16 +60,9 @@ const PRESUPUESTOS = [
   { value: "mas-5000", label: "Más de $5,000" },
 ] as const;
 
-const TIME_SLOTS = [
-  { display: "8:00 AM",  key: "08:00" },
-  { display: "9:00 AM",  key: "09:00" },
-  { display: "10:00 AM", key: "10:00" },
-  { display: "11:00 AM", key: "11:00" },
-  // 12:00–13:30 = almuerzo
-  { display: "2:00 PM",  key: "14:00" },
-  { display: "3:00 PM",  key: "15:00" },
-  { display: "4:00 PM",  key: "16:00" },
-];
+// Los horarios ya no se escriben aquí: vienen de /api/slots, que lee la
+// disponibilidad real del calendario de GHL (la misma que usa ECO).
+type Slot = { iso: string; hora: string; display: string };
 
 const PROYECTO_LABELS: Record<string, string> = {
   "lomas-de-la-llanada": "Lomas de la Llanada",
@@ -144,8 +137,12 @@ export default function FunnelPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [paisKey, setPaisKey] = useState("Costa Rica");
   const paisActual = CODIGOS_PAIS.find((p) => p.pais === paisKey) ?? CODIGOS_PAIS[0];
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  // Horarios reales del calendario de GHL para la fecha elegida.
+  const [slots, setSlots] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState(false);
+  // Id del contacto creado en el paso 1, para no duplicarlo al agendar.
+  const [contactId, setContactId] = useState<string | undefined>();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -171,19 +168,39 @@ export default function FunnelPage() {
     setFormData(data);
     setStep(2);
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // Guardamos el lead YA, sin esperar a que elija fecha: si abandona en el
+    // calendario o el calendario falla, el contacto igual queda en el CRM.
+    // No bloquea la navegación — el paso 2 vuelve a intentarlo si esto falla.
+    fetch("/api/lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: data.nombre,
+        apellido: data.apellido,
+        telefono: `${paisActual.codigo} ${data.telefono}`,
+        correo: data.correo,
+        proyecto: PROYECTO_LABELS[data.proyecto],
+        presupuesto: PRESUPUESTO_LABELS[data.presupuesto],
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.contactId && setContactId(d.contactId))
+      .catch(() => {});
   };
 
-  // Fetch booked slots whenever the user picks a date
+  // Disponibilidad real del calendario cada vez que elige una fecha
   useEffect(() => {
     if (!selectedDate) return;
-    setBookedSlots([]);
+    setSlots([]);
     setSelectedTime(undefined);
+    setSlotsError(false);
     setLoadingSlots(true);
     const dateStr = format(selectedDate, "yyyy-MM-dd");
     fetch(`/api/slots?date=${dateStr}`)
-      .then((r) => r.json())
-      .then((data) => setBookedSlots(data.booked ?? []))
-      .catch(() => {})
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("slots"))))
+      .then((data) => setSlots(data.slots ?? []))
+      .catch(() => setSlotsError(true))
       .finally(() => setLoadingSlots(false));
   }, [selectedDate]);
 
@@ -192,10 +209,12 @@ export default function FunnelPage() {
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const slotDisplay = TIME_SLOTS.find((s) => s.key === selectedTime)?.display ?? selectedTime;
+    // selectedTime guarda el ISO exacto que devolvió GHL para ese horario.
+    const slotDisplay = slots.find((s) => s.iso === selectedTime)?.display ?? selectedTime;
     const fecha = format(selectedDate, "yyyy-MM-dd");
 
     const payload = {
+      contactId,
       nombre: formData.nombre,
       apellido: formData.apellido,
       codigoPais: paisActual.codigo,
@@ -206,7 +225,7 @@ export default function FunnelPage() {
       presupuesto: PRESUPUESTO_LABELS[formData.presupuesto],
       calificado: true,
       fecha,
-      slotKey: selectedTime,
+      slotIso: selectedTime,
       hora: slotDisplay,
       fechaLegible: format(selectedDate, "EEEE d 'de' MMMM 'de' yyyy", { locale: es }),
     };
@@ -219,15 +238,15 @@ export default function FunnelPage() {
       });
 
       if (res.status === 409) {
-        setSubmitError("Ese horario ya fue reservado. Por favor elige otro.");
-        // Refresh slots so the UI reflects the taken slot
+        setSubmitError("Ese horario ya no está disponible. Por favor elige otro.");
+        // Recargamos la disponibilidad para que vea la lista al día
         fetch(`/api/slots?date=${fecha}`)
-          .then((r) => r.json())
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error("slots"))))
           .then((data) => {
-            setBookedSlots(data.booked ?? []);
+            setSlots(data.slots ?? []);
             setSelectedTime(undefined);
           })
-          .catch(() => {});
+          .catch(() => setSlotsError(true));
         return;
       }
 
@@ -601,20 +620,24 @@ export default function FunnelPage() {
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Verificando disponibilidad…
                   </div>
-                ) : TIME_SLOTS.filter((s) => !bookedSlots.includes(s.key)).length === 0 ? (
+                ) : slotsError ? (
+                  <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-200">
+                    No pudimos cargar los horarios. Por favor intenta de nuevo en un momento.
+                  </p>
+                ) : slots.length === 0 ? (
                   <p className="text-sm text-amber-600 bg-amber-50 rounded-xl px-4 py-3 border border-amber-200">
                     No hay disponibilidad para esta fecha. Por favor elige otro día.
                   </p>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {TIME_SLOTS.filter((s) => !bookedSlots.includes(s.key)).map((slot) => (
+                    {slots.map((slot) => (
                       <button
-                        key={slot.key}
+                        key={slot.iso}
                         type="button"
-                        onClick={() => setSelectedTime(slot.key)}
+                        onClick={() => setSelectedTime(slot.iso)}
                         className={cn(
                           "py-2.5 px-2 rounded-xl text-sm font-medium border-2 transition-all duration-200",
-                          selectedTime === slot.key
+                          selectedTime === slot.iso
                             ? "border-primary bg-primary text-white"
                             : "border-gray-100 bg-gray-50 text-gray-700 hover:border-primary/30"
                         )}
