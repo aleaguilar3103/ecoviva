@@ -1,0 +1,7 @@
+# Vercel convierte cualquier api/**/*.ts (que no empiece con "_") en una función
+# serverless. Sin esto, api/admin/users.test.ts se publicaría como endpoint
+# público en /api/admin/users.test, importando vitest en producción, y el
+# conteo de funciones pasaría el límite de 12 del plan Hobby (bloqueando el
+# deploy entero). Solo afecta qué se sube a Vercel: vitest sigue corriendo
+# estos archivos normalmente vía `npm test`.
+api/**/*.test.ts

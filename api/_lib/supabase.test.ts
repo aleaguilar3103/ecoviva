@@ -93,6 +93,20 @@ describe("requireUser / requireAdmin", () => {
     expect(await requireAdmin(req("jwt"))).toBe("gerencia@duphomes.com");
   });
 
+  it("deja entrar a un BASE_ADMIN aunque su fila esté deshabilitada", async () => {
+    conUsuario("gerencia@duphomes.com");
+    maybeSingle.mockResolvedValue({ data: { role: "admin", status: "disabled" }, error: null });
+    const { requireAdmin } = await cargar();
+    expect(await requireAdmin(req("jwt"))).toBe("gerencia@duphomes.com");
+  });
+
+  it("deja entrar a un BASE_ADMIN aunque su fila diga rol vendedor activo", async () => {
+    conUsuario("gerencia@duphomes.com");
+    maybeSingle.mockResolvedValue({ data: { role: "vendedor", status: "active" }, error: null });
+    const { requireAdmin } = await cargar();
+    expect(await requireAdmin(req("jwt"))).toBe("gerencia@duphomes.com");
+  });
+
   it("rechaza a un usuario de auth sin fila en app_users", async () => {
     conUsuario("colado@gmail.com");
     maybeSingle.mockResolvedValue({ data: null, error: null });

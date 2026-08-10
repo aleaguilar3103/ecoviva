@@ -39,8 +39,14 @@ alter table public.app_users enable row level security;
 -- Sin políticas: solo service_role la toca, igual que public.bot_config.
 
 -- Backfill: quien ya podía entrar sigue pudiendo, ahora desde la tabla.
+-- Solo corre si la tabla está vacía. Ya se aplicó en producción (donde
+-- on conflict la vuelve idempotente de todos modos), pero sin este guard,
+-- clonar el auth de producción a un entorno nuevo y correr las migraciones
+-- volvería admin en silencio a cualquier usuario de auth.users, no solo a
+-- quienes ya tenían fila.
 insert into public.app_users (user_id, email, role, status, invited_by)
 select id, lower(email), 'admin', 'active', 'migracion_0007'
 from auth.users
 where email is not null
+  and not exists (select 1 from public.app_users)
 on conflict (user_id) do nothing;

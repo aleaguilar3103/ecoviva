@@ -41,6 +41,13 @@ const config = {
   uri_allow_list: REDIRECCIONES.join(","),
   password_min_length: 10,
 
+  // El registro público (POST a /auth/v1/signup con la anon key, que viaja en
+  // el bundle del navegador) queda cerrado. Las altas solo pasan por
+  // inviteUserByEmail (admin API), que no usa este camino. Sin esto, cualquiera
+  // puede registrar de antemano el correo de alguien que todavía no invitamos,
+  // eligiendo su propia contraseña.
+  disable_signup: true,
+
   // Resend como SMTP: así inviteUserByEmail y el reset de contraseña salen
   // solos, sin que nosotros escribamos código de envío.
   smtp_host: "smtp.resend.com",
@@ -86,6 +93,7 @@ for (const k of [
   "site_url",
   "uri_allow_list",
   "password_min_length",
+  "disable_signup",
   "smtp_host",
   "smtp_port",
   "smtp_user",

@@ -162,6 +162,11 @@ export function deleteUser(user_id: string): Promise<{ ok: true }> {
 
 // ── Guía de vendedores ──
 // No usa request(): el endpoint devuelve HTML, no JSON.
+// Error con acceso denegado: distinto de un fallo de red o un 500 pasajero
+// porque no es transitorio — reintentar nunca va a servir. El componente lo
+// usa para no ofrecer un botón "Reintentar" que no puede funcionar nunca.
+export class GuiaAccesoDenegadoError extends Error {}
+
 export async function getGuiaHtml(): Promise<string> {
   let res: Response;
   try {
@@ -174,7 +179,7 @@ export async function getGuiaHtml(): Promise<string> {
     throw new Error("No pudimos conectarnos. Revisá tu conexión.");
   }
   if (!res.ok) {
-    if (res.status === 401) throw new Error("Tu cuenta no tiene acceso a la guía.");
+    if (res.status === 401) throw new GuiaAccesoDenegadoError("Tu cuenta no tiene acceso a la guía.");
     throw new Error(`No se pudo cargar la guía (${res.status}).`);
   }
   return res.text();

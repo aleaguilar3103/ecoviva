@@ -34,15 +34,18 @@ export interface Caller {
   role: AppRole;
 }
 
-// Red de seguridad: estos correos entran como admin aunque app_users esté vacía
-// o mal poblada. Evita quedar encerrado fuera del panel por un error de datos.
+// Break-glass: estos dos correos son siempre admin, exista o no su fila en
+// app_users y sin importar su status o role ahí. Es a propósito imposible
+// dejarlos afuera desde el panel — es la garantía de que nadie queda
+// encerrado fuera del panel por un error de datos o un clic accidental.
 const BASE_ADMINS = ["aguilartradesfx@gmail.com", "gerencia@duphomes.com"];
 
 // Identifica a quien hace la petición. Acepta:
 //   1) Bearer igual a ADMIN_API_TOKEN → admin de servicio (servidor a servidor).
-//   2) Un JWT de Supabase Auth cuyo usuario tenga fila activa en app_users.
-// Devuelve null si no hay token, si el JWT no valida, si no hay fila o si la
-// cuenta está deshabilitada.
+//   2) Un JWT de Supabase Auth cuyo correo esté en BASE_ADMINS → admin siempre.
+//   3) Un JWT de Supabase Auth cuyo usuario tenga fila activa en app_users.
+// Devuelve null si no hay token, si el JWT no valida, si no hay fila (y el
+// correo no es BASE_ADMIN) o si la cuenta está deshabilitada.
 export async function requireUser(req: {
   headers: Record<string, unknown>;
 }): Promise<Caller | null> {
@@ -61,22 +64,30 @@ export async function requireUser(req: {
     const email = user?.email?.toLowerCase();
     if (error || !user || !email) return null;
 
-    const { data: row } = await db
+    // Break-glass primero: si el correo está en la lista, es admin sin
+    // importar qué diga (o deje de decir) app_users. Antes esto solo se
+    // consultaba cuando no había fila, lo cual no protegía a un BASE_ADMIN
+    // con fila deshabilitada o con rol corrupto, y de paso abría un camino
+    // para que cualquier usuario de auth.users sin fila entrara como admin.
+    if (BASE_ADMINS.includes(email)) {
+      return { email, userId: user.id, role: "admin" };
+    }
+
+    const { data: row, error: rowError } = await db
       .from("app_users")
       .select("role, status")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (row) {
-      if (row.status !== "active") return null;
-      return { email, userId: user.id, role: row.role as AppRole };
+    // Sin esto, un fallo transitorio de la consulta se ve idéntico a "no
+    // tiene fila" y el vendedor recibe un 401 sin que quede rastro en los
+    // logs para diagnosticarlo. Se sigue fallando cerrado a propósito.
+    if (rowError) {
+      console.error("requireUser: fallo al consultar app_users", rowError);
     }
 
-    // Sin fila: solo pasa por la red de seguridad.
-    if (BASE_ADMINS.includes(email)) {
-      return { email, userId: user.id, role: "admin" };
-    }
-    return null;
+    if (!row || row.status !== "active") return null;
+    return { email, userId: user.id, role: row.role as AppRole };
   } catch {
     return null;
   }
