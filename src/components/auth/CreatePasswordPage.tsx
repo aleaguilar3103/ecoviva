@@ -6,7 +6,25 @@ import BrandMark from "../admin/BrandMark";
 
 const MINIMO = 10;
 
-type Estado = "cargando" | "sin-enlace" | "listo" | "guardando";
+// "listo-sin-destino": la contraseña ya se guardó (con sesión abierta), pero
+// no pudimos resolver el rol para decidir a dónde mandar a la persona.
+type Estado = "cargando" | "sin-enlace" | "listo" | "guardando" | "listo-sin-destino";
+
+// Supabase devuelve el error de auth en inglés y con redacción interna de la
+// librería (ej. "New password should be different from the old password" o
+// "Auth session missing!"). No expone códigos estables para estos casos, así que
+// se detecta por contenido del mensaje, en minúsculas, y se traduce a español.
+// Cualquier otro caso cae en un mensaje genérico — nunca mostramos el original.
+function traducirErrorGuardado(mensaje: string): string {
+  const m = mensaje.toLowerCase();
+  if (m.includes("different from the old password")) {
+    return "Esa es tu contraseña actual. Elegí una distinta.";
+  }
+  if (m.includes("session missing") || m.includes("session expired") || m.includes("session not found")) {
+    return "Se venció el enlace mientras llenabas el formulario. Pedí uno nuevo.";
+  }
+  return "No pudimos guardar la contraseña. Probá de nuevo.";
+}
 
 // Ruta /crear-contrasena. La usan dos flujos con el mismo mecanismo: la
 // invitación a un usuario nuevo y el "olvidé mi contraseña".
@@ -34,7 +52,12 @@ export default function CreatePasswordPage() {
 
     const marcarListo = () => {
       clearTimeout(reloj);
-      setEstado((e) => (e === "cargando" ? "listo" : e));
+      // Corrige también "sin-enlace": si el temporizador ganó la carrera (dispositivo
+      // lento, latencia alta), la sesión puede confirmarse después y no queremos dejar
+      // a la persona mirando un "el enlace venció" que es mentira. Lo único que no se
+      // pisa es "guardando" (envío en curso) y "listo-sin-destino" (la contraseña ya
+      // se guardó; un evento de auth tardío no debe borrar esa pantalla de éxito).
+      setEstado((e) => (e === "guardando" || e === "listo-sin-destino" ? e : "listo"));
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_evento, sesion) => {
@@ -64,19 +87,32 @@ export default function CreatePasswordPage() {
     }
 
     setEstado("guardando");
-    const { error: errorGuardado } = await supabase.auth.updateUser({ password: p1 });
-    if (errorGuardado) {
+    try {
+      const { error: errorGuardado } = await supabase.auth.updateUser({ password: p1 });
+      if (errorGuardado) {
+        setEstado("listo");
+        setError(traducirErrorGuardado(errorGuardado.message));
+        return;
+      }
+    } catch {
+      // Blindaje: si updateUser revienta con una excepción en vez de devolver
+      // { error }, igual hay que sacar a la persona de "guardando" — si no, el
+      // botón queda trabado en "Guardando…" para siempre.
       setEstado("listo");
-      setError(errorGuardado.message);
+      setError("No pudimos guardar la contraseña. Probá de nuevo.");
       return;
     }
 
-    // Ya está autenticada. A dónde va depende del rol, que no viaja en el JWT.
+    // Ya está autenticada y la contraseña YA quedó guardada — eso es irreversible
+    // desde acá. A dónde va depende del rol, que no viaja en el JWT. Si getMe falla
+    // no adivinamos destino (podría mandar a un admin a la guía sin aviso): mostramos
+    // una pantalla de éxito explícita con las dos rutas posibles.
     try {
       const yo = await getMe();
       navigate(yo.role === "admin" ? "/admin" : "/guia-vendedores", { replace: true });
-    } catch {
-      navigate("/guia-vendedores", { replace: true });
+    } catch (err) {
+      console.error("Contraseña guardada, pero /api/me falló al resolver el rol", err);
+      setEstado("listo-sin-destino");
     }
   }
 
@@ -145,6 +181,33 @@ export default function CreatePasswordPage() {
         >
           Enviarme un enlace nuevo
         </button>
+      </div>,
+    );
+  }
+
+  if (estado === "listo-sin-destino") {
+    return marco(
+      <div className="space-y-4 text-center">
+        <p className="text-sm text-slate-600">
+          Guardamos tu contraseña y ya tenés la sesión abierta. No pudimos saber a dónde
+          mandarte — elegí una opción:
+        </p>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => navigate("/admin", { replace: true })}
+            className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800"
+          >
+            Ir al panel
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/guia-vendedores", { replace: true })}
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Ver la guía
+          </button>
+        </div>
       </div>,
     );
   }
