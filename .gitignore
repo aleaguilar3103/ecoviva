@@ -34,3 +34,23 @@ core
 
 **/tempobook/**
 .vercel
+
+# Material de referencia (PDFs fuente, folletos de ejemplo, capturas, HTML de mapas).
+# Se mantiene en disco pero fuera del repo para no inflarlo.
+reference/
+
+# Datos personales de leads y contactos exportados de GHL.
+# Este repositorio es público: son nombres, teléfonos y correos de gente real.
+# Publicarlos no se puede deshacer — borrarlos después no los saca del historial.
+leads.csv
+leads-enriquecido.csv
+leads-enriquecido.json
+backup-*.json
+docs/contactos-ghl/
+
+# Material pesado de trabajo: fotos originales, piezas de marketing, planos fuente.
+# Cerca de 1 GB que no tiene por qué viajar en cada clon, con archivos sueltos
+# de más de 50 MB que GitHub rechazaría.
+Fotos proyectos/
+marketing/
+PLANOS CHECK/
