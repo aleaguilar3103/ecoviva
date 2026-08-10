@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es-CR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía de venta · Lomas de la Llanada · Eco Viva Desarrollos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;800&family=Public+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bosque:#12291C;
+    --musgo:#35624A;
+    --celeste:#0B7F91;
+    --niebla:#F3F5F0;
+    --papel:#FFFFFF;
+    --ceniza:#D5DACF;
+    --tinta:#1A241D;
+    --gris:#5E6B60;
+    --maiz:#9A6F14;
+    --maiz-bg:#FBF3DF;
+    --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+    --body:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --wrap:940px;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--niebla);
+    color:var(--tinta);
+    font-family:var(--body);
+    font-size:16.5px;
+    line-height:1.6;
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *{animation:none!important;transition:none!important}
+  }
+
+  .wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px}
+
+  /* ---------- barra superior ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    background:rgba(18,41,28,.97);
+    border-bottom:1px solid rgba(255,255,255,.12);
+    backdrop-filter:saturate(140%) blur(6px);
+  }
+  .topbar .wrap{display:flex;align-items:center;gap:16px;height:54px}
+  .brandmark{
+    font-family:var(--display);font-weight:800;font-size:13px;letter-spacing:.16em;
+    color:#fff;text-transform:uppercase;white-space:nowrap;flex:none;
+  }
+  .brandmark span{color:var(--celeste)}
+  .navchips{
+    display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;
+    margin-left:auto;
+  }
+  .navchips::-webkit-scrollbar{display:none}
+  .navchips a{
+    font-family:var(--mono);font-size:11.5px;color:#BFD3C5;text-decoration:none;
+    padding:5px 10px;border:1px solid rgba(255,255,255,.16);border-radius:2px;white-space:nowrap;
+  }
+  .navchips a:hover{color:#fff;border-color:var(--celeste);background:rgba(11,127,145,.25)}
+  .navchips a:focus-visible{outline:2px solid var(--celeste);outline-offset:2px}
+
+  /* ---------- portada ---------- */
+  .hero{position:relative;background:var(--bosque);color:#EAF0EA;overflow:hidden}
+  .hero svg.contours{position:absolute;inset:0;width:100%;height:100%;opacity:.30}
+  .hero .wrap{position:relative;padding-top:56px;padding-bottom:44px}
+  .eyebrow{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--celeste);margin:0 0 20px;
+  }
+  .hero h1{
+    font-family:var(--display);font-weight:800;letter-spacing:-.035em;line-height:.94;
+    font-size:clamp(2.6rem,9.5vw,4.6rem);margin:0;color:#fff;
+  }
+  .hero h1 em{display:block;font-style:normal;color:#7FBFA0;font-size:.42em;letter-spacing:-.01em;margin-top:14px;font-weight:600}
+  .hero p.lede{max-width:44ch;color:#C3D4C6;margin:22px 0 0;font-size:1.02rem}
+
+  .quickfacts{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:1px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.15);
+    margin-top:36px;
+  }
+  .qf{background:var(--bosque);padding:16px 14px}
+  .qf .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8FAF98;display:block;margin-bottom:6px}
+  .qf .v{font-family:var(--display);font-weight:700;font-size:1.22rem;color:#fff;letter-spacing:-.02em;display:block;line-height:1.15}
+  .qf .v a{color:#fff;text-decoration:none;border-bottom:1px solid var(--celeste)}
+
+  /* ---------- secciones ---------- */
+  section{padding:52px 0 8px;scroll-margin-top:62px}
+  .shead{display:flex;align-items:baseline;gap:14px;border-bottom:2px solid var(--bosque);padding-bottom:10px;margin-bottom:26px}
+  .snum{font-family:var(--mono);font-size:12px;color:var(--celeste);font-weight:600;flex:none}
+  .shead h2{
+    font-family:var(--display);font-weight:800;letter-spacing:-.03em;
+    font-size:clamp(1.5rem,4.6vw,2.05rem);margin:0;line-height:1.05;
+  }
+  .snote{color:var(--gris);font-size:.94rem;margin:-14px 0 26px;max-width:62ch}
+
+  h3.sub{
+    font-family:var(--display);font-weight:600;font-size:1.02rem;letter-spacing:-.01em;
+    margin:34px 0 12px;color:var(--bosque);
+  }
+
+  /* ---------- fichas de lote ---------- */
+  .fichas{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(268px,1fr))}
+  .ficha{
+    background:var(--papel);border:1px solid var(--ceniza);border-top:4px solid var(--musgo);
+    padding:20px 18px 16px;
+  }
+  .ficha.destacada{border-top-color:var(--celeste)}
+  .ficha .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gris)}
+  .ficha h4{font-family:var(--display);font-weight:700;font-size:1.16rem;letter-spacing:-.02em;margin:6px 0 14px;color:var(--bosque)}
+  .datos{list-style:none;margin:0;padding:0}
+  .datos li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dotted var(--ceniza);font-size:.92rem;align-items:baseline}
+  .datos li:last-child{border-bottom:0}
+  .datos .lbl{color:var(--gris)}
+  .datos .val{font-family:var(--mono);font-weight:600;text-align:right;color:var(--bosque)}
+  .ficha .cierre{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--ceniza);font-size:.9rem;color:var(--musgo);font-weight:500}
+
+  /* ---------- listas ---------- */
+  ul.check{list-style:none;margin:0;padding:0}
+  ul.check li{position:relative;padding:8px 0 8px 28px;border-bottom:1px solid var(--ceniza)}
+  ul.check li:last-child{border-bottom:0}
+  ul.check li::before{
+    content:"";position:absolute;left:4px;top:16px;width:9px;height:9px;
+    border-left:2px solid var(--celeste);border-bottom:2px solid var(--celeste);
+    transform:rotate(-45deg);
+  }
+  ul.plain{list-style:none;margin:0;padding:0}
+  ul.plain li{padding:9px 0;border-bottom:1px solid var(--ceniza)}
+  ul.plain li:last-child{border-bottom:0}
+
+  .reglas{display:grid;gap:14px}
+  .regla{background:var(--papel);border:1px solid var(--ceniza);border-left:4px solid var(--bosque);padding:15px 17px}
+  .regla .si,.regla .no{font-family:var(--mono);font-size:.88rem;display:block;margin-top:7px}
+  .regla .si{color:var(--musgo)}
+  .regla .no{color:#9B3B23;text-decoration:line-through}
+  .regla p{margin:8px 0 0;font-size:.92rem;color:var(--gris)}
+  .regla strong{color:var(--bosque)}
+
+  /* ---------- ganchos ---------- */
+  .grupo{margin-bottom:30px}
+  .grupo h3{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--celeste);margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--ceniza);
+  }
+  .gancho{
+    background:var(--papel);border:1px solid var(--ceniza);padding:14px 16px;margin-bottom:9px;
+    display:flex;gap:14px;align-items:flex-start;
+  }
+  .gancho .cuerpo{flex:1;min-width:0}
+  .gancho .frase{margin:0;font-size:1rem;line-height:1.45;color:var(--bosque)}
+  .gancho .meta{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--gris);margin:7px 0 0;display:block}
+  .copiar{
+    flex:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    background:transparent;color:var(--musgo);border:1px solid var(--ceniza);border-radius:2px;
+    padding:6px 10px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+  }
+  .copiar:hover{background:var(--musgo);color:#fff;border-color:var(--musgo)}
+  .copiar:focus-visible{outline:2px solid var(--celeste);outline-offset:2px}
+  .copiar.listo{background:var(--celeste);color:#fff;border-color:var(--celeste)}
+
+  .badge{
+    display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;
+    text-transform:uppercase;background:var(--maiz-bg);color:var(--maiz);
+    border:1px solid #E6D3A3;padding:2px 6px;border-radius:2px;margin-left:8px;vertical-align:1px;
+  }
+
+  /* ---------- avisos ---------- */
+  .aviso{background:var(--maiz-bg);border:1px solid #E6D3A3;border-left:4px solid var(--maiz);padding:18px 20px;margin:22px 0}
+  .aviso h4{font-family:var(--display);font-weight:700;font-size:1rem;margin:0 0 8px;color:var(--maiz)}
+  .aviso p{margin:0;font-size:.94rem}
+  .aviso p+p{margin-top:10px}
+
+  .pendiente{background:var(--papel);border:1px solid var(--ceniza);padding:17px 19px;margin-bottom:12px}
+  .pendiente h4{font-family:var(--display);font-weight:700;font-size:1.02rem;margin:0 0 8px;color:var(--bosque)}
+  .pendiente p{margin:0;font-size:.93rem;color:var(--gris)}
+  .pendiente p+p{margin-top:8px}
+
+  /* ---------- faq ---------- */
+  details.faq{background:var(--papel);border:1px solid var(--ceniza);margin-bottom:8px}
+  details.faq summary{
+    cursor:pointer;padding:14px 17px;font-family:var(--display);font-weight:600;font-size:.99rem;
+    color:var(--bosque);list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center;
+  }
+  details.faq summary::-webkit-details-marker{display:none}
+  details.faq summary::after{content:"+";font-family:var(--mono);color:var(--celeste);font-size:1.1rem;flex:none}
+  details.faq[open] summary::after{content:"–"}
+  details.faq summary:focus-visible{outline:2px solid var(--celeste);outline-offset:-2px}
+  details.faq .resp{padding:0 17px 16px;font-size:.94rem;color:var(--gris);border-top:1px solid var(--ceniza);padding-top:13px}
+  details.faq .resp strong{color:var(--bosque)}
+
+  /* ---------- contacto ---------- */
+  .contacto{background:var(--bosque);color:#EAF0EA;margin-top:56px;padding:44px 0 40px}
+  .contacto .shead{border-bottom-color:rgba(255,255,255,.28)}
+  .contacto .shead h2{color:#fff}
+  .contacto .snum{color:#7FBFA0}
+  .cgrid{display:grid;gap:1px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.15);grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .citem{background:var(--bosque);padding:18px 16px}
+  .citem .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8FAF98;display:block;margin-bottom:7px}
+  .citem .v{font-family:var(--display);font-weight:600;font-size:1.02rem;color:#fff;word-break:break-word}
+  .citem a{color:#fff;text-decoration:none;border-bottom:1px solid var(--celeste)}
+  .citem a:hover{color:#7FD8E4}
+
+  footer.pie{background:var(--bosque);color:#7B937F;padding:0 0 34px;font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+  footer.pie .wrap{border-top:1px solid rgba(255,255,255,.14);padding-top:18px}
+
+  /* ---------- impresión ---------- */
+  @media print{
+    body{background:#fff;font-size:10.5pt}
+    .topbar,.copiar,.navchips{display:none!important}
+    .hero,.contacto,footer.pie{background:#fff!important;color:#000!important}
+    .hero svg.contours{display:none}
+    .hero h1,.contacto .shead h2,.citem .v,.qf .v{color:#000!important}
+    .hero p.lede,.qf .k,.citem .k{color:#444!important}
+    .qf,.citem,.cgrid,.quickfacts{background:#fff!important;border-color:#999!important}
+    section{padding:22px 0 0;page-break-inside:avoid}
+    .ficha,.gancho,.regla,.pendiente,.aviso{page-break-inside:avoid;border-color:#999}
+    details.faq{page-break-inside:avoid}
+    details.faq .resp{display:block!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brandmark">Eco Viva<span> ·</span> Guía de venta</div>
+    <nav class="navchips" aria-label="Secciones">
+      <a href="#proyecto">01 Proyecto</a>
+      <a href="#inventario">02 Lotes</a>
+      <a href="#financiamiento">03 Financiamiento</a>
+      <a href="#ubicacion">04 Ubicación</a>
+      <a href="#lenguaje">05 Lenguaje</a>
+      <a href="#ganchos">06 Ganchos</a>
+      <a href="#faq">07 Respuestas</a>
+      <a href="#pendientes">08 Por confirmar</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <svg class="contours" viewBox="0 0 1200 460" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+    <g fill="none" stroke="#7FBFA0" stroke-width="1">
+      <path d="M-40 400 C 180 330, 300 372, 470 316 S 800 246, 1000 288 S 1180 250, 1250 226" opacity=".55"/>
+      <path d="M-40 362 C 190 292, 312 336, 482 278 S 802 206, 1002 250 S 1180 210, 1250 186" opacity=".48"/>
+      <path d="M-40 324 C 200 254, 324 300, 494 240 S 804 166, 1004 212 S 1180 170, 1250 146" opacity=".41"/>
+      <path d="M-40 286 C 210 216, 336 264, 506 202 S 806 126, 1006 174 S 1180 130, 1250 106" opacity=".34"/>
+      <path d="M-40 248 C 220 178, 348 228, 518 164 S 808 86, 1008 136 S 1180 90, 1250 66" opacity=".27"/>
+      <path d="M-40 210 C 230 140, 360 192, 530 126 S 810 46, 1010 98 S 1180 50, 1250 26" opacity=".2"/>
+      <path d="M-40 172 C 240 102, 372 156, 542 88 S 812 6, 1012 60 S 1180 10, 1250 -14" opacity=".14"/>
+    </g>
+  </svg>
+  <div class="wrap">
+    <p class="eyebrow">Documento interno · Equipo de ventas · v1</p>
+    <h1>Lomas de la Llanada<em>Todo lo que tenés que saber antes de contestar un chat.</em></h1>
+    <p class="lede">Proyecto eco-sostenible de Eco Viva Desarrollos en Ciudad Quesada, San Carlos. Financiamiento directo, sin banco y sin fiador.</p>
+
+    <div class="quickfacts">
+      <div class="qf"><span class="k">Lotes desde</span><span class="v">675 m²</span></div>
+      <div class="qf"><span class="k">Precio m² desde</span><span class="v">₡13.000</span></div>
+      <div class="qf"><span class="k">Financiamiento</span><span class="v">Directo</span></div>
+      <div class="qf"><span class="k">WhatsApp</span><span class="v"><a href="https://wa.me/50684142111">8414 2111</a></span></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section id="proyecto" class="wrap">
+  <div class="shead"><span class="snum">01</span><h2>El proyecto en una frase</h2></div>
+  <p class="snote">Si solo te acordás de una cosa, que sea esta: <strong>vendemos lotes con financiamiento directo del desarrollador — sin banco y sin fiador — a cinco minutos del centro de Ciudad Quesada.</strong></p>
+
+  <ul class="check">
+    <li>Desarrollo eco-sostenible de Eco Viva Desarrollos, en Ciudad Quesada, San Carlos.</li>
+    <li>Dos tipos de producto: <strong>lotes frente a calle</strong> (675 m² a 1.810 m²) y <strong>lotes internos grandes</strong> (5.000 m² a 8.000 m²).</li>
+    <li>Clima fresco de altura, con vista al volcán y al valle de Ciudad Quesada.</li>
+    <li>Sirve igual para casa de habitación, proyecto de retiro, segunda casa familiar o negocio turístico.</li>
+    <li>Eco Viva también tiene el proyecto <strong>Oasis Río Celeste</strong>, con precios en dólares. Si el cliente pregunta por playa o turismo puro, ahí va.</li>
+  </ul>
+</section>
+
+<section id="inventario" class="wrap">
+  <div class="shead"><span class="snum">02</span><h2>Inventario y precios</h2></div>
+  <p class="snote">Estos son los datos duros. Manejalos de memoria: el cliente que llega por anuncio ya viene preguntando por número de lote.</p>
+
+  <div class="aviso">
+    <h4>El precio por m² no es uno solo</h4>
+    <p>Va <strong>desde ₡13.000 hasta ₡40.000 el m²</strong>, según el lote. Nunca contestés “el metro vale X” de forma general: preguntá primero qué tamaño anda buscando el cliente y cotizá sobre un lote concreto.</p>
+  </div>
+
+  <div class="fichas">
+    <article class="ficha">
+      <span class="tag">Producto A</span>
+      <h4>Lotes frente a calle</h4>
+      <ul class="datos">
+        <li><span class="lbl">Tamaño</span><span class="val">675 – 1.810 m²</span></li>
+        <li><span class="lbl">Precio por m²</span><span class="val">₡40.000</span></li>
+        <li><span class="lbl">Lote 1 y Lote 6</span><span class="val">675 m² · ₡27.000.000</span></li>
+        <li><span class="lbl">Prima</span><span class="val">20 % – 25 %</span></li>
+        <li><span class="lbl">Prima desde</span><span class="val">₡5.400.000</span></li>
+        <li><span class="lbl">Fiador</span><span class="val">No</span></li>
+        <li><span class="lbl">Banco</span><span class="val">No</span></li>
+      </ul>
+      <p class="cierre">Para quien quiere construir pronto y no necesita tanto terreno.</p>
+    </article>
+
+    <article class="ficha destacada">
+      <span class="tag">Producto B · el más fuerte</span>
+      <h4>Lotes internos grandes</h4>
+      <ul class="datos">
+        <li><span class="lbl">Tamaño</span><span class="val">5.000 – 8.000 m²</span></li>
+        <li><span class="lbl">Prima</span><span class="val">5 %</span></li>
+        <li><span class="lbl">Se financia</span><span class="val">95 %</span></li>
+        <li><span class="lbl">Fiador</span><span class="val">No</span></li>
+        <li><span class="lbl">Banco</span><span class="val">No</span></li>
+        <li><span class="lbl">Financiamiento</span><span class="val">Directo</span></li>
+      </ul>
+      <p class="cierre">Prima de apenas 5 % y financiamos el 95 % restante, sin fiador y sin banco. Este combo casi no existe en el mercado — es nuestro mejor argumento.</p>
+    </article>
+
+    <article class="ficha">
+      <span class="tag">Producto C</span>
+      <h4>Lote 12</h4>
+      <ul class="datos">
+        <li><span class="lbl">Tamaño</span><span class="val">El más grande</span></li>
+        <li><span class="lbl">Precio por m²</span><span class="val">₡27.000</span></li>
+        <li><span class="lbl">Contra frente a calle</span><span class="val">−₡13.000 / m²</span></li>
+      </ul>
+      <p class="cierre">El lote más grande del proyecto, a ₡27.000 el m². <strong>No es el más barato por metro</strong>: hay lotes desde ₡13.000.</p>
+    </article>
+  </div>
+</section>
+
+<section id="financiamiento" class="wrap">
+  <div class="shead"><span class="snum">03</span><h2>Financiamiento</h2></div>
+  <p class="snote">Este es el corazón de la venta. La mayoría de la gente que nos escribe no está buscando un lote: está buscando una forma de comprarlo sin banco.</p>
+
+  <ul class="check">
+    <li><strong>Es directo con el desarrollador.</strong> Nosotros financiamos, no un tercero.</li>
+    <li><strong>Sin trámite bancario.</strong> No hay estudio de crédito, no hay avalúo bancario, no hay meses de espera.</li>
+    <li><strong>Sin fiador.</strong> El cliente no tiene que pedirle el favor a nadie.</li>
+    <li><strong>Lotes internos grandes: prima de 5 %.</strong> Financiamos el 95 % restante.</li>
+    <li><strong>Lotes frente a calle: prima de 20 % a 25 %,</strong> desde ₡5.400.000.</li>
+  </ul>
+
+  <div class="aviso">
+    <h4>Ojo con esto — la prima cambia según el lote</h4>
+    <p>Todos los lotes llevan prima. Lo que cambia es cuánto: <strong>5 % en los lotes internos grandes</strong> y <strong>20 % a 25 % en los lotes frente a calle</strong>. Confundirlos es el error más caro que podés cometer en un chat.</p>
+    <p>Si el cliente llega diciendo que vio “sin prima” en algún lado, corregilo de una y convertilo en argumento: <em>“Es una prima de 5 % y nosotros financiamos el 95 % restante, sin banco y sin fiador.”</em></p>
+  </div>
+</section>
+
+<section id="ubicacion" class="wrap">
+  <div class="shead"><span class="snum">04</span><h2>Ubicación e infraestructura</h2></div>
+  <p class="snote">Lo que más convence en el primer mensaje son los tiempos. La gente entiende “4 minutos” mejor que cualquier descripción del paisaje.</p>
+
+  <h3 class="sub">Distancias</h3>
+  <ul class="check">
+    <li><strong>4 minutos de PriceSmart.</strong></li>
+    <li><strong>5 minutos del centro de Ciudad Quesada.</strong></li>
+    <li>Hospital, colegios y comercio, todo dentro del radio de Ciudad Quesada.</li>
+  </ul>
+
+  <h3 class="sub">Entorno</h3>
+  <ul class="check">
+    <li>Vista al volcán.</li>
+    <li>Vista al valle y a las luces de Ciudad Quesada de noche.</li>
+    <li>Clima fresco de altura: ni aire acondicionado ni abanico.</li>
+    <li>Desarrollo con enfoque eco-sostenible.</li>
+  </ul>
+
+  <h3 class="sub">Infraestructura <span class="badge">Confirmar antes de prometer</span></h3>
+  <ul class="check">
+    <li>Calles pavimentadas.</li>
+    <li>Agua y electricidad en los lotes.</li>
+    <li>Entrada con control de acceso.</li>
+  </ul>
+  <div class="aviso">
+    <h4>No prometás lo que no está confirmado</h4>
+    <p>Antes de decirle a un cliente que su lote <strong>ya tiene</strong> agua, luz o calle pavimentada, confirmalo con administración lote por lote. “Ya tiene” y “va a tener” es la diferencia entre un cliente contento y un reclamo.</p>
+    <p>Lo mismo con el <strong>control de acceso</strong>: verificá cómo aplica al lote específico que estás cotizando antes de usarlo como argumento.</p>
+  </div>
+</section>
+
+<section id="lenguaje" class="wrap">
+  <div class="shead"><span class="snum">05</span><h2>Cómo hablamos del proyecto</h2></div>
+  <p class="snote">Cuatro reglas. No son de estilo, son de marca — y en dos de ellas hay implicaciones legales y comerciales.</p>
+
+  <div class="reglas">
+    <div class="regla">
+      <strong>Regla 1 · El nombre del producto</strong>
+      <span class="si">✓ lotes frente a calle</span>
+      <span class="no">✗ lotes con frente a calle</span>
+      <p>Siempre igual, en anuncios, en chat y por teléfono.</p>
+    </div>
+
+    <div class="regla">
+      <strong>Regla 2 · Todo es un solo proyecto</strong>
+      <span class="no">✗ contiguo a Lomas de la Llanada</span>
+      <span class="no">✗ está aparte / está afuera del proyecto</span>
+      <p>Nunca presentés un lote como separado, vecino o adjunto al proyecto. Todo se habla como parte de Lomas de la Llanada.</p>
+    </div>
+
+    <div class="regla">
+      <strong>Regla 3 · Informamos, no presionamos</strong>
+      <span class="no">✗ últimos 2 lotes · promoción por hoy · apurate</span>
+      <p>Nada de urgencia inventada ni de presión. Nuestro estilo es dar el dato completo y dejar que el cliente decida. Vende más y devuelve menos.</p>
+    </div>
+
+    <div class="regla">
+      <strong>Regla 4 · La meta es el número de lote</strong>
+      <p>Un chat va bien cuando el cliente pasa de “¿cuánto valen los lotes?” a <strong>“quiero el 6”</strong>. Ahí ya no estás vendiendo: estás cerrando. Llevá siempre la conversación hacia un lote concreto.</p>
+    </div>
+  </div>
+</section>
+
+<section id="ganchos" class="wrap">
+  <div class="shead"><span class="snum">06</span><h2>Ganchos listos para usar</h2></div>
+  <p class="snote">Redactados cortos a propósito, para que no se corten en Facebook ni se vean pesados en WhatsApp. Tocá <em>copiar</em> y pegalos tal cual.</p>
+
+  <div class="grupo">
+    <h3>Ubicación</h3>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Las compras del mes a 4 minutos de tu lote. 🛒</p><span class="meta">PriceSmart</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Vivís en el campo, pero el centro te queda a 5 minutos. 🌿</p><span class="meta">Centro de Ciudad Quesada</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">PriceSmart a 4 min. Centro de Ciudad Quesada a 5 min. Tu casa, en medio de la montaña.</p><span class="meta">Combo de tiempos</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Tranquilidad de finca sin perder hospital, colegios y comercio cerca.</p><span class="meta">Lo mejor de los dos mundos</span></div><button class="copiar" type="button">Copiar</button></div>
+  </div>
+
+  <div class="grupo">
+    <h3>Infraestructura <span class="badge">Confirmar</span></h3>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Calles pavimentadas hasta la entrada de tu lote. Sin lastre, sin barro en invierno. 🛣️</p><span class="meta">Pavimento</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Agua y electricidad ya instaladas. Comprás y podés empezar a construir. ⚡💧</p><span class="meta">Servicios</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Entrada con control de acceso, para que la tranquilidad no sea solo del paisaje. 🔐</p><span class="meta">Acceso</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Sin gastar millones metiendo servicios: el lote ya viene con todo. ✅</p><span class="meta">Ahorro real</span></div><button class="copiar" type="button">Copiar</button></div>
+  </div>
+
+  <div class="grupo">
+    <h3>Vistas y entorno</h3>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Despertás con el volcán al frente. Todos los días. 🌋</p><span class="meta">Vista al volcán</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">De día ves el valle. De noche, las luces de Ciudad Quesada. ✨</p><span class="meta">Vista a la ciudad</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">El clima fresco de San Carlos, sin aire acondicionado y sin abanico. 🍃</p><span class="meta">Clima</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Un desarrollo pensado para que la montaña siga siendo montaña. 🌱</p><span class="meta">Eco-sostenible</span></div><button class="copiar" type="button">Copiar</button></div>
+  </div>
+
+  <div class="grupo">
+    <h3>Financiamiento</h3>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Comprás tu lote y te devolvemos ₡5.000.000. Así de simple. 💵</p><span class="meta">Cashback <span class="badge">Confirmar condiciones</span></span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Sin trámite bancario. El financiamiento es directo con nosotros. 🏦❌</p><span class="meta">Sin banco</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Sin fiador. Sin pedirle el favor a nadie. 🤝</p><span class="meta">Sin fiador</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Ponés el 5 % y nosotros financiamos el 95 %. Sin banco. 💳</p><span class="meta">Prima del 5 % · lotes grandes</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Lotes de 5.000 a 8.000 m² con solo 5 % de prima y financiamiento directo.</p><span class="meta">Lotes grandes</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Lotes frente a calle desde ₡5.400.000 de prima, financiados directamente.</p><span class="meta">Frente a calle</span></div><button class="copiar" type="button">Copiar</button></div>
+  </div>
+
+  <div class="grupo">
+    <h3>Para quién es</h3>
+    <div class="gancho"><div class="cuerpo"><p class="frase">El lugar donde querés estar cuando dejés de trabajar. Y ya podés irlo pagando. 🏡</p><span class="meta">Proyecto de retiro</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">¿Cabinas, glamping, restaurante con vista? El lote lo aguanta. 🏕️</p><span class="meta">Negocio / turismo</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Ese lugar al que llevás a la familia los fines de semana.</p><span class="meta">Segunda casa</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Ciudad Quesada crece hacia acá. El lote de hoy no vale lo mismo mañana. 📈</p><span class="meta">Inversión</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">En 5.000 m² cabe tu casa, la huerta, el taller y todavía sobra. 🌾</p><span class="meta">Espacio de verdad</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Primero el lote. Después la casa. A tu ritmo. 🧱</p><span class="meta">Construir por etapas</span></div><button class="copiar" type="button">Copiar</button></div>
+  </div>
+
+  <div class="grupo">
+    <h3>Precio y tamaño</h3>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Hay lotes desde ₡13.000 el metro cuadrado. Sí, leíste bien. 📐</p><span class="meta">Precio más bajo</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">El Lote 12 es el más grande del proyecto, a ₡27.000 el metro.</p><span class="meta">Lote 12</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">Desde 675 m² hasta 8.000 m². Hay uno del tamaño de lo que estás pensando.</p><span class="meta">Rango completo</span></div><button class="copiar" type="button">Copiar</button></div>
+    <div class="gancho"><div class="cuerpo"><p class="frase">₡13.000 el m² cuando el promedio en la zona anda muy por encima.</p><span class="meta">Comparativa <span class="badge">Verificar dato de zona</span></span></div><button class="copiar" type="button">Copiar</button></div>
+  </div>
+
+  <h3 class="sub">Formatos de contenido para grabar</h3>
+  <ul class="plain">
+    <li>Recorrido con drone por lote individual, con el número visible en pantalla.</li>
+    <li>“Esto es lo que se ve desde el Lote X” — vuelta de 360°.</li>
+    <li>Explicativo: cómo funciona el financiamiento directo, paso a paso.</li>
+    <li>Comparativa de precio por m² en Ciudad Quesada.</li>
+    <li>Mapa con tiempos: PriceSmart, centro, hospital, colegios.</li>
+    <li>“¿Cuánto cabe en 5.000 m²?” con referencias visuales.</li>
+    <li>El proceso de compra completo, de la primera llamada a la escritura.</li>
+    <li>Avance de obra: calles y servicios.</li>
+  </ul>
+</section>
+
+<section id="faq" class="wrap">
+  <div class="shead"><span class="snum">07</span><h2>Respuestas rápidas</h2></div>
+  <p class="snote">Las preguntas que más caen en el chat, con la respuesta que sí podés dar hoy.</p>
+
+  <details class="faq">
+    <summary>¿Necesito fiador?</summary>
+    <div class="resp">No. <strong>Ningún lote requiere fiador.</strong> Aplica a los dos productos.</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿Tengo que ir al banco?</summary>
+    <div class="resp">No. El financiamiento es <strong>directo con el desarrollador</strong>. No hay estudio de crédito bancario ni trámite con entidad financiera.</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿Cuánto es la prima?</summary>
+    <div class="resp">Depende del lote. <strong>Lotes internos grandes (5.000 – 8.000 m²):</strong> 5 %, y financiamos el 95 % restante. <strong>Lotes frente a calle:</strong> 20 % a 25 %, desde ₡5.400.000.</div>
+  </details>
+
+  <details class="faq">
+    <summary>En la página vi que decía “sin prima”…</summary>
+    <div class="resp">Todos los lotes llevan prima. En los <strong>internos grandes es de 5 %</strong> — bajísima, y financiamos el otro 95 %. Corregilo de una y usalo como argumento en vez de dejarlo pasar.</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿Cuánto vale el metro cuadrado?</summary>
+    <div class="resp">Va <strong>de ₡13.000 a ₡40.000</strong> según el lote. No des un número general: preguntá qué tamaño busca y cotizá sobre un lote concreto.</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿Cuál es el lote más barato por metro?</summary>
+    <div class="resp">El precio más bajo del proyecto es de <strong>₡13.000 el m²</strong>. <span class="badge">Confirmar número de lote</span> Verificá con administración a cuál corresponde antes de cotizarlo.</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿Cuánto mide y cuánto vale un lote de 675 m²?</summary>
+    <div class="resp"><strong>₡27.000.000</strong>. Aplica al Lote 1 y al Lote 6, ambos de 675 m², a ₡40.000 el m².</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿Puedo poner un negocio?</summary>
+    <div class="resp">Sí, es uno de los usos que más consultan: cabinas, glamping, restaurante con vista. Confirmá el uso específico con administración antes de comprometer nada por escrito.</div>
+  </details>
+
+  <details class="faq">
+    <summary>¿En cuántos años lo puedo pagar? ¿De cuánto es la cuota?</summary>
+    <div class="resp"><strong>Todavía no tenemos el dato oficial.</strong> No inventés cifras. Decí que se lo confirmás en el día y pasá la consulta a administración.</div>
+  </details>
+</section>
+
+<section id="pendientes" class="wrap">
+  <div class="shead"><span class="snum">08</span><h2>Por confirmar antes de publicar</h2></div>
+  <p class="snote">Estos puntos aparecen en los ganchos de arriba marcados con la etiqueta <span class="badge">Confirmar</span>. Hasta que administración los cierre, no se prometen por escrito ni se usan en anuncios.</p>
+
+  <div class="pendiente">
+    <h4>1 · Cashback de ₡5.000.000</h4>
+    <p>Falta definir si aplica a todos los lotes o solo a algunos, y si se descuenta del precio, se devuelve al cerrar o se abona a las cuotas.</p>
+    <p>Es el gancho más fuerte de toda la lista y también el que más preguntas genera. Si el vendedor no lo puede explicar en una frase, se cae la venta.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>2 · Cuáles son los lotes de ₡13.000 el m²</h4>
+    <p>Sabemos que el precio arranca ahí, pero falta el número de lote, el tamaño y el precio total. Es el argumento de entrada más fuerte que tenemos y hoy nadie lo puede cotizar.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>3 · La página web dice “sin prima”</h4>
+    <p>Si el sitio sigue diciendo eso y la condición real es 5 %, hay que corregirlo. Un cliente que llega citando la web y recibe otra cifra desconfía del resto de la cotización.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>4 · Control de acceso</h4>
+    <p>La entrada controlada corresponde a la parte cerrada del proyecto. Hay que tener resuelto de antemano cómo se le explica a un cliente interesado en un lote frente a calle, respetando la regla 2 de la sección 05.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>5 · Pavimento, agua y electricidad</h4>
+    <p>Falta confirmar lote por lote qué está instalado hoy y qué está proyectado. El tiempo verbal cambia todo.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>6 · Plazos y cuota mensual</h4>
+    <p>Sin plazo ni cuota de ejemplo, el argumento de “sin banco, sin fiador” pierde fuerza. El cliente necesita oír “son X años, como ₡Y al mes”.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>7 · Estado legal de los lotes</h4>
+    <p>Confirmar si ya están segregados y escriturados, o si eso ocurre después de la compra. Es de las primeras preguntas de un comprador informado.</p>
+  </div>
+
+  <div class="pendiente">
+    <h4>8 · Características físicas por lote</h4>
+    <p>Cuál es esquinero, cuál es plano, cuál tiene la mejor vista. Es lo que permite recomendar un lote concreto en vez de mandar la lista completa.</p>
+  </div>
+</section>
+
+</main>
+
+<div class="contacto">
+  <div class="wrap">
+    <div class="shead"><span class="snum">09</span><h2>Contacto y enlaces</h2></div>
+    <div class="cgrid">
+      <div class="citem"><span class="k">WhatsApp de ventas</span><span class="v"><a href="https://wa.me/50684142111">8414 2111</a></span></div>
+      <div class="citem"><span class="k">Videos e información</span><span class="v"><a href="https://ecovivadesarrollos.com/funnel/llanada">ecovivadesarrollos.com/funnel/llanada</a></span></div>
+      <div class="citem"><span class="k">Formulario de financiamiento</span><span class="v"><a href="https://ecovivadesarrollos.com/survey">ecovivadesarrollos.com/survey</a></span></div>
+      <div class="citem"><span class="k">Otro proyecto</span><span class="v">Oasis Río Celeste · USD</span></div>
+    </div>
+  </div>
+</div>
+
+<footer class="pie">
+  <div class="wrap">Eco Viva Desarrollos · Lomas de la Llanada · Ciudad Quesada, San Carlos — Documento interno de apoyo comercial. Los datos marcados “Confirmar” no se comunican al cliente hasta ser validados por administración.</div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copiar').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var frase = btn.closest('.gancho').querySelector('.frase').textContent.trim();
+      var ok = function(){
+        var antes = btn.textContent;
+        btn.textContent = 'Copiado';
+        btn.classList.add('listo');
+        setTimeout(function(){ btn.textContent = antes; btn.classList.remove('listo'); }, 1600);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(frase).then(ok).catch(function(){ fallback(frase, ok); });
+      } else {
+        fallback(frase, ok);
+      }
+    });
+  });
+
+  function fallback(texto, ok){
+    var ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.setAttribute('readonly','');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); ok(); } catch(e){}
+    document.body.removeChild(ta);
+  }
+</script>
+
+</body>
+</html>
