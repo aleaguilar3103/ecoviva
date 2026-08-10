@@ -1,0 +1,30 @@
+<!-- Plantilla de recuperación de Supabase Auth. La usan dos flujos:
+     "olvidé mi contraseña" y el reenvío de acceso a un usuario que ya existe
+     en auth.users (inviteUserByEmail falla si el correo ya está registrado).
+     Por eso el texto no asume que la persona ya tenía contraseña. -->
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1A241D">
+  <h1 style="font-size:20px;font-weight:600;color:#12291C;margin:0 0 16px">Acceso a EcoViva</h1>
+
+  <p style="font-size:15px;line-height:1.6;margin:0 0 24px">
+    Pedimos crear una contraseña nueva para <strong>{{ .Email }}</strong>.
+    Hacé clic en el botón y elegí la tuya. Al terminar quedás dentro.
+  </p>
+
+  <p style="margin:0 0 24px">
+    <a href="{{ .ConfirmationURL }}"
+       style="display:inline-block;background:#35624A;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:600">
+      Crear mi contraseña
+    </a>
+  </p>
+
+  <p style="font-size:13px;line-height:1.6;color:#5E6B60;margin:0 0 8px">
+    El enlace vence en una hora y solo se puede usar una vez.
+  </p>
+
+  <p style="font-size:13px;line-height:1.6;color:#5E6B60;margin:0">
+    Si no pediste esto, ignorá el correo: tu contraseña actual sigue funcionando.
+  </p>
+
+  <hr style="border:0;border-top:1px solid #D5DACF;margin:28px 0 16px">
+  <p style="font-size:12px;color:#5E6B60;margin:0">EcoViva Desarrollos</p>
+</div>
