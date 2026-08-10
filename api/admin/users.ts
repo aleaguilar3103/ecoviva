@@ -145,18 +145,17 @@ export default async function handler(req: any, res: any) {
       const email = normalizarCorreo(body.email);
       if (!email) return res.status(400).json({ error: "Correo inválido" });
 
+      // Un role presente pero inválido (p. ej. "superadmin") no se trata como
+      // "no pedido": eso escondería un bug de cliente detrás de un 200 falso.
+      if (body.role !== undefined && body.role !== "admin" && body.role !== "vendedor") {
+        return res.status(400).json({ error: "El rol debe ser 'admin' o 'vendedor'" });
+      }
       // Un POST sin `role` NO debe cambiar el rol de alguien que ya existe:
       // "Reenviar acceso" manda el mismo cuerpo que "Invitar", y asumir
       // 'vendedor' degradaría al destinatario. Con un solo admin activo eso
       // deja el sistema sin ninguno.
-      const rolPedido: Rol | null =
-        body.role === "admin" || body.role === "vendedor" ? body.role : null;
-      const nombre =
-        typeof body.full_name === "string" ? body.full_name.trim() || null : null;
-
-      let userId: string;
-      let reenviado = false;
-      let creadoEnEstaPeticion = false;
+      const rolPedido: Rol | null = body.role === "admin" || body.role === "vendedor" ? body.role : null;
+      const nombre = typeof body.full_name === "string" ? body.full_name.trim() || null : null;
 
       const { data: invitado, error: errorInvitacion } = await db.auth.admin.inviteUserByEmail(
         email,
@@ -166,6 +165,13 @@ export default async function handler(req: any, res: any) {
       if (errorInvitacion) {
         // El caso normal de fallo es que el correo ya esté registrado. Si es así
         // se le reenvía el acceso en vez de tratarlo como error.
+        //
+        // Orden importante de acá en adelante: primero se resuelven todas las
+        // guardas (deshabilitado, cambio de rol que dejaría sin admins) y
+        // recién si todo pasa se manda el correo. Mandarlo antes y recién
+        // después devolver 400 le pone al destinatario una alarma de "creá tu
+        // contraseña" por una operación que terminó rechazada, y deja basura
+        // en el registro de envíos de GoTrue.
         const { usuario: existente, error: errorBusqueda } = await buscarEnAuthPorCorreo(email);
         if (errorBusqueda) {
           return res.status(502).json({
@@ -182,95 +188,114 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const { data: filaPrevia } = await db
+        const { data: filaExistente } = await db
           .from("app_users")
-          .select("status")
+          .select("*")
           .eq("user_id", existente.id)
           .maybeSingle();
-        if (filaPrevia?.status === "disabled") {
+        if (filaExistente?.status === "disabled") {
           return res
             .status(400)
             .json({ error: "Ese usuario está deshabilitado. Habilitalo antes de reenviarle el acceso." });
         }
 
-        const errorEnvio = await enviarCorreoDeAcceso(email);
-        if (errorEnvio) return res.status(502).json({ error: errorEnvio });
-
-        userId = existente.id;
-        reenviado = true;
-      } else {
-        userId = invitado.user.id;
-        creadoEnEstaPeticion = true;
-      }
-
-      // Insert o update explícito, no upsert: un upsert le devolvería el valor por
-      // defecto a status y pisaría created_at.
-      const { data: filaExistente } = await db
-        .from("app_users")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      let fila: unknown;
-
-      if (filaExistente) {
-        // Solo se tocan los campos que realmente cambian: un `role` ausente en
-        // el body no debe pisar el rol actual (ver comentario de rolPedido).
-        const cambios: { role?: Rol; full_name?: string | null } = {};
-        if (rolPedido && rolPedido !== filaExistente.role) cambios.role = rolPedido;
-        if (nombre !== null) cambios.full_name = nombre;
-
-        if (cambios.role) {
-          const problema = await revisarGuardas(userId, callerUserId, { role: cambios.role });
+        // Solo hay guarda que evaluar si hay una fila existente cuyo rol
+        // realmente cambiaría: si no hay fila (dato viejo/migración manual) no
+        // hay ningún admin que degradar, se la crea de cero más abajo.
+        const rolCambia = Boolean(filaExistente) && rolPedido !== null && rolPedido !== filaExistente?.role;
+        if (rolCambia) {
+          const problema = await revisarGuardas(existente.id, callerUserId, { role: rolPedido as Rol });
           if (problema) return res.status(400).json({ error: problema });
         }
 
-        if (Object.keys(cambios).length === 0) {
-          fila = filaExistente;
-        } else {
+        const errorEnvio = await enviarCorreoDeAcceso(email);
+        if (errorEnvio) return res.status(502).json({ error: errorEnvio });
+
+        // Insert o update explícito, no upsert: un upsert le devolvería el valor
+        // por defecto a status y pisaría created_at.
+        let fila: unknown;
+        if (!filaExistente) {
           const { data, error } = await db
             .from("app_users")
-            .update(cambios)
-            .eq("user_id", userId)
+            .insert({
+              user_id: existente.id,
+              email,
+              full_name: nombre,
+              role: rolPedido ?? "vendedor",
+              invited_by: admin,
+            })
             .select()
             .single();
           if (error) {
-            return res
-              .status(500)
-              .json({ error: logYGenerico("app_users update (POST)", error, "No se pudo guardar el usuario.") });
+            return res.status(500).json({
+              error: logYGenerico("app_users insert (POST reenvío)", error, "No se pudo guardar el usuario."),
+            });
           }
           fila = data;
-        }
-      } else {
-        const { data, error } = await db
-          .from("app_users")
-          .insert({ user_id: userId, email, full_name: nombre, role: rolPedido ?? "vendedor", invited_by: admin })
-          .select()
-          .single();
-        if (error) {
-          // La cuenta de auth ya se creó (y el correo de invitación ya salió) en
-          // esta misma petición. Si la fila no se puede guardar, deshacemos la
-          // cuenta para no dejar un usuario "fantasma" con privilegios y sin
-          // fila que lo controle (no aparece en GET, DELETE lo rechaza, y si su
-          // correo está en BASE_ADMINS entraría como admin por el fallback).
-          if (creadoEnEstaPeticion) {
-            await db.auth.admin.deleteUser(userId);
+        } else {
+          // Solo se tocan los campos que realmente cambian: un `role` ausente
+          // o sin cambio real no debe pisar el rol actual (ver rolPedido).
+          const cambios: { role?: Rol; full_name?: string | null } = {};
+          if (rolCambia) cambios.role = rolPedido as Rol;
+          if (nombre !== null) cambios.full_name = nombre;
+
+          if (Object.keys(cambios).length === 0) {
+            fila = filaExistente;
+          } else {
+            const { data, error } = await db
+              .from("app_users")
+              .update(cambios)
+              .eq("user_id", existente.id)
+              .select()
+              .single();
+            if (error) {
+              return res
+                .status(500)
+                .json({ error: logYGenerico("app_users update (POST)", error, "No se pudo guardar el usuario.") });
+            }
+            fila = data;
           }
-          return res
-            .status(500)
-            .json({ error: logYGenerico("app_users insert (POST)", error, "No se pudo guardar el usuario.") });
         }
-        fila = data;
+
+        // Se devuelve la fila tal cual, sin last_sign_in_at: ese dato solo lo
+        // arma listar(). El panel recarga la lista después de invitar.
+        return res.status(200).json({ user: fila, resent: true });
       }
 
-      // Se devuelve la fila tal cual, sin last_sign_in_at: ese dato solo lo arma
-      // listar(). El panel recarga la lista después de invitar.
-      return res.status(200).json({ user: fila, resent: reenviado });
+      // inviteUserByEmail tuvo éxito: alta de un usuario nuevo.
+      const userId = invitado.user.id;
+      const { data: filaNueva, error: errorInsercion } = await db
+        .from("app_users")
+        .insert({ user_id: userId, email, full_name: nombre, role: rolPedido ?? "vendedor", invited_by: admin })
+        .select()
+        .single();
+      if (errorInsercion) {
+        // La cuenta de auth ya se creó (y el correo de invitación ya salió) en
+        // esta misma petición. Si la fila no se puede guardar, deshacemos la
+        // cuenta para no dejar un usuario "fantasma" con privilegios y sin
+        // fila que lo controle (no aparece en GET, DELETE lo rechaza, y si su
+        // correo está en BASE_ADMINS entraría como admin por el fallback).
+        await db.auth.admin.deleteUser(userId);
+        return res.status(500).json({
+          error: logYGenerico("app_users insert (POST)", errorInsercion, "No se pudo guardar el usuario."),
+        });
+      }
+
+      return res.status(200).json({ user: filaNueva, resent: false });
     }
 
     if (req.method === "PATCH") {
       const userId = typeof body.user_id === "string" ? body.user_id : null;
       if (!userId) return res.status(400).json({ error: "Falta user_id" });
+
+      // Un role/status presente pero inválido no se ignora en silencio: eso
+      // escondería un bug de cliente detrás de un cambio parcial inesperado.
+      if (body.role !== undefined && body.role !== "admin" && body.role !== "vendedor") {
+        return res.status(400).json({ error: "El rol debe ser 'admin' o 'vendedor'" });
+      }
+      if (body.status !== undefined && body.status !== "active" && body.status !== "disabled") {
+        return res.status(400).json({ error: "El estado debe ser 'active' o 'disabled'" });
+      }
 
       const cambios: { role?: Rol; status?: "active" | "disabled" } = {};
       if (body.role === "admin" || body.role === "vendedor") cambios.role = body.role;

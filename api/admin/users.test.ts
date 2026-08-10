@@ -155,8 +155,9 @@ describe("POST — regresión C1 (no degradar por omisión)", () => {
       error: null,
     });
     colaFrom = [
-      { data: { status: "active" }, error: null }, // filaPrevia (chequeo de deshabilitado)
       {
+        // Única consulta: trae la fila completa (sirve para el chequeo de
+        // deshabilitado y para calcular `cambios`).
         data: {
           user_id: "uid-admin-a",
           email: "admin-a@ecoviva.com",
@@ -168,21 +169,22 @@ describe("POST — regresión C1 (no degradar por omisión)", () => {
           updated_at: "t0",
         },
         error: null,
-      }, // filaExistente
+      },
     ];
     const res = resRecorder();
     await handler(req("POST", { email: "admin-a@ecoviva.com" }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.user.role).toBe("admin");
     expect(res.body.resent).toBe(true);
-    // Sin cambios que guardar, no debería haber un UPDATE de por medio.
+    // Sin cambio de rol pedido, no hay guarda que evaluar ni UPDATE que hacer:
+    // una sola consulta (la fila existente) y listo.
     expect(updateSpy).not.toHaveBeenCalled();
-    expect(from).toHaveBeenCalledTimes(2);
+    expect(from).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("POST — guardas también aplican al reenvío con role explícito", () => {
-  it("role: 'vendedor' sobre el último admin activo devuelve 400 y no escribe", async () => {
+  it("role: 'vendedor' sobre el último admin activo devuelve 400, no escribe y no manda el correo", async () => {
     const { default: handler } = await cargar();
     requireUser.mockResolvedValue(OTRO_ADMIN); // quien pide el cambio no es el objetivo
     inviteUserByEmail.mockResolvedValue({ data: null, error: { message: "User already registered" } });
@@ -191,16 +193,10 @@ describe("POST — guardas también aplican al reenvío con role explícito", ()
       error: null,
     });
     colaFrom = [
-      { data: { status: "active" }, error: null }, // filaPrevia
       {
-        data: {
-          user_id: "uid-unico-admin",
-          email: "unico@ecoviva.com",
-          role: "admin",
-          status: "active",
-        },
+        data: { user_id: "uid-unico-admin", email: "unico@ecoviva.com", role: "admin", status: "active" },
         error: null,
-      }, // filaExistente
+      }, // filaExistente (deshabilitado + cálculo de cambios)
       { data: { role: "admin", status: "active" }, error: null }, // objetivo dentro de revisarGuardas
       { count: 1 }, // solo queda un admin activo
     ];
@@ -208,6 +204,27 @@ describe("POST — guardas también aplican al reenvío con role explícito", ()
     await handler(req("POST", { email: "unico@ecoviva.com", role: "vendedor" }), res);
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toMatch(/al menos un admin activo/);
+    expect(updateSpy).not.toHaveBeenCalled();
+    // La guarda se evalúa antes de mandar nada: un intento rechazado no debe
+    // dejarle al destinatario una alarma de "creá tu contraseña" de más.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST/PATCH — valida el role explícitamente en vez de ignorarlo en silencio", () => {
+  it("POST con role inválido devuelve 400 sin llegar a invitar", async () => {
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req("POST", { email: "quien-sea@ecoviva.com", role: "superadmin" }), res);
+    expect(res.statusCode).toBe(400);
+    expect(inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("PATCH con role inválido devuelve 400 sin escribir", async () => {
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req("PATCH", { user_id: "uid-x", role: "superadmin" }), res);
+    expect(res.statusCode).toBe(400);
     expect(updateSpy).not.toHaveBeenCalled();
   });
 });
@@ -233,7 +250,6 @@ describe("POST — alta de usuario nuevo", () => {
     const { default: handler } = await cargar();
     inviteUserByEmail.mockResolvedValue({ data: { user: { id: "uid-nuevo" } }, error: null });
     colaFrom = [
-      { data: null, error: null }, // filaExistente: no existe todavía
       {
         data: {
           user_id: "uid-nuevo",
@@ -246,7 +262,7 @@ describe("POST — alta de usuario nuevo", () => {
           updated_at: "t0",
         },
         error: null,
-      }, // insert
+      }, // insert (alta nueva: no hay chequeo previo de fila existente)
     ];
     const res = resRecorder();
     await handler(req("POST", { email: "nuevo@ecoviva.com", role: "admin" }), res);
@@ -259,7 +275,6 @@ describe("POST — alta de usuario nuevo", () => {
     const { default: handler } = await cargar();
     inviteUserByEmail.mockResolvedValue({ data: { user: { id: "uid-nuevo-2" } }, error: null });
     colaFrom = [
-      { data: null, error: null },
       {
         data: {
           user_id: "uid-nuevo-2",
@@ -287,7 +302,6 @@ describe("POST — C2 (no dejar cuentas huérfanas con privilegios)", () => {
     const { default: handler } = await cargar();
     inviteUserByEmail.mockResolvedValue({ data: { user: { id: "uid-huerfano" } }, error: null });
     colaFrom = [
-      { data: null, error: null }, // filaExistente: no existe
       { data: null, error: { message: "insert falló" } }, // insert falla
     ];
     deleteUser.mockResolvedValue({ error: null });
@@ -306,7 +320,6 @@ describe("POST — C2 (no dejar cuentas huérfanas con privilegios)", () => {
       error: null,
     });
     colaFrom = [
-      { data: { status: "active" }, error: null }, // filaPrevia
       {
         data: { user_id: "uid-existente", email: "existente@ecoviva.com", role: "vendedor", status: "active" },
         error: null,
@@ -317,6 +330,51 @@ describe("POST — C2 (no dejar cuentas huérfanas con privilegios)", () => {
     await handler(req("POST", { email: "existente@ecoviva.com", full_name: "Nombre Nuevo" }), res);
     expect(res.statusCode).toBe(500);
     expect(deleteUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST — I5 (el reenvío no borra el nombre guardado)", () => {
+  it("un reenvío con role explícito y sin full_name conserva el nombre ya guardado", async () => {
+    const { default: handler } = await cargar();
+    requireUser.mockResolvedValue(OTRO_ADMIN);
+    inviteUserByEmail.mockResolvedValue({ data: null, error: { message: "User already registered" } });
+    listUsers.mockResolvedValue({
+      data: { users: [{ id: "uid-con-nombre", email: "connombre@ecoviva.com" }] },
+      error: null,
+    });
+    colaFrom = [
+      {
+        data: {
+          user_id: "uid-con-nombre",
+          email: "connombre@ecoviva.com",
+          full_name: "Nombre Viejo",
+          role: "vendedor",
+          status: "active",
+        },
+        error: null,
+      }, // filaExistente
+      { data: { role: "vendedor", status: "active" }, error: null }, // objetivo dentro de revisarGuardas
+      {
+        data: {
+          user_id: "uid-con-nombre",
+          email: "connombre@ecoviva.com",
+          full_name: "Nombre Viejo",
+          role: "admin",
+          status: "active",
+        },
+        error: null,
+      }, // update
+    ];
+    const res = resRecorder();
+    // Body sin full_name: el reenvío pide subir el rol, no toca el nombre.
+    await handler(req("POST", { email: "connombre@ecoviva.com", role: "admin" }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.full_name).toBe("Nombre Viejo");
+    // La clave full_name no debe aparecer en lo que se escribe: si viniera
+    // como `null`, pisaría el nombre ya guardado (I5).
+    const payload = updateSpy.mock.calls[0][0];
+    expect(payload).not.toHaveProperty("full_name");
+    expect(payload).toEqual({ role: "admin" });
   });
 });
 
