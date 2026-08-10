@@ -22,32 +22,51 @@ export default function LoginCard({
     setError(null);
     setAviso(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setLoading(false);
-    if (error) setError("Correo o contraseña incorrectos.");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) setError("Correo o contraseña incorrectos.");
+    } finally {
+      // finally, no solo tras el await: si algo lanza una excepción inesperada,
+      // igual queremos que los botones se vuelvan a habilitar.
+      setLoading(false);
+    }
   }
 
   async function onRecuperar() {
     const correo = email.trim();
+    // Limpiamos ambos avisos al entrar, no solo el que vamos a usar: si quedó el
+    // aviso verde de un pedido anterior y ahora el correo está vacío, no puede
+    // convivir con el error rojo nuevo.
+    setError(null);
+    setAviso(null);
     if (!correo) {
       setError("Escribí tu correo primero.");
       return;
     }
-    setError(null);
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(correo, {
-      redirectTo: `${window.location.origin}/crear-contrasena`,
-    });
-    setLoading(false);
-    // El mensaje no distingue si la cuenta existe: eso revelaría quién tiene acceso.
-    setAviso(
-      error
-        ? "No se pudo enviar el correo. Probá de nuevo en un minuto."
-        : "Si esa cuenta existe, te llegó un correo para crear tu contraseña.",
-    );
+    try {
+      // El origen sale de window.location (el dominio que sirvió la página), no de
+      // un valor fijo: en el navegador nadie puede falsificarlo para la sesión de
+      // otra persona, a diferencia del header Origin en una petición de servidor
+      // (por eso api/admin/users.ts sí evita derivar el destino de ahí). Fijar el
+      // dominio de producción a mano rompería "olvidé mi contraseña" en local y en
+      // los previews de Vercel. El control real es la lista de redirects permitidos
+      // de Supabase, que ya incluye producción, www, localhost:5173 y ecoviva-*.vercel.app.
+      const { error } = await supabase.auth.resetPasswordForEmail(correo, {
+        redirectTo: `${window.location.origin}/crear-contrasena`,
+      });
+      // El mensaje no distingue si la cuenta existe: eso revelaría quién tiene acceso.
+      setAviso(
+        error
+          ? "No se pudo enviar el correo. Probá de nuevo en un minuto."
+          : "Si esa cuenta existe, te llegó un correo para crear tu contraseña.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
