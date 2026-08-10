@@ -24,12 +24,18 @@ function etiquetaEstado(u: AppUser): { texto: string; clase: string } {
   return { texto: "Activo", clase: "bg-emerald-50 text-emerald-700" };
 }
 
-export default function UsersManager({ currentEmail }: { currentEmail: string }) {
+// Se compara por user_id y no por correo porque es lo mismo que hace el
+// servidor (ver revisarGuardas en api/admin/users.ts): el correo de la sesión
+// puede desincronizarse de app_users.email, o venir vacío. El id no cambia.
+export default function UsersManager({ currentUserId }: { currentUserId: string }) {
   const [usuarios, setUsuarios] = useState<AppUser[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState<string | null>(null);
+  // Conjunto de ids con una acción en vuelo, no un solo id: clic en la fila A y
+  // enseguida en la fila B no debe rehabilitar los controles de A mientras su
+  // pedido sigue pendiente.
+  const [ocupados, setOcupados] = useState<Set<string>>(new Set());
 
   const [email, setEmail] = useState("");
   const [nombre, setNombre] = useState("");
@@ -82,14 +88,18 @@ export default function UsersManager({ currentEmail }: { currentEmail: string })
   async function accion(id: string, fn: () => Promise<unknown>) {
     setError(null);
     setAviso(null);
-    setOcupado(id);
+    setOcupados((prev) => new Set(prev).add(id));
     try {
       await fn();
       await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo completar la acción.");
     } finally {
-      setOcupado(null);
+      setOcupados((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -106,7 +116,7 @@ export default function UsersManager({ currentEmail }: { currentEmail: string })
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="space-y-6">
       <form
         onSubmit={onInvitar}
         className="bg-white rounded-2xl ring-1 ring-slate-200/80 p-6 shadow-sm"
@@ -181,8 +191,8 @@ export default function UsersManager({ currentEmail }: { currentEmail: string })
               <tbody className="divide-y divide-slate-100">
                 {usuarios.map((u) => {
                   const estado = etiquetaEstado(u);
-                  const esUnoMismo = u.email === currentEmail;
-                  const trabajando = ocupado === u.user_id;
+                  const esUnoMismo = u.user_id === currentUserId;
+                  const trabajando = ocupados.has(u.user_id);
                   return (
                     <tr key={u.user_id} className="hover:bg-slate-50/60">
                       <td className="px-4 py-3">

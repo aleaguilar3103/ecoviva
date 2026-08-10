@@ -83,7 +83,7 @@ export default function AdminDashboard({ session }: { session: Session }) {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {tab === "lotes" && <LotsManager />}
         {tab === "bot" && <BotPromptManager />}
-        {tab === "usuarios" && <UsersManager currentEmail={email.toLowerCase()} />}
+        {tab === "usuarios" && <UsersManager currentUserId={session.user.id} />}
       </main>
     </div>
   );
