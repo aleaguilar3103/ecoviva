@@ -250,6 +250,7 @@ async function embedImage(doc: PDFDocument, url: string) {
 // ── Lote como viene de Supabase ──
 interface Lot {
   lot_number: number;
+  lot_suffix: string | null;
   section: string;
   size_m2: number;
   price_per_m2: number;
@@ -506,7 +507,7 @@ function drawLotTable(d: Doc, lots: Lot[], moneda: Moneda, t: typeof T["es"]) {
     d.ensure(17);
     if (idx % 2 === 0) d.page.drawRectangle({ x: MARGIN, y: d.y - 16, width: CONTENT_W, height: 16, color: C.panel });
     const row = [
-      `#${l.lot_number}`,
+      `#${l.lot_number}${l.lot_suffix ?? ""}`,
       `${l.size_m2.toLocaleString()} m²`,
       fmt(l.price_per_m2, moneda),
       fmt(l.price_total, moneda),
@@ -535,13 +536,14 @@ export async function getBrochureUrl(
     .from("lots")
     .select("*")
     .eq("project", proyecto)
-    .order("lot_number");
+    .order("lot_number")
+    .order("lot_suffix", { nullsFirst: true });
   if (error) throw new Error(`No pude leer lotes: ${error.message}`);
   const rows = (lots || []) as Lot[];
 
   // Huella de datos: versión de plantilla + última actualización + conteo + estados.
   const maxUpdated = rows.reduce((mx, l) => (l.updated_at > mx ? l.updated_at : mx), "");
-  const statuses = rows.map((l) => `${l.lot_number}:${l.status}`).join(",");
+  const statuses = rows.map((l) => `${l.lot_number}${l.lot_suffix ?? ""}:${l.status}`).join(",");
   const fp = createHash("sha1")
     .update(`${TEMPLATE_VERSION}|${idioma}|${maxUpdated}|${rows.length}|${statuses}`)
     .digest("hex")

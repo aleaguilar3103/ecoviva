@@ -41,7 +41,7 @@ from (values
   (28, 5101.85::numeric, '/planos/llanada/lote-28.pdf'),
   (29, 5254.74::numeric, '/planos/llanada/lote-29.pdf'),
   (30, 5579.93::numeric, '/planos/llanada/lote-30.pdf'),
-  (31, 7533.00::numeric, '/planos/llanada/lote-31.pdf'),
+  -- #31 no va aquí: en julio 2026 se subdividió en 31A y 31B. Lo maneja 0006.
   (32, 5333.66::numeric, '/planos/llanada/lote-32.pdf'),
   (33, 7563.75::numeric, '/planos/llanada/lote-33.pdf'),
   (34, 5000.00::numeric, '/planos/llanada/lote-34.pdf'),
@@ -52,4 +52,4 @@ from (values
   (39, 5454.22::numeric, '/planos/llanada/lote-39.pdf'),
   (40, 5405.63::numeric, '/planos/llanada/lote-40.pdf')
 ) as v(lot_number, size_m2, plano)
-where l.project = 'llanada' and l.lot_number = v.lot_number;
+where l.project = 'llanada' and l.lot_number = v.lot_number and l.lot_suffix is null;

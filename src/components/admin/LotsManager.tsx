@@ -177,7 +177,7 @@ export default function LotsManager() {
                       className={`transition hover:bg-slate-50/70 ${savingId === lot.id ? "opacity-50" : ""}`}
                     >
                       <td className="px-4 py-3 font-medium text-slate-900">
-                        #{lot.lot_number}
+                        #{lot.lot_number}{lot.lot_suffix ?? ""}
                         {lot.requires_prima && (
                           <span className="ml-2 text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
                             prima {lot.prima_pct}%
@@ -277,6 +277,7 @@ function LotEditor({
     project: lot?.project || project || "rio_celeste",
     section: lot?.section || (project === "llanada" ? "bloque_1" : "general"),
     lot_number: lot?.lot_number ?? 0,
+    lot_suffix: lot?.lot_suffix ?? "",
     size_m2: lot?.size_m2 ?? 0,
     price_per_m2: lot?.price_per_m2 ?? 0,
     status: lot?.status || ("available" as Lot["status"]),
@@ -300,6 +301,7 @@ function LotEditor({
       const payload = {
         ...form,
         lot_number: Number(form.lot_number),
+        lot_suffix: form.lot_suffix.trim().toUpperCase() || null,
         size_m2: Number(form.size_m2),
         price_per_m2: Number(form.price_per_m2),
         prima_pct: Number(form.prima_pct),
@@ -317,7 +319,7 @@ function LotEditor({
   }
 
   async function remove() {
-    if (!lot || !confirm(`¿Borrar el lote #${lot.lot_number}? Esta acción no se puede deshacer.`)) return;
+    if (!lot || !confirm(`¿Borrar el lote #${lot.lot_number}${lot.lot_suffix ?? ""}? Esta acción no se puede deshacer.`)) return;
     setSaving(true);
     try {
       await deleteLot(lot.id);
@@ -348,7 +350,7 @@ function LotEditor({
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <h2 className="text-base font-semibold text-slate-900">
-            {isNew ? "Nuevo lote" : `Editar lote #${lot!.lot_number}`}
+            {isNew ? "Nuevo lote" : `Editar lote #${lot!.lot_number}${lot!.lot_suffix ?? ""}`}
           </h2>
           <button
             onClick={onClose}
@@ -376,7 +378,19 @@ function LotEditor({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelText}># Lote</label>
-              <input type="number" className={field} value={form.lot_number} onChange={(e) => set("lot_number", e.target.value as never)} disabled={!isNew} />
+              <div className="flex gap-2">
+                <input type="number" className={field} value={form.lot_number} onChange={(e) => set("lot_number", e.target.value as never)} disabled={!isNew} />
+                {/* Sufijo para lotes subdivididos (31A/31B). Vacío = lote entero. */}
+                <input
+                  type="text"
+                  maxLength={2}
+                  placeholder="A/B"
+                  className={`${field} w-16 shrink-0 text-center uppercase`}
+                  value={form.lot_suffix}
+                  onChange={(e) => set("lot_suffix", e.target.value)}
+                  disabled={!isNew}
+                />
+              </div>
             </div>
             <div>
               <label className={labelText}>Tamaño (m²)</label>

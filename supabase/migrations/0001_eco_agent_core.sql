@@ -13,6 +13,7 @@ create table if not exists public.lots (
   section         text not null default 'general'
                     check (section in ('general','bloque_1','frente_a_calle')),
   lot_number      integer not null,
+  lot_suffix      text,                   -- 'A'/'B' cuando un lote se subdivide (ej. 31A y 31B)
   size_m2         numeric(10,2) not null,
   price_per_m2    numeric(12,2) not null,
   currency        text not null check (currency in ('USD','CRC')),
@@ -25,9 +26,13 @@ create table if not exists public.lots (
   plano_visado_url text,
   notes           text,
   updated_at      timestamptz not null default now(),
-  created_at      timestamptz not null default now(),
-  unique (project, lot_number)
+  created_at      timestamptz not null default now()
 );
+
+-- Identidad del lote = número + sufijo. El sufijo casi siempre es null; coalesce lo normaliza
+-- para que el unique funcione igual con lotes enteros ('31') y subdivididos ('31A','31B').
+create unique index if not exists lots_project_lot_unique
+  on public.lots (project, lot_number, coalesce(lot_suffix, ''));
 
 create index if not exists lots_project_status_idx on public.lots (project, status);
 

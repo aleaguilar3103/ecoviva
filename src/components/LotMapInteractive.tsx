@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 
 export interface LotData {
-  id: number;
+  id: string;
   size: number;
   pricePerM2: number;
   total: number;
@@ -21,8 +21,11 @@ interface TooltipState {
   lot: LotData | null;
 }
 
-// Polygon points in original SVG coordinate space (viewBox 0 0 1756.15 1848.47)
-const LOT_POLYGONS: Record<number, string> = {
+// Polygon points in original SVG coordinate space (viewBox 0 0 1756.15 1848.47).
+// OJO: el mapa es esquemático, no está georreferenciado — las formas son un dibujo, no la
+// geometría del topógrafo (comprobado: no existe transformación afín que lleve las coordenadas
+// CRTM05 de los planos a estos polígonos). La geometría legal es la del PDF de cada lote.
+const LOT_POLYGONS: Record<string, string> = {
   13: "1557.26,351.54 1547.01,389.86 1488.95,370.51 1475.55,552.46 1511.28,544.6 1533.66,537.83 1546.96,545 1539.77,558.24 1516.6,565.09 1488.62,571.8 1642.63,631.94 1645.67,626.63 1647.95,542.39 1654.78,531.01 1677.93,507.86 1705.25,475.99 1719.67,463.85 1737.12,441.84 1741.29,418.69 1657.05,379.23",
   14: "1290.89,437.3 1242.7,527.99 1347.43,608.29 1350.78,604.94 1365.96,592.8 1389.48,578.38 1435.4,563.58 1473.34,552.95 1474.71,552.65 1488.12,370.52 1350.34,323.33 1339.08,347.37",
   15: "1131.84,785.18 1154.99,825.78 1174.72,860.69 1193.69,892.56 1202.04,905.46 1209.33,911.43 1213.42,893.32 1224.04,858.41 1238.08,817.81 1249.47,785.18 1260.85,757.86 1280.58,712.32 1296.14,681.59 1306.39,661.48 1313.22,648.58 1328.01,627.71 1347.07,608.65 1242.38,528.38 1093.28,714.94 1113.25,747.61",
@@ -41,7 +44,11 @@ const LOT_POLYGONS: Record<number, string> = {
   28: "1056.62,793.74 900.05,937.41 893.92,941.89 871.54,875.49 860.53,846.27 849.15,825.02 829.04,798.08 805.89,773.41 773.26,739.26 766.43,730.92 756.18,767.72 733.04,798.46 698.13,825.02 691.05,829.64 692.49,1038.29 716.78,1045.56 749.41,1074.39 778.63,1155.98 750.17,1075.15",
   29: "1070.37,718.39 1048.74,686.14 1032.8,661.86 1020.66,652.75 1003.96,638.33 971.33,602.66 965.72,595.13 826.42,764.07 844.98,784.42 867.74,813.26 879.88,837.54 891.65,868.28 905.69,908.88 910.24,927.09 899.82,936.54 900.05,937.41 1056.76,793.61 1082.24,737.68",
   30: "906.07,516.15 881.02,479.72 863.57,455.44 844.22,424.7 832.45,397.76 819.93,418.63 798.3,459.99 786.16,476.69 769.09,499.07 759.22,518.8 755.43,538.54 756.18,571.93 761.5,618.22 762.64,652.75 765.29,676.66 767.95,690.69 776.67,709.29 789.58,725.22 821.45,758.62 826.42,764.07 965.72,595.13 931.49,549.16",
-  31: "340.54,903.69 392.53,929.87 525.36,980.97 612.61,1014.11 692.29,1037.95 690.85,829.77 660.94,849.3 613.89,859.17 385.78,746.2 262.32,798.92 289.7,843.73",
+  // El #31 se subdividió en 31A (este) y 31B (oeste), 5.000 m² cada una. El polígono original se
+  // partió en dos mitades de igual área perpendicular a su eje largo: reparto correcto y lado
+  // correcto, forma aproximada — como el resto del mapa.
+  "31B": "340.54,903.69 392.53,929.87 475.29,961.71 520.66,813.00 385.78,746.20 262.32,798.92 289.70,843.73",
+  "31A": "475.29,961.71 525.36,980.97 612.61,1014.11 692.29,1037.95 690.85,829.77 660.94,849.30 613.89,859.17 520.66,813.00",
   32: "385.68,746.15 374.84,740.78 368.39,721.43 364.97,696.01 366.34,656.28 328.56,654.91 200.61,650.26 0,642.96 49.71,882.39 262.32,798.92 386.84,749.63",
   33: "401.84,575.04 403.5,564.5 424.58,430.96 194.27,449.44 38.32,460.44 41.36,554.54 0,642.96 200.73,650.17 366.34,656.28 366.49,651.99 373.95,630.65 387.12,623.97 410.95,580.35",
   34: "387.62,624.13 394.09,637.71 387.74,655.78 385.84,694.86 389.26,716.49 392.3,725.6 616.55,836.78 652.22,829.19 685.99,807.56 717.48,782.9 730.38,766.2 733.96,758.9 410.94,580.34",
@@ -54,7 +61,7 @@ const LOT_POLYGONS: Record<number, string> = {
 };
 
 // Label positions from original SVG text transforms
-const LOT_LABELS: Record<number, [number, number]> = {
+const LOT_LABELS: Record<string, [number, number]> = {
   13: [1575.86, 482.41],
   14: [1385, 453.95],
   15: [1203.73, 691.16],
@@ -73,7 +80,8 @@ const LOT_LABELS: Record<number, [number, number]> = {
   28: [764.97, 908.53],
   29: [936, 739.8],
   30: [828.38, 580.9],
-  31: [459.89, 892.6],
+  "31B": [402.24, 845.88],
+  "31A": [596.91, 925.48],
   32: [276.51, 717.04],
   33: [289.56, 550.37],
   34: [530.09, 730.57],
@@ -128,7 +136,7 @@ function getStatusStroke(status: LotData["status"], isSelected: boolean) {
 }
 
 export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: LotMapInteractiveProps) {
-  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, x: 0, y: 0, lot: null });
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,7 +149,7 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
     setTooltip({ visible: true, x: e.clientX - rect.left, y: e.clientY - rect.top, lot });
   }, []);
 
-  const handleMouseEnter = useCallback((id: number) => setHoveredId(id), []);
+  const handleMouseEnter = useCallback((id: string) => setHoveredId(id), []);
 
   const handleMouseLeave = useCallback(() => {
     setHoveredId(null);
@@ -193,8 +201,7 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
         />
 
         {/* ── LOTES ── */}
-        {Object.entries(LOT_POLYGONS).map(([idStr, points]) => {
-          const id = Number(idStr);
+        {Object.entries(LOT_POLYGONS).map(([id, points]) => {
           const lot = lotsById[id];
           if (!lot) return null;
           const isSelected = selectedLot?.id === id;
@@ -218,8 +225,7 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
         })}
 
         {/* ── ETIQUETAS DE LOTE ── */}
-        {Object.entries(LOT_POLYGONS).map(([idStr]) => {
-          const id = Number(idStr);
+        {Object.keys(LOT_POLYGONS).map((id) => {
           const lot = lotsById[id];
           if (!lot) return null;
           const [lx, ly] = LOT_LABELS[id];

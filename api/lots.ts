@@ -15,7 +15,11 @@ export default async function handler(req: any, res: any) {
         string,
         string | undefined
       >;
-      let q = db.from("lots").select("*").order("lot_number", { ascending: true });
+      let q = db
+        .from("lots")
+        .select("*")
+        .order("lot_number", { ascending: true })
+        .order("lot_suffix", { ascending: true, nullsFirst: true });
       if (project) q = q.eq("project", project);
       if (section) q = q.eq("section", section);
       if (status) q = q.eq("status", status);

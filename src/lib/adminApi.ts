@@ -34,6 +34,7 @@ export interface Lot {
   project: "rio_celeste" | "llanada";
   section: "general" | "bloque_1" | "frente_a_calle";
   lot_number: number;
+  lot_suffix: string | null;   // 'A'/'B' si el lote está subdividido — la etiqueta es número+sufijo
   size_m2: number;
   price_per_m2: number;
   currency: "USD" | "CRC";

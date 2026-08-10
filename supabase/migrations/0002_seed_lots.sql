@@ -1,13 +1,18 @@
 -- Seed de lots con inventario real (datos corregidos por el cliente 2026-06-01)
 -- Río Celeste pequeños: $40/m² (corregido, la web mostraba $45) · grandes: $30/m²
 -- Llanada frente a calle: ₡40.000/m² (corregido, la web mostraba ₡45.000) + 25% prima
--- Idempotente: upsert por (project, lot_number)
+-- Idempotente: upsert por (project, lot_number, sufijo). En una BD que ya existía hay que correr
+-- 0006 antes que esto: es quien crea el índice único con sufijo del que depende el ON CONFLICT.
+--
+-- status NO se pisa en el ON CONFLICT: la disponibilidad la mueve el panel admin y re-correr este
+-- seed revertía ventas y reservas hechas después del 2026-06-01. Los estados de abajo solo aplican
+-- al insert inicial de una BD nueva (al día 2026-08-03).
 
 insert into public.lots
   (project, section, lot_number, size_m2, price_per_m2, currency, status, requires_prima, prima_pct, plano_visado_url, notes)
 values
   -- ── Lomas de la Llanada · FRENTE A CALLE (CRC, ₡40.000/m², 25% prima en #1-#8) ──
-  ('llanada','frente_a_calle', 1, 1300, 40000, 'CRC','not_available', true, 25, null, null),
+  ('llanada','frente_a_calle', 1, 1300, 40000, 'CRC','sold',          true, 25, null, null),
   ('llanada','frente_a_calle', 2, 1300, 40000, 'CRC','not_available', true, 25, null, null),
   ('llanada','frente_a_calle', 3, 1404, 40000, 'CRC','not_available', true, 25, null, null),
   ('llanada','frente_a_calle', 4,  696, 40000, 'CRC','not_available', true, 25, null, null),
@@ -22,23 +27,23 @@ values
   ('llanada','bloque_1',14, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',15, 5400, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',16, 6009, 17000, 'CRC','reserved',   false, 0, null, null),
-  ('llanada','bloque_1',17, 5000, 17000, 'CRC','available',  false, 0, null, null),
+  ('llanada','bloque_1',17, 5000, 17000, 'CRC','reserved',   false, 0, null, null),
   ('llanada','bloque_1',18, 5000, 17000, 'CRC','available',  false, 0, null, null),
-  ('llanada','bloque_1',19, 5000, 17000, 'CRC','available',  false, 0, null, null),
-  ('llanada','bloque_1',20, 5000, 17000, 'CRC','available',  false, 0, null, null),
+  ('llanada','bloque_1',19, 5000, 17000, 'CRC','reserved',   false, 0, null, null),
+  ('llanada','bloque_1',20, 5000, 17000, 'CRC','reserved',   false, 0, null, null),
   ('llanada','bloque_1',21, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',22, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',23, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',24, 5000, 17000, 'CRC','sold',       false, 0, null, null),
-  ('llanada','bloque_1',25, 5000, 17000, 'CRC','available',  false, 0, null, null),
+  ('llanada','bloque_1',25, 5000, 17000, 'CRC','sold',       false, 0, null, null),
   ('llanada','bloque_1',26, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',27, 5179, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',28, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',29, 5300, 17000, 'CRC','sold',       false, 0, null, null),
   ('llanada','bloque_1',30, 5265, 17000, 'CRC','available',  false, 0, null, null),
-  ('llanada','bloque_1',31, 7533, 13275, 'CRC','available',  false, 0, null, null),
+  -- #31 va aparte al final: los planos de julio 2026 lo parten en 31A y 31B (llevan lot_suffix).
   ('llanada','bloque_1',32, 6542, 13000, 'CRC','available',  false, 0, null, null),
-  ('llanada','bloque_1',33, 8141, 13000, 'CRC','available',  false, 0, null, null),
+  ('llanada','bloque_1',33, 8141, 13000, 'CRC','sold',       false, 0, null, null),
   ('llanada','bloque_1',34, 5000, 17000, 'CRC','reserved',   false, 0, null, null),
   ('llanada','bloque_1',35, 5000, 17000, 'CRC','available',  false, 0, null, null),
   ('llanada','bloque_1',36, 5000, 17000, 'CRC','available',  false, 0, null, null),
@@ -68,13 +73,26 @@ values
   ('rio_celeste','general',18, 5000,    30, 'USD','available',     false, 0, 'https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b71311f678e1c45e32.pdf', null),
   ('rio_celeste','general',19, 5000,    30, 'USD','available',     false, 0, 'https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b776757707553e8a78.pdf', null),
   ('rio_celeste','general',20, 5000,    30, 'USD','available',     false, 0, 'https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6980e7b766e7ca56f70346a2.pdf', null)
-on conflict (project, lot_number) do update set
+on conflict (project, lot_number, coalesce(lot_suffix, '')) do update set
   section = excluded.section,
   size_m2 = excluded.size_m2,
   price_per_m2 = excluded.price_per_m2,
   currency = excluded.currency,
-  status = excluded.status,
   requires_prima = excluded.requires_prima,
   prima_pct = excluded.prima_pct,
   plano_visado_url = excluded.plano_visado_url,
   notes = excluded.notes;
+
+-- ── #31: subdividido en 31A y 31B (planos visados 2026-61175-C y 2026-61176-C, junio 2026) ──
+-- 5.000,00 m² cada uno a ₡13.000/m², la misma tarifa del #32 y #33.
+insert into public.lots
+  (project, section, lot_number, lot_suffix, size_m2, price_per_m2, currency, status, requires_prima, prima_pct, plano_visado_url, notes)
+values
+  ('llanada','bloque_1',31,'A', 5000.00, 13000, 'CRC','available', false, 0, '/planos/llanada/lote-31A.pdf', null),
+  ('llanada','bloque_1',31,'B', 5000.00, 13000, 'CRC','available', false, 0, '/planos/llanada/lote-31B.pdf', null)
+on conflict (project, lot_number, coalesce(lot_suffix, '')) do update set
+  section = excluded.section,
+  size_m2 = excluded.size_m2,
+  price_per_m2 = excluded.price_per_m2,
+  currency = excluded.currency,
+  plano_visado_url = excluded.plano_visado_url;

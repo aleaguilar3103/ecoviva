@@ -70,7 +70,7 @@ export const TOOLS = [
         proyecto: { type: "string", enum: ["rio_celeste", "llanada"] },
         numero_lote: {
           type: "number",
-          description: "Número de lote específico. Devuelve su estado (disponible/reservado/vendido) y alternativas si no está libre.",
+          description: "Número de lote específico. Devuelve su estado (disponible/reservado/vendido) y alternativas si no está libre. Si el lote se subdividió (ej. el 31, hoy 31A y 31B) devuelve todas sus parcelas.",
         },
         seccion: {
           type: "string",
@@ -220,44 +220,56 @@ export async function executeTool(
       const proyecto = input.proyecto as string;
 
       // Consulta de un lote puntual por número: trae su estado real aunque esté vendido/reservado.
+      // Un mismo número puede tener varias parcelas si el lote se subdividió (ej. 31 → 31A y 31B).
       if (input.numero_lote != null) {
         const numeroLote = input.numero_lote as number;
-        const { data: lote, error: errLote } = await ctx.db
+        const { data: parcelas, error: errLote } = await ctx.db
           .from("lots")
           .select("*")
           .eq("project", proyecto)
           .eq("lot_number", numeroLote)
-          .maybeSingle();
+          .order("lot_suffix", { nullsFirst: true });
         if (errLote) return `Error consultando el lote: ${errLote.message}`;
-        if (!lote)
+        if (!parcelas?.length)
           return JSON.stringify({
             proyecto: PROYECTO_LABEL[proyecto],
             numero_lote: numeroLote,
             encontrado: false,
           });
-        const moneda = lote.currency;
-        const detalle: Record<string, unknown> = {
-          proyecto: PROYECTO_LABEL[proyecto],
-          numero_lote: lote.lot_number,
-          estado: ESTADO_LABEL[lote.status] ?? lote.status,
-          m2: Number(lote.size_m2),
-          precio_total: formatMoneda(Number(lote.price_total), moneda),
-          precio_m2: formatMoneda(Number(lote.price_per_m2), moneda),
-          requiere_prima: lote.requires_prima ? `${lote.prima_pct}%` : "no",
-        };
-        // Si no está disponible, sugerí los lotes libres de tamaño más parecido.
-        if (lote.status !== "available") {
+
+        const describir = (l: (typeof parcelas)[number]) => ({
+          lote: `${l.lot_number}${l.lot_suffix ?? ""}`,
+          estado: ESTADO_LABEL[l.status] ?? l.status,
+          m2: Number(l.size_m2),
+          precio_total: formatMoneda(Number(l.price_total), l.currency),
+          precio_m2: formatMoneda(Number(l.price_per_m2), l.currency),
+          requiere_prima: l.requires_prima ? `${l.prima_pct}%` : "no",
+        });
+
+        const detalle: Record<string, unknown> =
+          parcelas.length === 1
+            ? { proyecto: PROYECTO_LABEL[proyecto], ...describir(parcelas[0]) }
+            : {
+                proyecto: PROYECTO_LABEL[proyecto],
+                numero_lote: numeroLote,
+                nota: `El lote ${numeroLote} se subdividió en ${parcelas.length} parcelas independientes; cada una se vende por separado.`,
+                parcelas: parcelas.map(describir),
+              };
+
+        // Si ninguna parcela está libre, sugerí los lotes disponibles de tamaño más parecido.
+        if (!parcelas.some((l) => l.status === "available")) {
+          const referencia = Number(parcelas[0].size_m2);
           const { data: libres } = await ctx.db
             .from("lots")
             .select("*")
             .eq("project", proyecto)
             .eq("status", "available");
           detalle.alternativas = (libres ?? [])
-            .map((l) => ({ l, diff: Math.abs(Number(l.size_m2) - Number(lote.size_m2)) }))
+            .map((l) => ({ l, diff: Math.abs(Number(l.size_m2) - referencia) }))
             .sort((a, b) => a.diff - b.diff)
             .slice(0, 3)
             .map(({ l }) => ({
-              lote: l.lot_number,
+              lote: `${l.lot_number}${l.lot_suffix ?? ""}`,
               m2: Number(l.size_m2),
               precio_total: formatMoneda(Number(l.price_total), l.currency),
               requiere_prima: l.requires_prima ? `${l.prima_pct}%` : "no",
@@ -285,7 +297,7 @@ export async function executeTool(
         rango_precio_m2: `${formatMoneda(Math.min(...precios), moneda)}–${formatMoneda(Math.max(...precios), moneda)} por m²`,
         moneda,
         lotes: data.slice(0, 10).map((l) => ({
-          lote: l.lot_number,
+          lote: `${l.lot_number}${l.lot_suffix ?? ""}`,
           m2: Number(l.size_m2),
           precio_total: formatMoneda(Number(l.price_total), moneda),
           requiere_prima: l.requires_prima ? `${l.prima_pct}%` : "no",
