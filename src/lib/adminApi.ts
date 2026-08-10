@@ -163,7 +163,16 @@ export function deleteUser(user_id: string): Promise<{ ok: true }> {
 // ── Guía de vendedores ──
 // No usa request(): el endpoint devuelve HTML, no JSON.
 export async function getGuiaHtml(): Promise<string> {
-  const res = await fetch("/api/guia-vendedores", { headers: await authHeaders() });
+  let res: Response;
+  try {
+    res = await fetch("/api/guia-vendedores", { headers: await authHeaders() });
+  } catch {
+    // fetch() rechaza (no responde con un status) cuando no hay conexión o
+    // falla el DNS, y el mensaje nativo del navegador queda en inglés crudo
+    // ("Failed to fetch", "NetworkError..."). Lo traducimos acá porque el
+    // llamador solo espera Error.message en español.
+    throw new Error("No pudimos conectarnos. Revisá tu conexión.");
+  }
   if (!res.ok) {
     if (res.status === 401) throw new Error("Tu cuenta no tiene acceso a la guía.");
     throw new Error(`No se pudo cargar la guía (${res.status}).`);
