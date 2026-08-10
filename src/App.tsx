@@ -6,6 +6,7 @@ import MaintenancePage from "./components/MaintenancePage";
 const AdminApp = lazy(() => import("./components/admin/AdminApp"));
 // Rutas fuera del sitio público: no llevan locale ni widget de chat.
 const CreatePasswordPage = lazy(() => import("./components/auth/CreatePasswordPage"));
+const GuiaVendedores = lazy(() => import("./components/guia/GuiaVendedores"));
 
 const MAINTENANCE = false;
 import Home from "./components/home";
@@ -79,6 +80,9 @@ function App() {
 
         {/* Creación de contraseña — llega desde el enlace del correo */}
         <Route path="/crear-contrasena" element={<CreatePasswordPage />} />
+
+        {/* Guía de venta — solo con sesión. El enlace se comparte a mano. */}
+        <Route path="/guia-vendedores" element={<GuiaVendedores />} />
 
         {/* EN locale — /en and /en/* */}
         <Route

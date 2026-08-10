@@ -159,3 +159,14 @@ export function deleteUser(user_id: string): Promise<{ ok: true }> {
     body: JSON.stringify({ user_id }),
   });
 }
+
+// ── Guía de vendedores ──
+// No usa request(): el endpoint devuelve HTML, no JSON.
+export async function getGuiaHtml(): Promise<string> {
+  const res = await fetch("/api/guia-vendedores", { headers: await authHeaders() });
+  if (!res.ok) {
+    if (res.status === 401) throw new Error("Tu cuenta no tiene acceso a la guía.");
+    throw new Error(`No se pudo cargar la guía (${res.status}).`);
+  }
+  return res.text();
+}
