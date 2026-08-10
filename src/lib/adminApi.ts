@@ -103,3 +103,10 @@ export function injectBlock(block: string, currentPrompt: string): Promise<{ pro
     body: JSON.stringify({ mode: "inject", block, currentPrompt }),
   });
 }
+
+// ── Identidad ──
+export type AppRole = "admin" | "vendedor";
+
+export function getMe(): Promise<{ email: string; role: AppRole }> {
+  return request<{ email: string; role: AppRole }>("/api/me");
+}
