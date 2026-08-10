@@ -3,9 +3,10 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 import LotsManager from "./LotsManager";
 import BotPromptManager from "./BotPromptManager";
+import UsersManager from "./UsersManager";
 import BrandMark from "./BrandMark";
 
-type Tab = "lotes" | "bot";
+type Tab = "lotes" | "bot" | "usuarios";
 
 export default function AdminDashboard({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>("lotes");
@@ -13,6 +14,7 @@ export default function AdminDashboard({ session }: { session: Session }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "lotes", label: "Lotes" },
     { id: "bot", label: "Bot & Prompt" },
+    { id: "usuarios", label: "Usuarios" },
   ];
 
   const email = session.user.email ?? "";
@@ -79,7 +81,9 @@ export default function AdminDashboard({ session }: { session: Session }) {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        {tab === "lotes" ? <LotsManager /> : <BotPromptManager />}
+        {tab === "lotes" && <LotsManager />}
+        {tab === "bot" && <BotPromptManager />}
+        {tab === "usuarios" && <UsersManager currentEmail={email.toLowerCase()} />}
       </main>
     </div>
   );
