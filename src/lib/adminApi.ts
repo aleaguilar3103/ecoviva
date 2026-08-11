@@ -103,3 +103,84 @@ export function injectBlock(block: string, currentPrompt: string): Promise<{ pro
     body: JSON.stringify({ mode: "inject", block, currentPrompt }),
   });
 }
+
+// ── Identidad ──
+export type AppRole = "admin" | "vendedor";
+
+export function getMe(): Promise<{ email: string; role: AppRole }> {
+  return request<{ email: string; role: AppRole }>("/api/me");
+}
+
+// ── Usuarios ──
+export interface AppUserRow {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: AppRole;
+  status: "active" | "disabled";
+  invited_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Solo el listado cruza la fila contra auth.users para saber si la persona entró
+// alguna vez. POST y PATCH devuelven la fila cruda.
+export type AppUser = AppUserRow & { last_sign_in_at: string | null };
+
+export function getUsers(): Promise<{ users: AppUser[] }> {
+  return request<{ users: AppUser[] }>("/api/admin/users");
+}
+
+// Sirve para invitar y para reenviar el acceso: el backend detecta cuál es.
+export function inviteUser(input: {
+  email: string;
+  full_name?: string;
+  role: AppRole;
+}): Promise<{ user: AppUserRow; resent: boolean }> {
+  return request<{ user: AppUserRow; resent: boolean }>("/api/admin/users", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateUser(
+  user_id: string,
+  updates: { role?: AppRole; status?: "active" | "disabled" },
+): Promise<{ user: AppUserRow }> {
+  return request<{ user: AppUserRow }>("/api/admin/users", {
+    method: "PATCH",
+    body: JSON.stringify({ user_id, ...updates }),
+  });
+}
+
+export function deleteUser(user_id: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>("/api/admin/users", {
+    method: "DELETE",
+    body: JSON.stringify({ user_id }),
+  });
+}
+
+// ── Guía de vendedores ──
+// No usa request(): el endpoint devuelve HTML, no JSON.
+// Error con acceso denegado: distinto de un fallo de red o un 500 pasajero
+// porque no es transitorio — reintentar nunca va a servir. El componente lo
+// usa para no ofrecer un botón "Reintentar" que no puede funcionar nunca.
+export class GuiaAccesoDenegadoError extends Error {}
+
+export async function getGuiaHtml(): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch("/api/guia-vendedores", { headers: await authHeaders() });
+  } catch {
+    // fetch() rechaza (no responde con un status) cuando no hay conexión o
+    // falla el DNS, y el mensaje nativo del navegador queda en inglés crudo
+    // ("Failed to fetch", "NetworkError..."). Lo traducimos acá porque el
+    // llamador solo espera Error.message en español.
+    throw new Error("No pudimos conectarnos. Revisá tu conexión.");
+  }
+  if (!res.ok) {
+    if (res.status === 401) throw new GuiaAccesoDenegadoError("Tu cuenta no tiene acceso a la guía.");
+    throw new Error(`No se pudo cargar la guía (${res.status}).`);
+  }
+  return res.text();
+}

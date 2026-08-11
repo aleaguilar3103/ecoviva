@@ -26,37 +26,78 @@ function bearerToken(req: { headers: Record<string, unknown> }): string | null {
   return token || null;
 }
 
-// Correos siempre permitidos en el panel, además de los que traiga ADMIN_EMAILS.
-const BASE_ADMINS = ["aguilartradesfx@gmail.com", "gerencia@duphomes.com"];
+export type AppRole = "admin" | "vendedor";
 
-// Lista blanca de correos con acceso al panel: base + env ADMIN_EMAILS (coma-separada).
-function adminEmails(): string[] {
-  const fromEnv = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return Array.from(new Set([...BASE_ADMINS, ...fromEnv]));
+export interface Caller {
+  email: string;
+  userId: string | null;
+  role: AppRole;
 }
 
-// Verifica acceso de administrador. Acepta:
-//   1) Un Bearer token que sea igual a ADMIN_API_TOKEN (uso servidor-a-servidor), o
-//   2) Un JWT de Supabase Auth de un usuario cuyo correo esté en la lista blanca.
-// Devuelve el correo del admin (o "service" para el token), o null si no autorizado.
-export async function requireAdmin(req: {
+// Break-glass: estos dos correos son siempre admin, exista o no su fila en
+// app_users y sin importar su status o role ahí. Es a propósito imposible
+// dejarlos afuera desde el panel — es la garantía de que nadie queda
+// encerrado fuera del panel por un error de datos o un clic accidental.
+const BASE_ADMINS = ["aguilartradesfx@gmail.com", "gerencia@duphomes.com"];
+
+// Identifica a quien hace la petición. Acepta:
+//   1) Bearer igual a ADMIN_API_TOKEN → admin de servicio (servidor a servidor).
+//   2) Un JWT de Supabase Auth cuyo correo esté en BASE_ADMINS → admin siempre.
+//   3) Un JWT de Supabase Auth cuyo usuario tenga fila activa en app_users.
+// Devuelve null si no hay token, si el JWT no valida, si no hay fila (y el
+// correo no es BASE_ADMIN) o si la cuenta está deshabilitada.
+export async function requireUser(req: {
   headers: Record<string, unknown>;
-}): Promise<string | null> {
+}): Promise<Caller | null> {
   const token = bearerToken(req);
   if (!token) return null;
 
   const serviceToken = process.env.ADMIN_API_TOKEN;
-  if (serviceToken && token === serviceToken) return "service";
+  if (serviceToken && token === serviceToken) {
+    return { email: "service", userId: null, role: "admin" };
+  }
 
   try {
-    const { data, error } = await supabaseAdmin().auth.getUser(token);
-    const email = data?.user?.email?.toLowerCase();
-    if (error || !email) return null;
-    return adminEmails().includes(email) ? email : null;
+    const db = supabaseAdmin();
+    const { data, error } = await db.auth.getUser(token);
+    const user = data?.user;
+    const email = user?.email?.toLowerCase();
+    if (error || !user || !email) return null;
+
+    // Break-glass primero: si el correo está en la lista, es admin sin
+    // importar qué diga (o deje de decir) app_users. Antes esto solo se
+    // consultaba cuando no había fila, lo cual no protegía a un BASE_ADMIN
+    // con fila deshabilitada o con rol corrupto, y de paso abría un camino
+    // para que cualquier usuario de auth.users sin fila entrara como admin.
+    if (BASE_ADMINS.includes(email)) {
+      return { email, userId: user.id, role: "admin" };
+    }
+
+    const { data: row, error: rowError } = await db
+      .from("app_users")
+      .select("role, status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    // Sin esto, un fallo transitorio de la consulta se ve idéntico a "no
+    // tiene fila" y el vendedor recibe un 401 sin que quede rastro en los
+    // logs para diagnosticarlo. Se sigue fallando cerrado a propósito.
+    if (rowError) {
+      console.error("requireUser: fallo al consultar app_users", rowError);
+    }
+
+    if (!row || row.status !== "active") return null;
+    return { email, userId: user.id, role: row.role as AppRole };
   } catch {
     return null;
   }
+}
+
+// Igual que requireUser pero exige rol admin. Conserva la firma anterior
+// (correo o null) para no tocar los endpoints que ya la usan.
+export async function requireAdmin(req: {
+  headers: Record<string, unknown>;
+}): Promise<string | null> {
+  const caller = await requireUser(req);
+  return caller && caller.role === "admin" ? caller.email : null;
 }

@@ -4,6 +4,9 @@ import MaintenancePage from "./components/MaintenancePage";
 
 // Panel admin: carga diferida para no inflar el bundle del sitio público.
 const AdminApp = lazy(() => import("./components/admin/AdminApp"));
+// Rutas fuera del sitio público: no llevan locale ni widget de chat.
+const CreatePasswordPage = lazy(() => import("./components/auth/CreatePasswordPage"));
+const GuiaVendedores = lazy(() => import("./components/guia/GuiaVendedores"));
 
 const MAINTENANCE = false;
 import Home from "./components/home";
@@ -55,10 +58,13 @@ function SharedRoutes() {
   );
 }
 
-// Muestra el widget de ECO en todo el sitio menos en el panel admin.
+// Muestra el widget de ECO en el sitio público, pero no en el panel ni en las
+// pantallas con sesión.
+const SIN_WIDGET = ["/admin", "/crear-contrasena", "/guia-vendedores"];
+
 function ChatWidgetGate() {
   const location = useLocation();
-  if (location.pathname.startsWith("/admin")) return null;
+  if (SIN_WIDGET.some((ruta) => location.pathname.startsWith(ruta))) return null;
   return <EcoChatWidget />;
 }
 
@@ -71,6 +77,12 @@ function App() {
       <Routes>
         {/* Panel admin — sin locale, sin widget de chat */}
         <Route path="/admin/*" element={<AdminApp />} />
+
+        {/* Creación de contraseña — llega desde el enlace del correo */}
+        <Route path="/crear-contrasena" element={<CreatePasswordPage />} />
+
+        {/* Guía de venta — solo con sesión. El enlace se comparte a mano. */}
+        <Route path="/guia-vendedores" element={<GuiaVendedores />} />
 
         {/* EN locale — /en and /en/* */}
         <Route

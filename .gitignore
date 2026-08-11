@@ -54,3 +54,6 @@ docs/contactos-ghl/
 Fotos proyectos/
 marketing/
 PLANOS CHECK/
+
+# Generado por scripts/build-content.mjs en cada build
+api/_content/
