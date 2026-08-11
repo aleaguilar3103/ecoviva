@@ -10,7 +10,11 @@ type Rol = "admin" | "vendedor";
 
 // No se deriva del header Origin: alguien con un JWT válido podría apuntar el
 // enlace de invitación a un dominio suyo y quedarse con el token.
-const SITIO = process.env.PUBLIC_SITE_URL || "https://ecovivadesarrollos.com";
+// Con www: el apex redirige 307 hacia www, y el token de la invitacion viaja en
+// el fragmento de la URL. Los navegadores lo preservan al redirigir, pero si
+// alguno no lo hiciera la invitacion se romperia en silencio. Se apunta directo
+// al dominio canonico para que no haya ningun salto en el medio.
+const SITIO = process.env.PUBLIC_SITE_URL || "https://www.ecovivadesarrollos.com";
 const DESTINO = `${SITIO}/crear-contrasena`;
 
 function normalizarCorreo(v: unknown): string | null {
