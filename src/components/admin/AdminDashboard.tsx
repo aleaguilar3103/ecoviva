@@ -3,10 +3,11 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
 import LotsManager from "./LotsManager";
 import BotPromptManager from "./BotPromptManager";
+import BotTester from "./BotTester";
 import UsersManager from "./UsersManager";
 import BrandMark from "./BrandMark";
 
-type Tab = "lotes" | "bot" | "usuarios";
+type Tab = "lotes" | "bot" | "probar" | "usuarios";
 
 export default function AdminDashboard({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>("lotes");
@@ -14,6 +15,7 @@ export default function AdminDashboard({ session }: { session: Session }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "lotes", label: "Lotes" },
     { id: "bot", label: "Bot & Prompt" },
+    { id: "probar", label: "Probar bot" },
     { id: "usuarios", label: "Usuarios" },
   ];
 
@@ -65,12 +67,12 @@ export default function AdminDashboard({ session }: { session: Session }) {
         </div>
 
         {/* Tabs móviles */}
-        <nav className="sm:hidden flex gap-1 px-4 pb-3">
+        <nav className="sm:hidden grid grid-cols-2 gap-1 px-4 pb-3">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                 tab === t.id ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
               }`}
             >
@@ -83,6 +85,7 @@ export default function AdminDashboard({ session }: { session: Session }) {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {tab === "lotes" && <LotsManager />}
         {tab === "bot" && <BotPromptManager />}
+        {tab === "probar" && <BotTester />}
         {tab === "usuarios" && <UsersManager currentUserId={session.user.id} />}
       </main>
     </div>

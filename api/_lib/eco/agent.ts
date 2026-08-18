@@ -21,12 +21,24 @@ export interface RunInput {
   ghlContactId?: string; // WhatsApp
   ghlConversationId?: string;
   contactSeed?: { name?: string; email?: string; phone?: string };
+  // Banco de pruebas del panel admin: las tools que escriben en el CRM se
+  // simulan (ver ToolContext.simulate). No cambia nada del razonamiento.
+  simulate?: boolean;
+}
+
+export interface ToolCallAudit {
+  name: string;
+  input: unknown;
+  result: string;
 }
 
 export interface RunResult {
   reply: string;
   conversationId: string;
   attachments: string[];
+  // Qué herramientas usó el agente en este turno. Solo se expone en el panel
+  // admin (el widget público no lo devuelve).
+  tools: ToolCallAudit[];
 }
 
 async function findOrCreateConversation(input: RunInput): Promise<ConversationRow> {
@@ -143,7 +155,7 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
     Object.assign(convo, fields);
     await db.from("conversations").update(fields).eq("id", convo.id);
   };
-  const ctx: ToolContext = { db, convo, patchConvo, attachments: [] };
+  const ctx: ToolContext = { db, convo, patchConvo, attachments: [], simulate: input.simulate };
 
   // Si el canal nos dio datos del contacto (WhatsApp/CRM trae nombre, teléfono y
   // a veces correo) y la conversación aún no los tiene, los sembramos: así las
@@ -177,7 +189,7 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
   });
 
   let finalText = "";
-  const toolAudit: { name: string; input: unknown; result: string }[] = [];
+  const toolAudit: ToolCallAudit[] = [];
 
   const now = new Date();
   const crNow = new Intl.DateTimeFormat("es-CR", {
@@ -317,5 +329,6 @@ export async function runAgent(input: RunInput): Promise<RunResult> {
     reply: finalText || "Disculpá, no logré procesar eso. ¿Lo intentamos de nuevo?",
     conversationId: convo.id,
     attachments: ctx.attachments,
+    tools: toolAudit,
   };
 }

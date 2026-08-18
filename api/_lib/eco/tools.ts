@@ -56,6 +56,13 @@ export interface ToolContext {
   // Archivos (URLs) que el agente quiere adjuntar a su respuesta (ej. el folleto).
   // El canal de salida (webhook de WhatsApp / widget web) los entrega.
   attachments: string[];
+  // Modo prueba (banco de pruebas del panel admin): el agente razona y usa
+  // todas las tools de lectura igual que en producción, pero las que escriben
+  // en el CRM (crear contacto, agendar la cita) se simulan. Así probar el bot
+  // no ensucia GoHighLevel con contactos falsos ni ocupa cupos reales del
+  // calendario. Las tools de solo lectura NO se simulan: si se simularan, la
+  // prueba dejaría de decir nada útil sobre el comportamiento real.
+  simulate?: boolean;
 }
 
 // ── Definiciones de tools para la API de Anthropic ──
@@ -332,6 +339,19 @@ export async function executeTool(
       // Si ya conocemos el contacto (WhatsApp siempre trae ghl_contact_id),
       // ACTUALIZAMOS ese contacto. Usar upsert (match por correo/teléfono)
       // creaba un contacto duplicado y rompía la continuidad de la conversación.
+      // En modo prueba guardamos los datos en la conversación (para que el
+      // agente los recuerde y la prueba se sienta real) pero NO tocamos el CRM.
+      // Tampoco se fija ghl_contact_id: sin él, las demás tools que escriben en
+      // GHL (set_proyecto_interes, notificar_asesor) quedan inertes solas.
+      if (ctx.simulate) {
+        await ctx.patchConvo({
+          contact_name: [nombre, apellido].filter(Boolean).join(" ") || ctx.convo.contact_name,
+          contact_email: correo ?? ctx.convo.contact_email,
+          contact_phone: phone ?? ctx.convo.contact_phone,
+        });
+        return "Contacto guardado (MODO PRUEBA: no se escribió nada en el CRM).";
+      }
+
       let contactId: string;
       if (ctx.convo.ghl_contact_id) {
         contactId = ctx.convo.ghl_contact_id;
@@ -428,6 +448,17 @@ export async function executeTool(
       const label = PROYECTO_LABEL[proyecto];
       const fecha = input.fecha as string;
       const hora = input.hora as string;
+
+      // Modo prueba: se valida el flujo (que el agente llegue con fecha, hora y
+      // datos) sin ocupar un cupo real del calendario ni etiquetar un lead.
+      if (ctx.simulate) {
+        if (!ctx.convo.contact_name && !ctx.convo.contact_phone && !ctx.convo.contact_email) {
+          return "Faltan datos de contacto. Pide nombre, teléfono (con código de país) y correo antes de agendar.";
+        }
+        await ctx.patchConvo({ proyecto_interes: label, calificado: true });
+        return `Visita agendada para ${fechaLegibleES(fecha)} a las ${horaLegible(hora)} en ${label}. Punto de encuentro: el proyecto. (MODO PRUEBA: no se creó la cita en el calendario real.)`;
+      }
+
       let contactId = ctx.convo.ghl_contact_id;
       if (!contactId) {
         if (!ctx.convo.contact_name && !ctx.convo.contact_phone && !ctx.convo.contact_email) {

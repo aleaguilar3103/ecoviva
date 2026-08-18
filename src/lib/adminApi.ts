@@ -104,6 +104,42 @@ export function injectBlock(block: string, currentPrompt: string): Promise<{ pro
   });
 }
 
+// ── Banco de pruebas del bot ──
+// Conversa con ECO exactamente por donde entra un cliente real (/api/chat),
+// pero con `mode: "admin-test"`: ignora el interruptor de apagado y devuelve
+// qué herramientas usó el agente. Con `simulate` en true (por defecto en el
+// panel) las tools que escriben en el CRM no tocan GoHighLevel.
+export interface TestToolCall {
+  name: string;
+  input: unknown;
+  result: string;
+}
+
+export interface TestReply {
+  reply: string;
+  conversationId: string;
+  attachments: string[];
+  tools: TestToolCall[];
+}
+
+export function sendTestMessage(input: {
+  message: string;
+  sessionId: string;
+  simulate: boolean;
+}): Promise<TestReply> {
+  return request<TestReply>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({ ...input, mode: "admin-test" }),
+  });
+}
+
+export function resetTestConversation(sessionId: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>("/api/chat", {
+    method: "DELETE",
+    body: JSON.stringify({ sessionId, mode: "admin-test" }),
+  });
+}
+
 // ── Identidad ──
 export type AppRole = "admin" | "vendedor";
 
