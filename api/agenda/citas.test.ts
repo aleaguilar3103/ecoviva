@@ -1,0 +1,276 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const requireAgenda = vi.fn();
+const listarCitas = vi.fn();
+const crearCita = vi.fn();
+const actualizarCita = vi.fn();
+const cancelarCita = vi.fn();
+
+vi.mock("../_lib/supabase.js", () => ({
+  requireAgenda: (...a: unknown[]) => requireAgenda(...a),
+}));
+vi.mock("../_lib/agenda/db.js", () => ({
+  listarCitas: (...a: unknown[]) => listarCitas(...a),
+  crearCita: (...a: unknown[]) => crearCita(...a),
+  actualizarCita: (...a: unknown[]) => actualizarCita(...a),
+  cancelarCita: (...a: unknown[]) => cancelarCita(...a),
+  obtenerCita: vi.fn(),
+}));
+
+async function cargar() {
+  vi.resetModules();
+  return (await import("./citas")).default;
+}
+
+function req(method: string, body?: unknown, query: Record<string, string> = {}) {
+  return { method, headers: {}, body, query };
+}
+
+function resRecorder() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r: any = { statusCode: 0, body: undefined };
+  r.status = vi.fn((c: number) => {
+    r.statusCode = c;
+    return r;
+  });
+  r.json = vi.fn((b: unknown) => {
+    r.body = b;
+    return r;
+  });
+  r.setHeader = vi.fn();
+  return r;
+}
+
+const YO = { email: "alinaramirezgamboa@gmail.com", userId: "uid-alina", role: "admin" as const };
+
+// Fila completa tal como la devuelve db.ts, para no repetir los 16 campos en
+// cada test.
+const CITA_BASE = {
+  id: "cita-1",
+  cliente_nombre: "María",
+  cliente_email: "maria@example.com",
+  cliente_telefono: null,
+  inicio: "2026-09-01T16:00:00+00:00",
+  duracion_min: 60,
+  lugar: "Llanada",
+  lote_id: null,
+  notas: "Pidió llevar a su suegra, ojo con el horario",
+  estado: "agendada" as const,
+  ics_uid: "cita-abc@ecovivadesarrollos.com",
+  ics_secuencia: 0,
+  recordatorio_24h_email_id: null,
+  recordatorio_1h_email_id: null,
+  creada_por: "alinaramirezgamboa@gmail.com",
+  created_at: "2026-08-18T10:00:00+00:00",
+  updated_at: "2026-08-18T10:00:00+00:00",
+};
+
+beforeEach(() => {
+  requireAgenda.mockReset();
+  listarCitas.mockReset();
+  crearCita.mockReset();
+  actualizarCita.mockReset();
+  cancelarCita.mockReset();
+});
+
+describe("/api/agenda/citas", () => {
+  it("rechaza a quien no tiene agenda", async () => {
+    requireAgenda.mockResolvedValue(null);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("GET"), res);
+    expect(res.statusCode).toBe(401);
+    expect(listarCitas).not.toHaveBeenCalled();
+  });
+
+  it("exige correo del cliente al crear, con un mensaje que explica por qué", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", { cliente_nombre: "María", inicio: "2026-09-01T16:00:00.000Z", lugar: "Llanada" }),
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(crearCita).not.toHaveBeenCalled();
+    // No alcanza un "campo requerido": tiene que explicar la consecuencia de
+    // no tener correo (sin él no hay invitación de calendario ni recordatorios).
+    expect(res.body.error).toMatch(/invitaci|recordatorio/i);
+  });
+
+  it("rechaza un correo con formato inválido", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María",
+        cliente_email: "maria-arroba-example",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(crearCita).not.toHaveBeenCalled();
+  });
+
+  it("avisa del choque pero igual crea la cita", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    // Ya hay algo a esa hora.
+    listarCitas.mockResolvedValue([{ id: "otra", inicio: "2026-09-01T16:00:00.000Z", duracion_min: 60 }]);
+    crearCita.mockResolvedValue({ ...CITA_BASE, id: "nueva", inicio: "2026-09-01T16:30:00.000Z" });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:30:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body.choque).toBe(true);
+    expect(crearCita).toHaveBeenCalled();
+  });
+
+  it("no marca choque cuando no se solapan", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([{ id: "otra", inicio: "2026-09-01T16:00:00.000Z", duracion_min: 60 }]);
+    crearCita.mockResolvedValue({ ...CITA_BASE, id: "nueva", inicio: "2026-09-01T17:00:00.000Z" });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T17:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.body.choque).toBe(false);
+  });
+
+  it("devuelve las notas internas: el panel las usa, la restricción es solo en los correos", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    crearCita.mockResolvedValue({ ...CITA_BASE });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+        notas: "Pidió llevar a su suegra, ojo con el horario",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body.cita.notas).toBe("Pidió llevar a su suegra, ojo con el horario");
+  });
+
+  it("PATCH exitoso devuelve la cita y el choque, sin exponer cambioVisible", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    actualizarCita.mockResolvedValue({ cita: { ...CITA_BASE, lugar: "Oficina" }, cambioVisible: true });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Oficina",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body.cita.lugar).toBe("Oficina");
+    expect(res.body.choque).toBe(false);
+    // cambioVisible es insumo de la Task 7 (decidir si avisar al cliente), no
+    // algo que este endpoint deba exponer en su JSON.
+    expect(res.body).not.toHaveProperty("cambioVisible");
+  });
+
+  it("PATCH sobre una cita que no existe responde 404, no 500", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    actualizarCita.mockRejectedValue(new Error("Esa cita no existe."));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "no-existe",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("PATCH sobre una cita ya cancelada responde 409, no 500", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    actualizarCita.mockRejectedValue(new Error("Esa cita ya fue cancelada."));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("un error que no es ninguna de las dos frases conocidas sigue devolviendo 500", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    actualizarCita.mockRejectedValue(new Error("No se pudo actualizar la cita."));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(500);
+  });
+
+  it("DELETE cancela la cita", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    cancelarCita.mockResolvedValue({ ...CITA_BASE, estado: "cancelada" });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("DELETE", { id: "cita-1" }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.cita.estado).toBe("cancelada");
+  });
+
+  it("DELETE sobre una cita que no existe responde 404, no 500", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    cancelarCita.mockRejectedValue(new Error("Esa cita no existe."));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("DELETE", { id: "no-existe" }), res);
+    expect(res.statusCode).toBe(404);
+  });
+});
