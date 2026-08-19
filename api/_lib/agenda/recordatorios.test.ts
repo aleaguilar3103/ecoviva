@@ -1,5 +1,25 @@
-import { describe, it, expect } from "vitest";
-import { planificarRecordatorios } from "./recordatorios";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Cita } from "./db";
+
+// aplicarRecordatorios llama a la API real de Resend y guarda en Supabase:
+// para probar sus reglas sin red de por medio se mockean sus dos
+// dependencias externas. `armarCorreo`/`datosParaCorreo` (de email.ts) se
+// dejan reales: son puras y probarlas de punta a punta acá no cuesta nada.
+const enviarCorreo = vi.fn();
+const reprogramarCorreo = vi.fn();
+const cancelarCorreo = vi.fn();
+const guardarIdsRecordatorio = vi.fn();
+
+vi.mock("./resend.js", () => ({
+  enviarCorreo: (...a: unknown[]) => enviarCorreo(...a),
+  reprogramarCorreo: (...a: unknown[]) => reprogramarCorreo(...a),
+  cancelarCorreo: (...a: unknown[]) => cancelarCorreo(...a),
+}));
+vi.mock("./db.js", () => ({
+  guardarIdsRecordatorio: (...a: unknown[]) => guardarIdsRecordatorio(...a),
+}));
+
+import { planificarRecordatorios, aplicarRecordatorios } from "./recordatorios";
 
 const AHORA = new Date("2026-08-19T12:00:00.000Z");
 const enDias = (d: number) => new Date(AHORA.getTime() + d * 24 * 60 * 60_000);
@@ -105,5 +125,118 @@ describe("planificarRecordatorios", () => {
       ahora: AHORA, idActual24h: null, idActual1h: null,
     });
     expect(accion(as, "1h").tipo).toBe("nada");
+  });
+});
+
+const CITA_BASE: Cita = {
+  id: "cita-1",
+  cliente_nombre: "María",
+  cliente_email: "maria@example.com",
+  cliente_telefono: null,
+  inicio: enDias(3).toISOString(),
+  duracion_min: 60,
+  lugar: "Llanada",
+  lote_id: null,
+  notas: null,
+  estado: "agendada",
+  ics_uid: "cita-abc@ecovivadesarrollos.com",
+  ics_secuencia: 0,
+  recordatorio_24h_email_id: null,
+  recordatorio_1h_email_id: null,
+  creada_por: "alinaramirezgamboa@gmail.com",
+  created_at: "2026-08-18T10:00:00+00:00",
+  updated_at: "2026-08-18T10:00:00+00:00",
+};
+
+describe("aplicarRecordatorios", () => {
+  beforeEach(() => {
+    enviarCorreo.mockReset();
+    reprogramarCorreo.mockReset();
+    cancelarCorreo.mockReset();
+    guardarIdsRecordatorio.mockReset();
+  });
+
+  it("cita nueva a 3 días: programa los dos y guarda los ids", async () => {
+    enviarCorreo.mockResolvedValueOnce("em_24").mockResolvedValueOnce("em_1");
+    const cita: Cita = { ...CITA_BASE, inicio: enDias(3).toISOString() };
+
+    await aplicarRecordatorios(cita, AHORA);
+
+    expect(enviarCorreo).toHaveBeenCalledTimes(2);
+    const [opts24] = enviarCorreo.mock.calls[0];
+    const [opts1] = enviarCorreo.mock.calls[1];
+    expect(opts24.to).toBe("maria@example.com");
+    expect(opts24.cuando.getTime()).toBeGreaterThan(AHORA.getTime());
+    expect(opts1.to).toBe("maria@example.com");
+    expect(opts1.cuando.getTime()).toBeGreaterThan(AHORA.getTime());
+    expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: "em_24", r1h: "em_1" });
+  });
+
+  it("reagendar dentro de la ventana: reprograma los existentes, no llama a enviarCorreo", async () => {
+    const cita: Cita = {
+      ...CITA_BASE,
+      inicio: enDias(5).toISOString(),
+      recordatorio_24h_email_id: "em_24",
+      recordatorio_1h_email_id: "em_1",
+    };
+
+    await aplicarRecordatorios(cita, AHORA);
+
+    expect(reprogramarCorreo).toHaveBeenCalledWith("em_24", expect.any(Date));
+    expect(reprogramarCorreo).toHaveBeenCalledWith("em_1", expect.any(Date));
+    expect(enviarCorreo).not.toHaveBeenCalled();
+  });
+
+  it("cancelar la cita: cancela ambos ids en Resend y los guarda en null", async () => {
+    const cita: Cita = {
+      ...CITA_BASE,
+      estado: "cancelada",
+      recordatorio_24h_email_id: "em_24",
+      recordatorio_1h_email_id: "em_1",
+    };
+
+    await aplicarRecordatorios(cita, AHORA);
+
+    expect(cancelarCorreo).toHaveBeenCalledWith("em_24");
+    expect(cancelarCorreo).toHaveBeenCalledWith("em_1");
+    expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: null, r1h: null });
+  });
+
+  it("recrear:true cancela los recordatorios viejos y crea dos nuevos con la dirección corregida", async () => {
+    // Este es el caso del cambio obligatorio 2: el correo del cliente se
+    // corrigió, y los dos recordatorios que apuntaban a la dirección vieja
+    // tienen que dejar de existir y nacer de nuevo apuntando a la correcta.
+    enviarCorreo.mockResolvedValueOnce("em_24_nuevo").mockResolvedValueOnce("em_1_nuevo");
+    const cita: Cita = {
+      ...CITA_BASE,
+      cliente_email: "correcto@example.com",
+      inicio: enDias(3).toISOString(),
+      recordatorio_24h_email_id: "em_24_viejo",
+      recordatorio_1h_email_id: "em_1_viejo",
+    };
+
+    await aplicarRecordatorios(cita, AHORA, { recrear: true });
+
+    expect(cancelarCorreo).toHaveBeenCalledWith("em_24_viejo");
+    expect(cancelarCorreo).toHaveBeenCalledWith("em_1_viejo");
+    // Nada de reprogramar los viejos: deben ser envíos nuevos, con la
+    // dirección corregida incrustada.
+    expect(reprogramarCorreo).not.toHaveBeenCalled();
+    expect(enviarCorreo).toHaveBeenCalledTimes(2);
+    expect(enviarCorreo.mock.calls[0][0].to).toBe("correcto@example.com");
+    expect(enviarCorreo.mock.calls[1][0].to).toBe("correcto@example.com");
+    expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", {
+      r24h: "em_24_nuevo",
+      r1h: "em_1_nuevo",
+    });
+  });
+
+  it("si enviarCorreo lanza, no propaga y deja los ids en null", async () => {
+    enviarCorreo.mockRejectedValue(new Error("Resend 500"));
+    const cita: Cita = { ...CITA_BASE, inicio: enDias(3).toISOString() };
+
+    await expect(aplicarRecordatorios(cita, AHORA)).resolves.toBeUndefined();
+
+    expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: null, r1h: null });
   });
 });

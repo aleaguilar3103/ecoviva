@@ -1,3 +1,8 @@
+import { enviarCorreo, reprogramarCorreo, cancelarCorreo } from "./resend.js";
+import { armarCorreo, datosParaCorreo } from "./email.js";
+import { guardarIdsRecordatorio } from "./db.js";
+import type { Cita } from "./db.js";
+
 // Decidir qué recordatorios corresponden. Función PURA a propósito: separar
 // "decidir" de "hacer" es lo que permite probar todas las reglas de borde sin
 // red de por medio. La parte que llama a Resend está más abajo y no tiene
@@ -58,4 +63,114 @@ export function planificarRecordatorios(opts: {
       ? { tipo: "reprogramar", clase, emailId, enviarA }
       : { tipo: "programar", clase, enviarA };
   });
+}
+
+// ---- Ejecutar el plan contra Resend ---------------------------------------
+// A partir de acá ya no es una función pura: hace llamadas HTTP reales
+// (Resend) y guarda en la base. La parte "decidir" está arriba a propósito.
+
+const CLASE_A_CORREO = {
+  "24h": "recordatorio24h",
+  "1h": "recordatorio1h",
+} as const;
+
+// Ejecuta el plan y guarda los ids resultantes. Nunca tira: un fallo acá deja
+// el id en null, y el reconciliador del cron lo retoma al día siguiente.
+//
+// `opts.recrear`: los recordatorios se programan en Resend con la dirección
+// del destinatario incrustada en el envío, y el PATCH de Resend solo puede
+// mover el scheduled_at — nunca cambia a quién le llega. Si el correo del
+// cliente cambió (p. ej. se corrigió un tipeo), los recordatorios ya
+// programados le seguirían llegando a la dirección vieja. Con recrear:true se
+// cancelan los ids existentes ANTES de planificar y se tratan como
+// inexistentes, para que planificarRecordatorios decida "programar" y cree
+// envíos nuevos con la dirección correcta.
+export async function aplicarRecordatorios(
+  cita: Cita,
+  ahora = new Date(),
+  opts: { recrear?: boolean } = {},
+): Promise<void> {
+  try {
+    let idActual24h = cita.recordatorio_24h_email_id;
+    let idActual1h = cita.recordatorio_1h_email_id;
+    const nuevos: { r24h?: string | null; r1h?: string | null } = {};
+
+    if (opts.recrear) {
+      if (idActual24h) {
+        try {
+          await cancelarCorreo(idActual24h);
+        } catch (e) {
+          console.error("agenda/recordatorios: fallo cancelar el 24h viejo al recrear", e);
+        }
+        idActual24h = null;
+        // Se deja en null aunque el envío de más abajo no encuentre nada que
+        // programar (p. ej. la cita ya quedó fuera de ventana): el id viejo
+        // de todas formas ya no sirve.
+        nuevos.r24h = null;
+      }
+      if (idActual1h) {
+        try {
+          await cancelarCorreo(idActual1h);
+        } catch (e) {
+          console.error("agenda/recordatorios: fallo cancelar el 1h viejo al recrear", e);
+        }
+        idActual1h = null;
+        nuevos.r1h = null;
+      }
+    }
+
+    const acciones = planificarRecordatorios({
+      inicio: new Date(cita.inicio),
+      ahora,
+      idActual24h,
+      idActual1h,
+      citaCancelada: cita.estado === "cancelada",
+    });
+
+    const d = datosParaCorreo(cita);
+    const guardar = (clase: Clase, valor: string | null) => {
+      if (clase === "24h") nuevos.r24h = valor;
+      else nuevos.r1h = valor;
+    };
+
+    for (const a of acciones) {
+      try {
+        if (a.tipo === "nada") continue;
+
+        if (a.tipo === "cancelar") {
+          await cancelarCorreo(a.emailId);
+          // Un correo cancelado en Resend NO se puede reprogramar: el id deja
+          // de servir para siempre, así que se borra de la fila.
+          guardar(a.clase, null);
+          continue;
+        }
+
+        if (a.tipo === "reprogramar") {
+          await reprogramarCorreo(a.emailId, a.enviarA);
+          continue; // el id no cambia
+        }
+
+        const { subject, html, attachments } = armarCorreo(CLASE_A_CORREO[a.clase], d);
+        const id = await enviarCorreo({
+          to: d.cliente_email,
+          subject,
+          html,
+          attachments,
+          cuando: a.enviarA,
+        });
+        guardar(a.clase, id);
+      } catch (e) {
+        console.error(`agenda/recordatorios: fallo la accion ${a.tipo} de ${a.clase}`, e);
+        // Se deja en null para que el reconciliador lo vuelva a intentar.
+        if (a.tipo === "programar") guardar(a.clase, null);
+      }
+    }
+
+    await guardarIdsRecordatorio(cita.id, nuevos);
+  } catch (e) {
+    // Última red de seguridad: nada de esta función puede tirar hacia quien
+    // llama (ver contrato en el comentario de arriba). Un fallo total acá
+    // deja los ids como estaban; el reconciliador del cron los revisa igual.
+    console.error("agenda/recordatorios: aplicarRecordatorios falló por completo", e);
+  }
 }

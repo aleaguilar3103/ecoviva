@@ -6,6 +6,7 @@ const crearCita = vi.fn();
 const actualizarCita = vi.fn();
 const cancelarCita = vi.fn();
 const enviarAhora = vi.fn();
+const aplicarRecordatorios = vi.fn();
 
 vi.mock("../_lib/supabase.js", () => ({
   requireAgenda: (...a: unknown[]) => requireAgenda(...a),
@@ -19,6 +20,9 @@ vi.mock("../_lib/agenda/db.js", () => ({
 }));
 vi.mock("../_lib/agenda/email.js", () => ({
   enviarAhora: (...a: unknown[]) => enviarAhora(...a),
+}));
+vi.mock("../_lib/agenda/recordatorios.js", () => ({
+  aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
 }));
 
 async function cargar() {
@@ -76,6 +80,10 @@ beforeEach(() => {
   actualizarCita.mockReset();
   cancelarCita.mockReset();
   enviarAhora.mockReset();
+  aplicarRecordatorios.mockReset();
+  // Los recordatorios son un mecanismo aparte del correo inmediato: por
+  // default se resuelven solos, salvo que un test necesite lo contrario.
+  aplicarRecordatorios.mockResolvedValue(undefined);
 });
 
 describe("/api/agenda/citas", () => {
@@ -448,5 +456,76 @@ describe("/api/agenda/citas", () => {
     expect(enviarAhora).toHaveBeenCalledTimes(1);
     expect(enviarAhora).toHaveBeenCalledWith("confirmacion", expect.anything());
     expect(res.body.correo).toBe("enviado");
+  });
+
+  it("POST también acomoda los recordatorios de la cita nueva", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    const nueva = { ...CITA_BASE, id: "nueva" };
+    crearCita.mockResolvedValue(nueva);
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María", cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z", lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(aplicarRecordatorios).toHaveBeenCalledWith(nueva, expect.any(Date), {});
+  });
+
+  it("PATCH que cambia el correo del cliente pide recrear los recordatorios (van con la dirección nueva)", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    const cita = { ...CITA_BASE, cliente_email: "correcto@example.com" };
+    actualizarCita.mockResolvedValue({ cita, cambioVisible: false, correoModificado: true });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "correcto@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(aplicarRecordatorios).toHaveBeenCalledWith(cita, expect.any(Date), { recrear: true });
+  });
+
+  it("PATCH que solo mueve la hora no pide recrear: el correo del cliente no cambió", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    const cita = { ...CITA_BASE, inicio: "2026-09-02T16:00:00+00:00" };
+    actualizarCita.mockResolvedValue({ cita, cambioVisible: true, correoModificado: false });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-02T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(aplicarRecordatorios).toHaveBeenCalledWith(cita, expect.any(Date), { recrear: false });
+  });
+
+  it("DELETE también cancela los recordatorios pendientes de la cita", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    const cancelada = { ...CITA_BASE, estado: "cancelada" as const };
+    cancelarCita.mockResolvedValue({ cita: cancelada, seCancelo: true });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("DELETE", { id: "cita-1" }), res);
+    expect(aplicarRecordatorios).toHaveBeenCalledWith(cancelada, expect.any(Date), {});
   });
 });

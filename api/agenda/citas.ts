@@ -2,6 +2,7 @@ import { requireAgenda } from "../_lib/supabase.js";
 import { listarCitas, crearCita, actualizarCita, cancelarCita } from "../_lib/agenda/db.js";
 import type { Cita, DatosCita } from "../_lib/agenda/db.js";
 import { enviarAhora, type ClaseCorreo } from "../_lib/agenda/email.js";
+import { aplicarRecordatorios } from "../_lib/agenda/recordatorios.js";
 
 // /api/agenda/citas — CRUD de la agenda privada. Solo admin con bandera agenda.
 //
@@ -80,14 +81,34 @@ function leerDatos(body: Record<string, unknown>): { datos: DatosCita } | { erro
 // El correo va DESPUÉS de guardar y nunca deshace lo guardado. Mismo criterio
 // que api/reserve.ts, donde el lead nunca se pierde porque falle un paso
 // posterior. Se reporta el resultado para que el panel lo pueda mostrar.
-async function avisarAlCliente(clase: ClaseCorreo, cita: Cita): Promise<"enviado" | "fallo"> {
+//
+// `opts.recrear` se le pasa tal cual a aplicarRecordatorios: cuando el correo
+// del cliente cambió, los recordatorios ya programados hay que recrearlos
+// (cancelar los viejos y crear nuevos), porque Resend no permite cambiar el
+// destinatario de un envío ya programado.
+async function avisarAlCliente(
+  clase: ClaseCorreo,
+  cita: Cita,
+  opts: { recrear?: boolean } = {},
+): Promise<"enviado" | "fallo"> {
+  // Los recordatorios se acomodan siempre, salga o no el correo inmediato: son
+  // mecanismos independientes y el fallo de uno no debe arrastrar al otro.
+  // aplicarRecordatorios ya nunca tira, pero el .catch es una segunda red de
+  // seguridad para no dejar una promesa rechazada suelta.
+  const recordatorios = aplicarRecordatorios(cita, new Date(), opts).catch((e) => {
+    console.error("agenda/citas: no se pudieron acomodar los recordatorios", e);
+  });
+
+  let resultado: "enviado" | "fallo" = "enviado";
   try {
     await enviarAhora(clase, cita);
-    return "enviado";
   } catch (e) {
     console.error(`agenda/citas: no se pudo mandar el correo "${clase}"`, e);
-    return "fallo";
+    resultado = "fallo";
   }
+
+  await recordatorios;
+  return resultado;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,9 +168,9 @@ export default async function handler(req: any, res: any) {
       // lote o nombre), no hay nada visible que avisar.
       let correo: "enviado" | "fallo" | "no_aplica";
       if (correoModificado) {
-        correo = await avisarAlCliente("confirmacion", cita);
+        correo = await avisarAlCliente("confirmacion", cita, { recrear: correoModificado });
       } else if (cambioVisible) {
-        correo = await avisarAlCliente("reagendado", cita);
+        correo = await avisarAlCliente("reagendado", cita, { recrear: correoModificado });
       } else {
         correo = "no_aplica";
       }
