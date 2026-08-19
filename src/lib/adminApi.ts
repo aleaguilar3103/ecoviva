@@ -143,8 +143,8 @@ export function resetTestConversation(sessionId: string): Promise<{ ok: true }> 
 // ── Identidad ──
 export type AppRole = "admin" | "vendedor";
 
-export function getMe(): Promise<{ email: string; role: AppRole }> {
-  return request<{ email: string; role: AppRole }>("/api/me");
+export function getMe(): Promise<{ email: string; role: AppRole; agenda: boolean }> {
+  return request<{ email: string; role: AppRole; agenda: boolean }>("/api/me");
 }
 
 // ── Usuarios ──
@@ -219,4 +219,49 @@ export async function getGuiaHtml(): Promise<string> {
     throw new Error(`No se pudo cargar la guía (${res.status}).`);
   }
   return res.text();
+}
+
+// ── Agenda ──
+export interface CitaRow {
+  id: string;
+  cliente_nombre: string;
+  cliente_email: string;
+  cliente_telefono: string | null;
+  inicio: string;
+  duracion_min: number;
+  lugar: string;
+  lote_id: string | null;
+  notas: string | null;
+  estado: "agendada" | "cancelada" | "completada";
+  creada_por: string;
+}
+
+export interface NuevaCita {
+  cliente_nombre: string;
+  cliente_email: string;
+  cliente_telefono?: string | null;
+  inicio: string;
+  lugar: string;
+  lote_id?: string | null;
+  notas?: string | null;
+}
+
+export function getCitas(desde: Date, hasta: Date): Promise<{ citas: CitaRow[] }> {
+  const q = `?desde=${desde.toISOString()}&hasta=${hasta.toISOString()}`;
+  return request<{ citas: CitaRow[] }>(`/api/agenda/citas${q}`);
+}
+
+export function crearCita(datos: NuevaCita): Promise<{ cita: CitaRow; choque: boolean }> {
+  return request(`/api/agenda/citas`, { method: "POST", body: JSON.stringify(datos) });
+}
+
+export function actualizarCita(
+  id: string,
+  datos: NuevaCita,
+): Promise<{ cita: CitaRow; choque: boolean }> {
+  return request(`/api/agenda/citas`, { method: "PATCH", body: JSON.stringify({ id, ...datos }) });
+}
+
+export function cancelarCita(id: string): Promise<{ cita: CitaRow }> {
+  return request(`/api/agenda/citas`, { method: "DELETE", body: JSON.stringify({ id }) });
 }
