@@ -1,11 +1,13 @@
 import { requireAgenda } from "../_lib/supabase.js";
 import { listarCitas, crearCita, actualizarCita, cancelarCita } from "../_lib/agenda/db.js";
 import type { Cita, DatosCita } from "../_lib/agenda/db.js";
+import { enviarAhora, type ClaseCorreo } from "../_lib/agenda/email.js";
 
 // /api/agenda/citas — CRUD de la agenda privada. Solo admin con bandera agenda.
 //
-// Los correos NO se mandan desde acá todavía: eso entra en la fase 2. Este
-// endpoint ya deja al panel agendar y ver, que es entregable por sí solo.
+// Crear y cancelar avisan al cliente siempre: son eventos que él ve sí o sí.
+// Editar solo avisa si el cambio es visible (hora o lugar) — ver `cambioVisible`
+// en agenda/db.ts y su uso más abajo, en el PATCH.
 
 const DURACION_MIN = 60; // fija por ahora; la columna existe pero la UI no la expone
 
@@ -74,6 +76,19 @@ function leerDatos(body: Record<string, unknown>): { datos: DatosCita } | { erro
   };
 }
 
+// El correo va DESPUÉS de guardar y nunca deshace lo guardado. Mismo criterio
+// que api/reserve.ts, donde el lead nunca se pierde porque falle un paso
+// posterior. Se reporta el resultado para que el panel lo pueda mostrar.
+async function avisarAlCliente(clase: ClaseCorreo, cita: Cita): Promise<"enviado" | "fallo"> {
+  try {
+    await enviarAhora(clase, cita);
+    return "enviado";
+  } catch (e) {
+    console.error(`agenda/citas: no se pudo mandar el correo "${clase}"`, e);
+    return "fallo";
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any) {
   res.setHeader("Cache-Control", "no-store");
@@ -105,7 +120,8 @@ export default async function handler(req: any, res: any) {
       // — para eso existen. La restricción de que `notas` nunca llegue al
       // cliente vive en el armado de los correos, no acá.
       const cita = await crearCita(leido.datos, caller.email, "panel");
-      return res.status(200).json({ cita, choque });
+      const correo = await avisarAlCliente("confirmacion", cita);
+      return res.status(200).json({ cita, choque, correo });
     }
 
     if (req.method === "PATCH") {
@@ -116,16 +132,20 @@ export default async function handler(req: any, res: any) {
       if ("error" in leido) return res.status(400).json({ error: leido.error });
 
       const choque = await haySolape(leido.datos.inicio, id);
-      // `cambioVisible` no se usa acá: esta tarea todavía no manda correos.
-      // La Task 7 lo va a usar para decidir si avisa al cliente.
-      const { cita } = await actualizarCita(id, leido.datos, caller.email, "panel");
-      return res.status(200).json({ cita, choque });
+      const { cita, cambioVisible } = await actualizarCita(id, leido.datos, caller.email, "panel");
+      // Solo se avisa si cambió algo que el cliente ve en su invitación (hora
+      // o lugar). Corregir una nota interna, el teléfono, el lote o el nombre
+      // no dispara un correo de "Cambio de hora" con la misma hora de siempre.
+      const correo = cambioVisible ? await avisarAlCliente("reagendado", cita) : "no_aplica";
+      return res.status(200).json({ cita, choque, correo });
     }
 
     if (req.method === "DELETE") {
       const id = typeof body.id === "string" ? body.id : null;
       if (!id) return res.status(400).json({ error: "Falta el id de la cita" });
-      return res.status(200).json({ cita: await cancelarCita(id, caller.email, "panel") });
+      const cita = await cancelarCita(id, caller.email, "panel");
+      const correo = await avisarAlCliente("cancelacion", cita);
+      return res.status(200).json({ cita, correo });
     }
 
     return res.status(405).json({ error: "Método no permitido" });

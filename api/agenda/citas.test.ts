@@ -5,6 +5,7 @@ const listarCitas = vi.fn();
 const crearCita = vi.fn();
 const actualizarCita = vi.fn();
 const cancelarCita = vi.fn();
+const enviarAhora = vi.fn();
 
 vi.mock("../_lib/supabase.js", () => ({
   requireAgenda: (...a: unknown[]) => requireAgenda(...a),
@@ -15,6 +16,9 @@ vi.mock("../_lib/agenda/db.js", () => ({
   actualizarCita: (...a: unknown[]) => actualizarCita(...a),
   cancelarCita: (...a: unknown[]) => cancelarCita(...a),
   obtenerCita: vi.fn(),
+}));
+vi.mock("../_lib/agenda/email.js", () => ({
+  enviarAhora: (...a: unknown[]) => enviarAhora(...a),
 }));
 
 async function cargar() {
@@ -71,6 +75,7 @@ beforeEach(() => {
   crearCita.mockReset();
   actualizarCita.mockReset();
   cancelarCita.mockReset();
+  enviarAhora.mockReset();
 });
 
 describe("/api/agenda/citas", () => {
@@ -172,6 +177,102 @@ describe("/api/agenda/citas", () => {
     );
     expect(res.statusCode).toBe(200);
     expect(res.body.cita.notas).toBe("Pidió llevar a su suegra, ojo con el horario");
+  });
+
+  it("manda la confirmación al crear", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    crearCita.mockResolvedValue({ id: "nueva", cliente_email: "maria@example.com" });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María", cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z", lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(enviarAhora).toHaveBeenCalledWith("confirmacion", expect.objectContaining({ id: "nueva" }));
+    expect(res.body.correo).toBe("enviado");
+  });
+
+  it("si el correo falla, la cita igual queda guardada", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    crearCita.mockResolvedValue({ id: "nueva", cliente_email: "maria@example.com" });
+    enviarAhora.mockRejectedValue(new Error("Resend 500"));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("POST", {
+        cliente_nombre: "María", cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z", lugar: "Llanada",
+      }),
+      res,
+    );
+    // Mismo criterio que /api/reserve: lo que ya se guardó no se pierde porque
+    // falle un paso posterior.
+    expect(res.statusCode).toBe(200);
+    expect(res.body.cita.id).toBe("nueva");
+    expect(res.body.correo).toBe("fallo");
+  });
+
+  it("PATCH que solo cambia las notas no manda correo: no hay nada visible que avisar", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    // db.ts ya decidió que este cambio no es visible (mismo inicio y lugar).
+    actualizarCita.mockResolvedValue({
+      cita: { ...CITA_BASE, notas: "Ahora sí confirmó, coordinar con el guarda" },
+      cambioVisible: false,
+    });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+        notas: "Ahora sí confirmó, coordinar con el guarda",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    // Nada de "Cambio de hora" cuando la hora es la misma de siempre: eso
+    // confundiría al cliente y le haría dejar de leer los correos.
+    expect(enviarAhora).not.toHaveBeenCalled();
+    expect(res.body.correo).toBe("no_aplica");
+  });
+
+  it("PATCH que mueve la hora manda el aviso de reagendado", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    // db.ts ya decidió que este cambio SÍ es visible (cambió el inicio).
+    actualizarCita.mockResolvedValue({
+      cita: { ...CITA_BASE, inicio: "2026-09-02T16:00:00+00:00" },
+      cambioVisible: true,
+    });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-02T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(enviarAhora).toHaveBeenCalledWith(
+      "reagendado",
+      expect.objectContaining({ inicio: "2026-09-02T16:00:00+00:00" }),
+    );
+    expect(res.body.correo).toBe("enviado");
   });
 
   it("PATCH exitoso devuelve la cita y el choque, sin exponer cambioVisible", async () => {

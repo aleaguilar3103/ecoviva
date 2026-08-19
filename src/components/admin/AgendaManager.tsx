@@ -115,7 +115,12 @@ export default function AgendaManager() {
       // El PATCH exige el formulario completo, no acepta cambios parciales:
       // por eso se manda `form` entero tanto al crear como al editar.
       const r = editando ? await actualizarCita(editando, form) : await crearCita(form);
-      setAviso(r.choque ? "Guardada. Ojo: ya tenías algo a esa hora." : "Guardada.");
+      const avisos: string[] = ["Guardada."];
+      if (r.choque) avisos.push("Ojo: ya tenías algo a esa hora.");
+      // "no_aplica" no es un fallo: significa que el cambio no tocó hora ni
+      // lugar, así que no había nada visible que avisarle al cliente.
+      if (r.correo === "fallo") avisos.push("El correo al cliente NO salió — avisale por otro medio.");
+      setAviso(avisos.join(" "));
       setForm(VACIA);
       setEditando(null);
       await recargar();
@@ -131,7 +136,10 @@ export default function AgendaManager() {
     setError(null);
     setAviso(null);
     try {
-      await cancelarCita(c.id);
+      const r = await cancelarCita(c.id);
+      if (r.correo === "fallo") {
+        setAviso("Cancelada. El correo al cliente NO salió — avisale por otro medio.");
+      }
       await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cancelar la cita.");
