@@ -5,9 +5,10 @@ import { enviarAhora, type ClaseCorreo } from "../_lib/agenda/email.js";
 
 // /api/agenda/citas — CRUD de la agenda privada. Solo admin con bandera agenda.
 //
-// Crear y cancelar avisan al cliente siempre: son eventos que él ve sí o sí.
-// Editar solo avisa si el cambio es visible (hora o lugar) — ver `cambioVisible`
-// en agenda/db.ts y su uso más abajo, en el PATCH.
+// Crear avisa siempre ("confirmacion"). Cancelar avisa siempre, salvo que la
+// cita ya estuviera cancelada (idempotente: no se manda un segundo correo por
+// un doble clic). Editar decide entre tres correos según qué cambió — ver
+// `cambioVisible` y `correoModificado` en agenda/db.ts y su uso en el PATCH.
 
 const DURACION_MIN = 60; // fija por ahora; la columna existe pero la UI no la expone
 
@@ -132,19 +133,37 @@ export default async function handler(req: any, res: any) {
       if ("error" in leido) return res.status(400).json({ error: leido.error });
 
       const choque = await haySolape(leido.datos.inicio, id);
-      const { cita, cambioVisible } = await actualizarCita(id, leido.datos, caller.email, "panel");
-      // Solo se avisa si cambió algo que el cliente ve en su invitación (hora
-      // o lugar). Corregir una nota interna, el teléfono, el lote o el nombre
-      // no dispara un correo de "Cambio de hora" con la misma hora de siempre.
-      const correo = cambioVisible ? await avisarAlCliente("reagendado", cita) : "no_aplica";
+      const { cita, cambioVisible, correoModificado } = await actualizarCita(
+        id,
+        leido.datos,
+        caller.email,
+        "panel",
+      );
+      // Prioridad: si cambió el correo del cliente, la dirección nueva nunca
+      // vio nada de esta cita — es su primera noticia, así que es una
+      // "confirmacion", no un "reagendado" (aunque también haya cambiado la
+      // hora). Si no cambió el correo pero sí hora o lugar, es un
+      // "reagendado". Si no cambió nada de lo anterior (solo notas, teléfono,
+      // lote o nombre), no hay nada visible que avisar.
+      let correo: "enviado" | "fallo" | "no_aplica";
+      if (correoModificado) {
+        correo = await avisarAlCliente("confirmacion", cita);
+      } else if (cambioVisible) {
+        correo = await avisarAlCliente("reagendado", cita);
+      } else {
+        correo = "no_aplica";
+      }
       return res.status(200).json({ cita, choque, correo });
     }
 
     if (req.method === "DELETE") {
       const id = typeof body.id === "string" ? body.id : null;
       if (!id) return res.status(400).json({ error: "Falta el id de la cita" });
-      const cita = await cancelarCita(id, caller.email, "panel");
-      const correo = await avisarAlCliente("cancelacion", cita);
+      const { cita, seCancelo } = await cancelarCita(id, caller.email, "panel");
+      // Idempotente: si ya estaba cancelada (doble clic, o dos personas
+      // cancelando la misma cita), no se le manda un segundo correo de
+      // cancelación al cliente.
+      const correo = seCancelo ? await avisarAlCliente("cancelacion", cita) : "no_aplica";
       return res.status(200).json({ cita, correo });
     }
 

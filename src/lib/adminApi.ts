@@ -251,9 +251,12 @@ export function getCitas(desde: Date, hasta: Date): Promise<{ citas: CitaRow[] }
   return request<{ citas: CitaRow[] }>(`/api/agenda/citas${q}`);
 }
 
-// Al crear y al cancelar el correo sale siempre ("enviado" o "fallo"). Al
-// editar, "no_aplica" significa que el cambio no era visible para el cliente
-// (no tocó hora ni lugar) y por eso no se le mandó nada — no es un fallo.
+// Al crear, el correo sale siempre ("enviado" o "fallo"). Al editar,
+// "no_aplica" significa que no cambió nada visible para el cliente (ni hora,
+// ni lugar, ni el correo destinatario) y por eso no se le mandó nada — no es
+// un fallo. Al cancelar, "no_aplica" significa que la cita ya estaba
+// cancelada de antes (doble clic, o dos personas cancelándola a la vez): no
+// se manda un segundo correo de cancelación.
 export function crearCita(datos: NuevaCita): Promise<{ cita: CitaRow; choque: boolean; correo: "enviado" | "fallo" }> {
   return request(`/api/agenda/citas`, { method: "POST", body: JSON.stringify(datos) });
 }
@@ -265,6 +268,6 @@ export function actualizarCita(
   return request(`/api/agenda/citas`, { method: "PATCH", body: JSON.stringify({ id, ...datos }) });
 }
 
-export function cancelarCita(id: string): Promise<{ cita: CitaRow; correo: "enviado" | "fallo" }> {
+export function cancelarCita(id: string): Promise<{ cita: CitaRow; correo: "enviado" | "fallo" | "no_aplica" }> {
   return request(`/api/agenda/citas`, { method: "DELETE", body: JSON.stringify({ id }) });
 }

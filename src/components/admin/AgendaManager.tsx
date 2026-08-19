@@ -76,6 +76,11 @@ export default function AgendaManager() {
   const [editando, setEditando] = useState<string | null>(null);
   const [form, setForm] = useState<NuevaCita>(VACIA);
   const [guardando, setGuardando] = useState(false);
+  // Id de la cita que se está cancelando ahora mismo (o null si ninguna). Un
+  // doble clic manda un segundo correo de cancelación real al cliente, así
+  // que el botón se deshabilita mientras la petición está en vuelo — mismo
+  // patrón que `guardando` para el botón de "Guardar".
+  const [cancelandoId, setCancelandoId] = useState<string | null>(null);
 
   // Ventana fija: una semana atrás (para ver lo recién pasado) hasta tres
   // meses adelante. No hay selector de rango en esta tarea, es lo suficiente
@@ -135,6 +140,7 @@ export default function AgendaManager() {
     if (!confirm(`¿Cancelar la cita de ${c.cliente_nombre}?`)) return;
     setError(null);
     setAviso(null);
+    setCancelandoId(c.id);
     try {
       const r = await cancelarCita(c.id);
       if (r.correo === "fallo") {
@@ -143,6 +149,8 @@ export default function AgendaManager() {
       await recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cancelar la cita.");
+    } finally {
+      setCancelandoId(null);
     }
   }
 
@@ -342,9 +350,10 @@ export default function AgendaManager() {
                     <button
                       type="button"
                       onClick={() => cancelar(c)}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                      disabled={cancelandoId === c.id}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
                     >
-                      Cancelar
+                      {cancelandoId === c.id ? "Cancelando…" : "Cancelar"}
                     </button>
                   </div>
                 </div>

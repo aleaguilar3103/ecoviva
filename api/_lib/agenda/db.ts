@@ -115,12 +115,18 @@ export async function crearCita(
   return cita;
 }
 
+// Minúsculas y sin espacios al borde, para que corregir "Maria@Example.com "
+// a "maria@example.com" no cuente como un cambio real de destinatario.
+function normalizarEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export async function actualizarCita(
   id: string,
   cambios: Partial<DatosCita>,
   actor: string,
   origen: Origen,
-): Promise<{ cita: Cita; cambioVisible: boolean }> {
+): Promise<{ cita: Cita; cambioVisible: boolean; correoModificado: boolean }> {
   const antes = await obtenerCita(id);
   if (!antes) throw new Error("Esa cita no existe.");
   if (antes.estado === "cancelada") throw new Error("Esa cita ya fue cancelada.");
@@ -138,11 +144,22 @@ export async function actualizarCita(
   const lugarModificado = cambios.lugar !== undefined && cambios.lugar !== antes.lugar;
   const cambioVisible = inicioModificado || lugarModificado;
 
-  // La secuencia sube SOLO con cambios visibles. Si cambió solo las notas o el
-  // teléfono, el cliente no recibe notificación y su calendario no cambia.
+  // El correo no es "visible" en el sentido de arriba (no es algo que se vea
+  // EN la invitación), pero es el destinatario: si cambia, la dirección nueva
+  // nunca recibió nada de esta cita — no es un "cambio de hora" para ella,
+  // es su primera noticia. Quien llama (citas.ts) decide con esto si manda
+  // "confirmacion" en vez de "reagendado".
+  const correoModificado =
+    cambios.cliente_email !== undefined &&
+    normalizarEmail(cambios.cliente_email) !== normalizarEmail(antes.cliente_email);
+
+  // La secuencia sube con cambios visibles O con cambio de correo: en ambos
+  // casos hay una invitación de calendario nueva que mandar (a la hora de
+  // siempre o a la dirección nueva). Si cambió solo las notas o el teléfono,
+  // no sube: el cliente no recibe nada y su calendario no cambia.
   // Creamos una copia para no mutar el objeto que el llamador pasó.
   const actualizar: Record<string, unknown> = { ...cambios };
-  if (cambioVisible) {
+  if (cambioVisible || correoModificado) {
     actualizar.ics_secuencia = antes.ics_secuencia + 1;
   }
 
@@ -162,13 +179,20 @@ export async function actualizarCita(
     actor,
     origen,
   );
-  return { cita: despues, cambioVisible };
+  return { cita: despues, cambioVisible, correoModificado };
 }
 
-export async function cancelarCita(id: string, actor: string, origen: Origen): Promise<Cita> {
+export async function cancelarCita(
+  id: string,
+  actor: string,
+  origen: Origen,
+): Promise<{ cita: Cita; seCancelo: boolean }> {
   const antes = await obtenerCita(id);
   if (!antes) throw new Error("Esa cita no existe.");
-  if (antes.estado === "cancelada") return antes; // idempotente
+  // Idempotente: cancelar dos veces no es un error, pero `seCancelo: false`
+  // le dice al llamador que esta vez no pasó nada — no vuelve a avisarle al
+  // cliente por un doble clic o una carrera entre dos personas del equipo.
+  if (antes.estado === "cancelada") return { cita: antes, seCancelo: false };
 
   const { data, error } = await db()
     .from("citas")
@@ -179,7 +203,7 @@ export async function cancelarCita(id: string, actor: string, origen: Origen): P
 
   if (error) reventar("cancelarCita", error, "No se pudo cancelar la cita.");
   await registrar(id, "cancelada", { inicio: antes.inicio }, actor, origen);
-  return data as Cita;
+  return { cita: data as Cita, seCancelo: true };
 }
 
 export async function guardarIdsRecordatorio(

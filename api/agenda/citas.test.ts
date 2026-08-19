@@ -356,14 +356,29 @@ describe("/api/agenda/citas", () => {
     expect(res.statusCode).toBe(500);
   });
 
-  it("DELETE cancela la cita", async () => {
+  it("DELETE cancela la cita y avisa al cliente", async () => {
     requireAgenda.mockResolvedValue(YO);
-    cancelarCita.mockResolvedValue({ ...CITA_BASE, estado: "cancelada" });
+    cancelarCita.mockResolvedValue({ cita: { ...CITA_BASE, estado: "cancelada" }, seCancelo: true });
+    enviarAhora.mockResolvedValue(undefined);
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("DELETE", { id: "cita-1" }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.cita.estado).toBe("cancelada");
+    expect(enviarAhora).toHaveBeenCalledWith("cancelacion", expect.objectContaining({ id: "cita-1" }));
+    expect(res.body.correo).toBe("enviado");
+  });
+
+  it("DELETE sobre una cita ya cancelada no manda un segundo correo", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    // db.ts ya decidió que esta cancelación no hizo nada (idempotente).
+    cancelarCita.mockResolvedValue({ cita: { ...CITA_BASE, estado: "cancelada" }, seCancelo: false });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("DELETE", { id: "cita-1" }), res);
+    expect(res.statusCode).toBe(200);
+    expect(enviarAhora).not.toHaveBeenCalled();
+    expect(res.body.correo).toBe("no_aplica");
   });
 
   it("DELETE sobre una cita que no existe responde 404, no 500", async () => {
@@ -373,5 +388,65 @@ describe("/api/agenda/citas", () => {
     const res = resRecorder();
     await handler(req("DELETE", { id: "no-existe" }), res);
     expect(res.statusCode).toBe(404);
+  });
+
+  it("PATCH que solo cambia el correo del cliente manda confirmación, no reagendado", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    // db.ts ya decidió: cambió el destinatario, pero no hora ni lugar.
+    actualizarCita.mockResolvedValue({
+      cita: { ...CITA_BASE, cliente_email: "correcto@example.com" },
+      cambioVisible: false,
+      correoModificado: true,
+    });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "correcto@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    // La dirección nueva nunca vio nada de esta cita: es su primera noticia,
+    // no un "Cambio de hora".
+    expect(enviarAhora).toHaveBeenCalledWith(
+      "confirmacion",
+      expect.objectContaining({ cliente_email: "correcto@example.com" }),
+    );
+    expect(enviarAhora).not.toHaveBeenCalledWith("reagendado", expect.anything());
+    expect(res.body.correo).toBe("enviado");
+  });
+
+  it("PATCH que cambia el correo Y la hora igual manda confirmación (gana sobre reagendado)", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    actualizarCita.mockResolvedValue({
+      cita: { ...CITA_BASE, cliente_email: "correcto@example.com", inicio: "2026-09-02T16:00:00+00:00" },
+      cambioVisible: true,
+      correoModificado: true,
+    });
+    enviarAhora.mockResolvedValue(undefined);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "correcto@example.com",
+        inicio: "2026-09-02T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(enviarAhora).toHaveBeenCalledTimes(1);
+    expect(enviarAhora).toHaveBeenCalledWith("confirmacion", expect.anything());
+    expect(res.body.correo).toBe("enviado");
   });
 });

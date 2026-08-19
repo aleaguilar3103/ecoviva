@@ -209,4 +209,78 @@ describe("actualizarCita", () => {
     expect(Object.keys(cambios)).not.toContain("ics_secuencia");
     expect(cambios).toEqual({ lugar: "Oficina Central" });
   });
+
+  it("8: cambios.cliente_email distinto → correoModificado true, incrementa ics_secuencia", async () => {
+    const { actualizarCita } = await cargar();
+    colaFrom = [
+      { data: CITA_ANTES, error: null }, // antes.cliente_email = "juan@test.com"
+      { data: { ...CITA_ANTES, cliente_email: "otro@test.com", ics_secuencia: 1 }, error: null },
+      { data: null, error: null },
+    ];
+    const resultado = await actualizarCita(
+      "cita-1",
+      { cliente_email: "otro@test.com" },
+      "admin",
+      "panel",
+    );
+    expect(resultado.correoModificado).toBe(true);
+    // El correo no es "visible" en el sentido de hora/lugar: cambiarlo solo a
+    // él no debe disparar un "Cambio de hora".
+    expect(resultado.cambioVisible).toBe(false);
+    const payload = updateSpy.mock.calls[0]?.[0];
+    expect(payload).toHaveProperty("ics_secuencia", 1);
+  });
+
+  it("9: cambios.cliente_email con mayúsculas/espacios pero mismo valor normalizado → correoModificado false, sin incremento (BUG REPRO)", async () => {
+    const { actualizarCita } = await cargar();
+    colaFrom = [
+      { data: CITA_ANTES, error: null }, // antes.cliente_email = "juan@test.com"
+      { data: { ...CITA_ANTES, ics_secuencia: 0 }, error: null },
+      { data: null, error: null },
+    ];
+    // Mismo destinatario, solo tipeado distinto — corregir esto no debería
+    // contar como un cambio real de correo.
+    const resultado = await actualizarCita(
+      "cita-1",
+      { cliente_email: " Juan@Test.com " },
+      "admin",
+      "panel",
+    );
+    // Este test FALLA sin normalizar (comparación cruda de string): " Juan@Test.com "
+    // !== "juan@test.com" → true, y marcaría correoModificado erróneamente.
+    expect(resultado.correoModificado).toBe(false);
+    const payload = updateSpy.mock.calls[0]?.[0];
+    expect(payload).not.toHaveProperty("ics_secuencia");
+  });
+});
+
+describe("cancelarCita", () => {
+  it("cancela una cita agendada → seCancelo true, sube ics_secuencia, registra 'cancelada'", async () => {
+    const { cancelarCita } = await cargar();
+    colaFrom = [
+      { data: CITA_ANTES, error: null }, // obtenerCita: estado "agendada"
+      { data: { ...CITA_ANTES, estado: "cancelada", ics_secuencia: 1 }, error: null }, // update
+      { data: null, error: null }, // registrar
+    ];
+    const resultado = await cancelarCita("cita-1", "admin", "panel");
+    expect(resultado.seCancelo).toBe(true);
+    expect(resultado.cita.estado).toBe("cancelada");
+    const payload = updateSpy.mock.calls[0]?.[0];
+    expect(payload).toHaveProperty("ics_secuencia", 1);
+    const logPayload = insertSpy.mock.calls[0]?.[0];
+    expect(logPayload?.accion).toBe("cancelada");
+  });
+
+  it("cancelar una cita YA cancelada es idempotente: seCancelo false, no vuelve a tocar la fila ni la bitácora", async () => {
+    const { cancelarCita } = await cargar();
+    colaFrom = [
+      { data: { ...CITA_ANTES, estado: "cancelada" }, error: null }, // obtenerCita
+    ];
+    const resultado = await cancelarCita("cita-1", "admin", "panel");
+    // Este test FALLA si el código siempre reporta seCancelo: true (el bug
+    // que manda un segundo correo de cancelación por un doble clic).
+    expect(resultado.seCancelo).toBe(false);
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
 });
