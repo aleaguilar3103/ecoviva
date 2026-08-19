@@ -99,6 +99,9 @@ describe("actualizarCita", () => {
     // El update NO debe incluir ics_secuencia
     const payload = updateSpy.mock.calls[0]?.[0];
     expect(payload).toEqual({});
+    // Verificar que la bitácora registra acción "editada"
+    const logPayload = insertSpy.mock.calls[0]?.[0];
+    expect(logPayload?.accion).toBe("editada");
   });
 
   it("2: cambios.inicio con el mismo string que antes → cambioVisible false", async () => {
@@ -152,9 +155,12 @@ describe("actualizarCita", () => {
     expect(resultado.cambioVisible).toBe(true);
     const payload = updateSpy.mock.calls[0]?.[0];
     expect(payload).toHaveProperty("ics_secuencia", 1);
+    // Verificar que la bitácora registra acción "movida" (no "editada")
+    const logPayload = insertSpy.mock.calls[0]?.[0];
+    expect(logPayload?.accion).toBe("movida");
   });
 
-  it("5: cambios.lugar distinto (sin cambios.inicio) → cambioVisible true, incremento, acción 'editada'", async () => {
+  it("5: cambios.lugar distinto (sin cambios.inicio) → cambioVisible true, incremento, acción 'editada' (NO 'movida')", async () => {
     const { actualizarCita } = await cargar();
     const lugarNuevo = "Lote 43";
     colaFrom = [
@@ -166,6 +172,9 @@ describe("actualizarCita", () => {
     expect(resultado.cambioVisible).toBe(true);
     const payload = updateSpy.mock.calls[0]?.[0];
     expect(payload).toHaveProperty("ics_secuencia", 1);
+    // Esta aserción discrimina el ternario: lugar distinto sin cambio de inicio debe ser "editada", no "movida"
+    const logPayload = insertSpy.mock.calls[0]?.[0];
+    expect(logPayload?.accion).toBe("editada");
   });
 
   it("6: cambios.notas → cambioVisible false, sin incremento", async () => {
@@ -183,16 +192,21 @@ describe("actualizarCita", () => {
 
   it("7: objeto cambios NO es mutado (sin ics_secuencia inyectado)", async () => {
     const { actualizarCita } = await cargar();
-    const cambios = { notas: "Solo notas" };
+    // Usar un escenario donde cambioVisible es TRUE, para que la línea mutante se ejecute.
+    // Con lugar distinto, la asignación a updateObj.ics_secuencia ocurre dentro del if.
+    const cambios = { lugar: "Oficina Central" };
     const cambioDespues = JSON.parse(JSON.stringify(cambios)); // copia profunda
     colaFrom = [
-      { data: CITA_ANTES, error: null },
-      { data: { ...CITA_ANTES, notas: "Solo notas", ics_secuencia: 0 }, error: null },
+      { data: CITA_ANTES, error: null }, // antes.lugar = "Lote 42"
+      { data: { ...CITA_ANTES, lugar: "Oficina Central", ics_secuencia: 1 }, error: null },
       { data: null, error: null },
     ];
     await actualizarCita("cita-1", cambios, "admin", "panel");
-    // Verificar que cambios sigue siendo el mismo objeto, sin propiedades añadidas
+    // Verificar que cambios sigue siendo exactamente lo que pasamos, sin ics_secuencia inyectado.
+    // Si el bug estuviera presente (const updateObj = cambios en vez de { ...cambios }),
+    // esta aserción fallaría porque cambios tendría ahora ics_secuencia: 1.
     expect(cambios).toEqual(cambioDespues);
     expect(Object.keys(cambios)).not.toContain("ics_secuencia");
+    expect(cambios).toEqual({ lugar: "Oficina Central" });
   });
 });
