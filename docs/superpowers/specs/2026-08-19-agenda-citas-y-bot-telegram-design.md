@@ -84,6 +84,11 @@ Todas contra los servicios reales, el 2026-08-19:
   Enviar sí puede; si `PATCH` y `cancel` resultan bloqueados, hace falta una
   llave de acceso completo. Ver riesgo abierto 1.
 - **Tabla de lotes:** `public.lots(id)`, definida en la migración 0001.
+- **`app_users` tiene tres filas**, las tres `admin`/`active`:
+  `aguilartradesfx@gmail.com`, `gerencia@duphomes.com` y
+  `alinaramirezgamboa@gmail.com`. Importa porque `agenda` vive en esa fila: si
+  alguno de los dos elegidos no la tuviera, la migración actualizaría cero filas
+  y lo dejaría afuera en silencio.
 - **`@vercel/functions` ya es dependencia** (^3.6.1), así que `waitUntil()` está
   disponible sin agregar nada.
 
@@ -103,7 +108,12 @@ alter table public.app_users
 ```
 
 `agenda` arranca en `false` para todos. La migración lo pone en `true`
-únicamente para los dos correos acordados (ver riesgo abierto 3).
+únicamente para `alinaramirezgamboa@gmail.com` y `aguilartradesfx@gmail.com`.
+
+Verificado el 2026-08-19 contra la base: `app_users` tiene exactamente tres
+filas, las tres `admin` y `active` — las dos de arriba más
+`gerencia@duphomes.com`, que se queda sin agenda. El otro equipo de ventas no
+tiene fila: trabaja solo en GHL y nunca entra al panel.
 
 ### Citas
 
@@ -393,10 +403,10 @@ probadas y el bot solo les pone una boca.
 2. **Remitente.** El cliente verá `noreply@send.bralto.io`, que dice Bralto y no
    EcoViva. Se mitiga con `Reply-To` a un correo real. Cambiarlo exige verificar
    otro dominio en Resend.
-3. **Los dos correos con acceso.** Alina es `alinaramirezgamboa@gmail.com`. Falta
-   confirmar cuál de las cuentas de Alejandro (`aguilartradesfx@gmail.com` o
-   `gerencia@duphomes.com`) lleva la agenda. Se pregunta antes de escribir la
-   migración.
+3. ~~**Los dos correos con acceso.**~~ Resuelto el 2026-08-19: la agenda se
+   prende para `alinaramirezgamboa@gmail.com` y `aguilartradesfx@gmail.com`.
+   `gerencia@duphomes.com` queda como `admin` **sin** agenda — es el primer caso
+   real del default-deny y es intencional.
 4. **Refresco del feed.** Google Calendar refresca las suscripciones cuando
    quiere, a veces con 24 horas de retraso; iOS se puede bajar a 15 minutos. El
    feed es comodidad de lectura, no la fuente de verdad. Hay que decirlo al
