@@ -128,20 +128,27 @@ export async function actualizarCita(
   // Un cambio es "visible" solo si afecta lo que el cliente ve en su invitación de
   // calendario: la hora o el lugar. Editar notas, teléfono o lote no debería
   // mandarle un correo de "Cambio de hora" con la misma hora.
-  const inicioChanged = cambios.inicio !== undefined && cambios.inicio !== antes.inicio;
-  const lugarChanged = cambios.lugar !== undefined && cambios.lugar !== antes.lugar;
-  const cambioVisible = inicioChanged || lugarChanged;
+  //
+  // Comparamos por valor temporal, no por string: Postgres devuelve
+  // "2026-09-01T16:00:00+00:00" pero el panel podría armar
+  // "2026-09-01T16:00:00.000Z" (mismo instante, formato distinto).
+  const inicioModificado =
+    cambios.inicio !== undefined &&
+    new Date(cambios.inicio).getTime() !== new Date(antes.inicio).getTime();
+  const lugarModificado = cambios.lugar !== undefined && cambios.lugar !== antes.lugar;
+  const cambioVisible = inicioModificado || lugarModificado;
 
   // La secuencia sube SOLO con cambios visibles. Si cambió solo las notas o el
-  // teléfono, el cliente no recibe notificación y su calendaio no cambia.
-  const updateObj: Record<string, unknown> = cambios;
+  // teléfono, el cliente no recibe notificación y su calendario no cambia.
+  // Creamos una copia para no mutar el objeto que el llamador pasó.
+  const actualizar: Record<string, unknown> = { ...cambios };
   if (cambioVisible) {
-    updateObj.ics_secuencia = antes.ics_secuencia + 1;
+    actualizar.ics_secuencia = antes.ics_secuencia + 1;
   }
 
   const { data, error } = await db()
     .from("citas")
-    .update(updateObj)
+    .update(actualizar)
     .eq("id", id)
     .select()
     .single();
@@ -150,7 +157,7 @@ export async function actualizarCita(
   const despues = data as Cita;
   await registrar(
     id,
-    inicioChanged ? "movida" : "editada",
+    inicioModificado ? "movida" : "editada",
     { antes: { inicio: antes.inicio, lugar: antes.lugar }, despues: { inicio: despues.inicio, lugar: despues.lugar } },
     actor,
     origen,
