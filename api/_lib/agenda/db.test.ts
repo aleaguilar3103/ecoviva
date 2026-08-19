@@ -190,6 +190,26 @@ describe("actualizarCita", () => {
     expect(payload).not.toHaveProperty("ics_secuencia");
   });
 
+  it("6b (M-b): un cambio invisible registra en la bitácora QUÉ campo cambió, no inicio/lugar repetidos e idénticos", async () => {
+    const { actualizarCita } = await cargar();
+    colaFrom = [
+      { data: CITA_ANTES, error: null }, // antes.notas = "Cliente importante"
+      { data: { ...CITA_ANTES, notas: "Cliente VIP", ics_secuencia: 0 }, error: null },
+      { data: null, error: null }, // registrar
+    ];
+    await actualizarCita("cita-1", { notas: "Cliente VIP" }, "admin", "panel");
+    const logPayload = insertSpy.mock.calls[0]?.[0];
+    // Antes del arreglo, `detalle` guardaba SIEMPRE { antes: {inicio, lugar},
+    // despues: {inicio, lugar} } — para este cambio, inicio y lugar son
+    // idénticos en antes y después, así que el log no decía nada de lo que
+    // en verdad cambió (las notas) y "yo no moví eso" quedaba sin respuesta.
+    expect(logPayload?.detalle).toEqual({
+      notas: { antes: "Cliente importante", despues: "Cliente VIP" },
+    });
+    expect(logPayload?.detalle).not.toHaveProperty("inicio");
+    expect(logPayload?.detalle).not.toHaveProperty("lugar");
+  });
+
   it("7: objeto cambios NO es mutado (sin ics_secuencia inyectado)", async () => {
     const { actualizarCita } = await cargar();
     // Usar un escenario donde cambioVisible es TRUE, para que la línea mutante se ejecute.
@@ -252,6 +272,27 @@ describe("actualizarCita", () => {
     const payload = updateSpy.mock.calls[0]?.[0];
     expect(payload).not.toHaveProperty("ics_secuencia");
   });
+
+  it("10 (I2): editar una cita 'completada' se rechaza, con mensaje distinto al de 'ya fue cancelada', y no toca la fila", async () => {
+    const { actualizarCita } = await cargar();
+    colaFrom = [
+      { data: { ...CITA_ANTES, estado: "completada" }, error: null }, // obtenerCita
+    ];
+    let mensaje = "";
+    try {
+      await actualizarCita("cita-1", { lugar: "Oficina" }, "admin", "panel");
+      throw new Error("no debía llegar acá: tenía que rechazar la edición");
+    } catch (e) {
+      mensaje = e instanceof Error ? e.message : String(e);
+    }
+    // El cron marca "completada" las citas pasadas; el panel no puede
+    // reabrirlas como si nada. El mensaje tiene que ser DISTINTO al de "ya
+    // fue cancelada" para que citas.ts pueda mapear cada caso a su propio
+    // 409 sin confundir uno con otro en los logs.
+    expect(mensaje).not.toBe("Esa cita ya fue cancelada.");
+    expect(mensaje.length).toBeGreaterThan(0);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe("cancelarCita", () => {
@@ -282,5 +323,41 @@ describe("cancelarCita", () => {
     expect(resultado.seCancelo).toBe(false);
     expect(updateSpy).not.toHaveBeenCalled();
     expect(insertSpy).not.toHaveBeenCalled();
+  });
+
+  it("(I2) cancelar una cita 'completada' se rechaza — el cron ya la cerró, no es una cancelación real", async () => {
+    // Antes del arreglo, cancelarCita solo bloqueaba 'cancelada'. El cron
+    // marca 'completada' las citas pasadas, y el panel las sigue mostrando
+    // (rango -7d..+90d, sin filtrar por estado) con el botón Cancelar activo:
+    // un clic ahí mandaba "Tu cita fue cancelada" por una visita que ya pasó.
+    const { cancelarCita } = await cargar();
+    colaFrom = [
+      { data: { ...CITA_ANTES, estado: "completada" }, error: null }, // obtenerCita
+    ];
+    let mensaje = "";
+    try {
+      await cancelarCita("cita-1", "admin", "panel");
+      throw new Error("no debía llegar acá: tenía que rechazar la cancelación");
+    } catch (e) {
+      mensaje = e instanceof Error ? e.message : String(e);
+    }
+    // Distinguible del mensaje de "ya fue cancelada" (que además ni siquiera
+    // es un error: es el camino idempotente de arriba).
+    expect(mensaje).not.toBe("Esa cita ya fue cancelada.");
+    expect(mensaje.length).toBeGreaterThan(0);
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("registrarReenvio (I3)", () => {
+  it("registra la acción 'reenviada' en citas_log, sin tocar la tabla citas", async () => {
+    const { registrarReenvio } = await cargar();
+    colaFrom = [{ data: null, error: null }]; // insert a citas_log
+    await registrarReenvio("cita-1", "alina@ecoviva.test", "panel");
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cita_id: "cita-1", accion: "reenviada", actor: "alina@ecoviva.test", origen: "panel" }),
+    );
   });
 });

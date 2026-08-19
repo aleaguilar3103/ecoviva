@@ -272,6 +272,14 @@ export function cancelarCita(id: string): Promise<{ cita: CitaRow; correo: "envi
   return request(`/api/agenda/citas`, { method: "DELETE", body: JSON.stringify({ id }) });
 }
 
+// I3: reenvía el correo de confirmación de una cita existente, sin tocar la
+// fila ni la secuencia. Existe para cuando el correo falla tras guardar
+// (p. ej. una caída pasajera de Resend) y no había ninguna otra forma de que
+// el cliente recibiera la invitación.
+export function reenviarCorreo(id: string): Promise<{ cita: CitaRow; correo: "enviado" | "fallo" }> {
+  return request(`/api/agenda/citas`, { method: "POST", body: JSON.stringify({ id, reenviar: true }) });
+}
+
 // URL de suscripción del calendario (.ics): el token en esa URL es la
 // credencial — quien la tenga ve la agenda completa, con teléfono y notas.
 // Por eso se puede rotar: la URL vieja deja de servir de inmediato.

@@ -38,6 +38,21 @@ function escapar(v: string): string {
     .replace(/\r?\n/g, "\\n");
 }
 
+// M-e: RFC 5545 §3.2 define param-value como paramtext (texto simple) O
+// quoted-string (DQUOTE QSAFE-CHAR* DQUOTE) — nunca backslash-escaping, que
+// es la regla de los campos de CONTENIDO (SUMMARY, DESCRIPTION...), no la de
+// los parámetros como CN=. Aplicarle `escapar()` a un valor de parámetro con
+// coma —"Rodríguez Mora, Ana", que la gente pega tal cual— produce
+// CN=Rodríguez Mora\, Ana sin comillas: sintaxis inválida que un parser
+// estricto puede rechazar (a veces descartando el evento entero).
+//
+// El RFC no define ninguna forma de escapar una comilla doble DENTRO de un
+// quoted-string, así que la única salida segura es quitarlas del valor.
+function escaparParametro(v: string): string {
+  const sinComillas = v.replace(/"/g, "");
+  return /[,;:]/.test(sinComillas) ? `"${sinComillas}"` : sinComillas;
+}
+
 function plegar(linea: string): string {
   const bytes = Buffer.from(linea, "utf8");
   if (bytes.length <= 75) return linea;
@@ -77,8 +92,8 @@ export function construirIcs(e: EventoIcs): string {
     `SUMMARY:${escapar(e.titulo)}`,
     ...(e.descripcion ? [`DESCRIPTION:${escapar(e.descripcion)}`] : []),
     ...(e.lugar ? [`LOCATION:${escapar(e.lugar)}`] : []),
-    `ORGANIZER;CN=${escapar(e.organizadorNombre)}:mailto:${e.organizadorEmail}`,
-    `ATTENDEE;CN=${escapar(e.asistenteNombre)};RSVP=FALSE:mailto:${e.asistenteEmail}`,
+    `ORGANIZER;CN=${escaparParametro(e.organizadorNombre)}:mailto:${e.organizadorEmail}`,
+    `ATTENDEE;CN=${escaparParametro(e.asistenteNombre)};RSVP=FALSE:mailto:${e.asistenteEmail}`,
     `STATUS:${e.cancelado ? "CANCELLED" : "CONFIRMED"}`,
     "END:VEVENT",
     "END:VCALENDAR",

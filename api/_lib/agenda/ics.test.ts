@@ -75,6 +75,23 @@ describe("construirIcs", () => {
     expect(ics).toContain("SEQUENCE:3");
   });
 
+  // M-e: RFC 5545 pide *quoted-string* para un valor de PARÁMETRO que
+  // contenga `,` `;` o `:` — no el backslash-escaping que usan los campos de
+  // contenido (SUMMARY, DESCRIPTION...). Un nombre con coma, que la gente
+  // pega tal cual ("Rodríguez Mora, Ana"), producía CN=Rodríguez Mora\, Ana
+  // sin comillas: una línea que un parser estricto de iCalendar puede
+  // rechazar entera.
+  it("un nombre con coma en CN= va entre comillas (quoted-string), no con backslash", () => {
+    const ics = construirIcs({ ...BASE, asistenteNombre: "Rodríguez Mora, Ana" });
+    expect(ics).toContain('ATTENDEE;CN="Rodríguez Mora, Ana";RSVP=FALSE:mailto:maria@example.com');
+    expect(ics).not.toContain("CN=Rodríguez Mora\\, Ana");
+  });
+
+  it("un nombre con punto y coma en CN= también va entre comillas", () => {
+    const ics = construirIcs({ ...BASE, organizadorNombre: "EcoViva; Desarrollos" });
+    expect(ics).toContain('ORGANIZER;CN="EcoViva; Desarrollos":mailto:noreply@send.bralto.io');
+  });
+
   it("al crear y reagendar usa METHOD:REQUEST con el mismo UID", () => {
     const creada = construirIcs(BASE);
     const movida = construirIcs({

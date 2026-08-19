@@ -100,4 +100,27 @@ describe("armarCorreo", () => {
     expect(html).toContain("10:00");
     expect(html).not.toContain("16:00");
   });
+
+  // M-a: en español el día de la semana NO va en mayúscula a mitad de
+  // oración. "reagendado" y "cancelacion" usan la fecha larga incrustada en
+  // una oración ("tu cita ahora es el martes…", "cancelamos la cita del
+  // martes…"), así que ahí tiene que salir en minúscula. Donde la fecha
+  // funciona como título (el bloque de datos, o después de un guión largo en
+  // el asunto) sigue en mayúscula.
+  it("reagendado: el día de la semana va en minúscula a mitad de oración en el asunto", () => {
+    const { subject } = armarCorreo("reagendado", d);
+    expect(subject).toContain("tu cita ahora es el martes");
+    expect(subject).not.toContain("es el Martes");
+  });
+
+  it("cancelacion: el día de la semana va en minúscula a mitad de oración en el cuerpo", () => {
+    const { html } = armarCorreo("cancelacion", d);
+    expect(html).toContain("cancelamos la cita del martes");
+    expect(html).not.toContain("del Martes");
+  });
+
+  it("confirmacion: el día de la semana sigue en mayúscula donde la fecha es un título (después del guión en el asunto)", () => {
+    const { subject } = armarCorreo("confirmacion", d);
+    expect(subject).toMatch(/— Martes/);
+  });
 });

@@ -4,6 +4,7 @@ import {
   crearCita,
   actualizarCita,
   cancelarCita,
+  reenviarCorreo,
   getLots,
   getFeedUrl,
   rotarFeedToken,
@@ -55,6 +56,17 @@ function fechaLarga(iso: string): string {
   }).format(new Date(iso));
 }
 
+// I2: el rango que trae getCitas (-7d..+90d) y el orden ascendente hacen que
+// las citas pasadas aparezcan primero, arriba de todo, bajo "Próximas
+// citas". Antes no había forma de distinguirlas de una cita futura: mismo
+// estilo, mismos botones de Editar/Cancelar activos. Un clic en Cancelar ahí
+// mandaba "Tu cita fue cancelada" por una visita que el cliente ya hizo.
+// `estado === "completada"` es lo normal (el cron ya la cerró); el chequeo
+// por hora cubre la ventana entre que la cita pasó y que el cron corre.
+function esPasadaOCompletada(c: CitaRow): boolean {
+  return c.estado === "completada" || new Date(c.inicio).getTime() < Date.now();
+}
+
 const VACIA: NuevaCita = {
   cliente_nombre: "",
   cliente_email: "",
@@ -83,6 +95,9 @@ export default function AgendaManager() {
   // que el botón se deshabilita mientras la petición está en vuelo — mismo
   // patrón que `guardando` para el botón de "Guardar".
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
+  // Mismo patrón que cancelandoId: evita un doble reenvío real por un doble
+  // clic mientras la petición está en vuelo.
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null);
   // URL de suscripción del calendario (.ics). null mientras carga o si falló:
   // en ese caso simplemente no se muestra el bloque, no es un error bloqueante.
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
@@ -173,6 +188,23 @@ export default function AgendaManager() {
       setError(e instanceof Error ? e.message : "No se pudo cancelar la cita.");
     } finally {
       setCancelandoId(null);
+    }
+  }
+
+  // I3: reenvía la confirmación cuando el correo original falló (o el
+  // cliente dice que no le llegó). No toca la fila ni la secuencia — es
+  // literalmente el mismo correo, de nuevo.
+  async function reenviar(c: CitaRow) {
+    setError(null);
+    setAviso(null);
+    setReenviandoId(c.id);
+    try {
+      const r = await reenviarCorreo(c.id);
+      setAviso(r.correo === "enviado" ? "Correo reenviado." : "El reenvío tampoco salió — avisale por otro medio.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo reenviar el correo.");
+    } finally {
+      setReenviandoId(null);
     }
   }
 
@@ -370,7 +402,9 @@ export default function AgendaManager() {
         </form>
 
         <div className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Próximas citas</h2>
+          {/* I2: "Próximas citas" mentía — el rango trae también lo pasado y
+              lo completado, y aparece primero por el orden ascendente. */}
+          <h2 className="text-base font-semibold text-slate-900">Citas</h2>
 
           {cargando ? (
             <div className="flex justify-center py-12">
@@ -381,45 +415,74 @@ export default function AgendaManager() {
               No hay citas en el rango.
             </div>
           ) : (
-            citas.map((c) => (
-              <div
-                key={c.id}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900">{c.cliente_nombre}</p>
-                    <p className="text-sm text-slate-600 first-letter:uppercase">
-                      {fechaLarga(c.inicio)}
-                    </p>
-                    <p className="text-xs text-slate-500">{c.lugar}</p>
-                    <p className="text-xs text-slate-400">{c.cliente_email}</p>
-                    {c.notas && (
-                      <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
-                        {c.notas}
+            citas.map((c) => {
+              const pasada = esPasadaOCompletada(c);
+              return (
+                <div
+                  key={c.id}
+                  className={
+                    "rounded-xl border p-4 shadow-sm " +
+                    (pasada ? "border-slate-100 bg-slate-50 opacity-70" : "border-slate-200 bg-white")
+                  }
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">{c.cliente_nombre}</p>
+                        {pasada && (
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+                            {c.estado === "completada" ? "Completada" : "Pasada"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-600 first-letter:uppercase">
+                        {fechaLarga(c.inicio)}
                       </p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => editar(c)}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cancelar(c)}
-                      disabled={cancelandoId === c.id}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
-                    >
-                      {cancelandoId === c.id ? "Cancelando…" : "Cancelar"}
-                    </button>
+                      <p className="text-xs text-slate-500">{c.lugar}</p>
+                      <p className="text-xs text-slate-400">{c.cliente_email}</p>
+                      {c.notas && (
+                        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                          {c.notas}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => reenviar(c)}
+                        disabled={reenviandoId === c.id}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {reenviandoId === c.id ? "Reenviando…" : "Reenviar correo"}
+                      </button>
+                      {/* I2: una cita pasada o completada no se edita ni se
+                          cancela — no hay nada que reagendar en una visita
+                          que ya ocurrió, y "cancelar" ahí le mandaría al
+                          cliente un correo falso de cancelación. */}
+                      {!pasada && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => editar(c)}
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => cancelar(c)}
+                            disabled={cancelandoId === c.id}
+                            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                          >
+                            {cancelandoId === c.id ? "Cancelando…" : "Cancelar"}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

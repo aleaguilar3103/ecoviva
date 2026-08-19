@@ -18,11 +18,17 @@ export default async function handler(req: any, res: any) {
   // temprano para los correos break-glass y nunca lee app_users.
   let agenda = false;
   if (caller.userId) {
-    const { data } = await supabaseAdmin()
+    const { data, error } = await supabaseAdmin()
       .from("app_users")
       .select("agenda")
       .eq("user_id", caller.userId)
       .maybeSingle();
+    // M-d: esta es la tercera copia de esta misma consulta (junto a
+    // requireAgenda y agenda/feed.ts) y la única que se quedaba muda ante un
+    // error. Sigue fallando cerrado (agenda queda en false), pero sin este
+    // log el síntoma es "me desapareció la pestaña Agenda" sin nada que
+    // mirar para diagnosticarlo.
+    if (error) console.error("me: fallo al consultar la bandera agenda", error);
     agenda = data?.agenda === true;
   }
 

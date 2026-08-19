@@ -162,7 +162,31 @@ export async function aplicarRecordatorios(
       } catch (e) {
         console.error(`agenda/recordatorios: fallo la accion ${a.tipo} de ${a.clase}`, e);
         // Se deja en null para que el reconciliador lo vuelva a intentar.
-        if (a.tipo === "programar") guardar(a.clase, null);
+        if (a.tipo === "programar") {
+          guardar(a.clase, null);
+        } else if (a.tipo === "reprogramar") {
+          // I5: si el PATCH de reprogramar falla, el id sigue apuntando a un
+          // envío programado a la hora VIEJA (el reconciliador del cron
+          // solo actúa sobre ids en null, así que dejarlo como estaba lo
+          // vuelve invisible para siempre — un huérfano que nadie repara).
+          // Antes de soltarlo se intenta cancelar ese envío viejo en Resend,
+          // en su propio try porque puede fallar también (p. ej. la misma
+          // caída de Resend que hizo fallar el reprogramar): un segundo
+          // fallo acá no debe frenar el guardar(null) de abajo. El costo de
+          // este intercambio es, en el peor caso, un envío huérfano en
+          // Resend con una hora vieja; la alternativa (dejar el id como
+          // estaba) es que el cliente nunca reciba ningún recordatorio
+          // nuevo, que es peor.
+          try {
+            await cancelarCorreo(a.emailId);
+          } catch (e2) {
+            console.error(
+              `agenda/recordatorios: fallo cancelar el ${a.clase} huérfano tras el reprogramar fallido`,
+              e2,
+            );
+          }
+          guardar(a.clase, null);
+        }
       }
     }
 

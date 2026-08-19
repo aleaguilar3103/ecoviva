@@ -5,6 +5,8 @@ const listarCitas = vi.fn();
 const crearCita = vi.fn();
 const actualizarCita = vi.fn();
 const cancelarCita = vi.fn();
+const obtenerCita = vi.fn();
+const registrarReenvio = vi.fn();
 const enviarAhora = vi.fn();
 const aplicarRecordatorios = vi.fn();
 
@@ -16,7 +18,8 @@ vi.mock("../_lib/agenda/db.js", () => ({
   crearCita: (...a: unknown[]) => crearCita(...a),
   actualizarCita: (...a: unknown[]) => actualizarCita(...a),
   cancelarCita: (...a: unknown[]) => cancelarCita(...a),
-  obtenerCita: vi.fn(),
+  obtenerCita: (...a: unknown[]) => obtenerCita(...a),
+  registrarReenvio: (...a: unknown[]) => registrarReenvio(...a),
 }));
 vi.mock("../_lib/agenda/email.js", () => ({
   enviarAhora: (...a: unknown[]) => enviarAhora(...a),
@@ -79,11 +82,14 @@ beforeEach(() => {
   crearCita.mockReset();
   actualizarCita.mockReset();
   cancelarCita.mockReset();
+  obtenerCita.mockReset();
+  registrarReenvio.mockReset();
   enviarAhora.mockReset();
   aplicarRecordatorios.mockReset();
   // Los recordatorios son un mecanismo aparte del correo inmediato: por
   // default se resuelven solos, salvo que un test necesite lo contrario.
   aplicarRecordatorios.mockResolvedValue(undefined);
+  registrarReenvio.mockResolvedValue(undefined);
 });
 
 describe("/api/agenda/citas", () => {
@@ -345,6 +351,25 @@ describe("/api/agenda/citas", () => {
     expect(res.statusCode).toBe(409);
   });
 
+  it("(I2) PATCH sobre una cita ya 'completada' responde 409, no 500 — el cron ya la cerró", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    listarCitas.mockResolvedValue([]);
+    actualizarCita.mockRejectedValue(new Error("Esa cita ya se realizó: no se puede editar."));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(
+      req("PATCH", {
+        id: "cita-1",
+        cliente_nombre: "María",
+        cliente_email: "maria@example.com",
+        inicio: "2026-09-01T16:00:00.000Z",
+        lugar: "Llanada",
+      }),
+      res,
+    );
+    expect(res.statusCode).toBe(409);
+  });
+
   it("un error que no es ninguna de las dos frases conocidas sigue devolviendo 500", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
@@ -396,6 +421,15 @@ describe("/api/agenda/citas", () => {
     const res = resRecorder();
     await handler(req("DELETE", { id: "no-existe" }), res);
     expect(res.statusCode).toBe(404);
+  });
+
+  it("(I2) DELETE sobre una cita ya 'completada' responde 409, no 500 — cancelarla sería avisarle al cliente por una visita que ya hizo", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    cancelarCita.mockRejectedValue(new Error("Esa cita ya se realizó: no se puede cancelar."));
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("DELETE", { id: "cita-1" }), res);
+    expect(res.statusCode).toBe(409);
   });
 
   it("PATCH que solo cambia el correo del cliente manda confirmación, no reagendado", async () => {
@@ -497,7 +531,12 @@ describe("/api/agenda/citas", () => {
     expect(aplicarRecordatorios).toHaveBeenCalledWith(cita, expect.any(Date), { recrear: true });
   });
 
-  it("PATCH que solo mueve la hora no pide recrear: el correo del cliente no cambió", async () => {
+  it("PATCH que mueve la hora pide RECREAR los recordatorios, no reprogramarlos (C1)", async () => {
+    // El contenido de los recordatorios (fecha, hora, lugar) sale de la
+    // planilla al momento de mandarlos. Si solo se reprograma el envío ya
+    // armado, ese contenido queda congelado en la cita vieja. La única forma
+    // de que el cliente reciba el dato correcto es recrear: cancelar los
+    // recordatorios viejos y programar unos nuevos con el contenido vigente.
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
     const cita = { ...CITA_BASE, inicio: "2026-09-02T16:00:00+00:00" };
@@ -515,7 +554,7 @@ describe("/api/agenda/citas", () => {
       }),
       res,
     );
-    expect(aplicarRecordatorios).toHaveBeenCalledWith(cita, expect.any(Date), { recrear: false });
+    expect(aplicarRecordatorios).toHaveBeenCalledWith(cita, expect.any(Date), { recrear: true });
   });
 
   it("DELETE también cancela los recordatorios pendientes de la cita", async () => {
@@ -527,5 +566,71 @@ describe("/api/agenda/citas", () => {
     const res = resRecorder();
     await handler(req("DELETE", { id: "cita-1" }), res);
     expect(aplicarRecordatorios).toHaveBeenCalledWith(cancelada, expect.any(Date), {});
+  });
+
+  // ── I3: reenviar el correo de confirmación ──
+  // El spec exige una salida cuando el correo falla tras guardar la cita: un
+  // botón de reenvío. POST con { id, reenviar: true } vuelve a mandar la
+  // "confirmacion" SIN tocar la fila ni la secuencia (no es un reagendado).
+  describe("POST con reenviar:true (I3)", () => {
+    it("reenvía la confirmación sin tocar la fila ni la secuencia, y lo registra en la bitácora", async () => {
+      requireAgenda.mockResolvedValue(YO);
+      obtenerCita.mockResolvedValue({ ...CITA_BASE });
+      enviarAhora.mockResolvedValue(undefined);
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req("POST", { id: "cita-1", reenviar: true }), res);
+
+      expect(res.statusCode).toBe(200);
+      expect(obtenerCita).toHaveBeenCalledWith("cita-1");
+      expect(enviarAhora).toHaveBeenCalledWith("confirmacion", expect.objectContaining({ id: "cita-1" }));
+      // No es un reagendado: no se llama a crearCita ni a actualizarCita, y
+      // no se tocan los recordatorios (la fila y la secuencia no cambiaron).
+      expect(crearCita).not.toHaveBeenCalled();
+      expect(actualizarCita).not.toHaveBeenCalled();
+      expect(aplicarRecordatorios).not.toHaveBeenCalled();
+      expect(registrarReenvio).toHaveBeenCalledWith("cita-1", YO.email, "panel");
+      expect(res.body.correo).toBe("enviado");
+    });
+
+    it("si Resend falla, el reenvío se reporta como 'fallo' sin tirar 500", async () => {
+      requireAgenda.mockResolvedValue(YO);
+      obtenerCita.mockResolvedValue({ ...CITA_BASE });
+      enviarAhora.mockRejectedValue(new Error("Resend 500"));
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req("POST", { id: "cita-1", reenviar: true }), res);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.correo).toBe("fallo");
+    });
+
+    it("reenviar sobre una cita que no existe responde 404, no 500", async () => {
+      requireAgenda.mockResolvedValue(YO);
+      obtenerCita.mockResolvedValue(null);
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req("POST", { id: "no-existe", reenviar: true }), res);
+      expect(res.statusCode).toBe(404);
+      expect(enviarAhora).not.toHaveBeenCalled();
+    });
+
+    it("reenviar sobre una cita cancelada responde 409: no hay nada que confirmar", async () => {
+      requireAgenda.mockResolvedValue(YO);
+      obtenerCita.mockResolvedValue({ ...CITA_BASE, estado: "cancelada" });
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req("POST", { id: "cita-1", reenviar: true }), res);
+      expect(res.statusCode).toBe(409);
+      expect(enviarAhora).not.toHaveBeenCalled();
+    });
+
+    it("reenviar sin id responde 400", async () => {
+      requireAgenda.mockResolvedValue(YO);
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req("POST", { reenviar: true }), res);
+      expect(res.statusCode).toBe(400);
+      expect(obtenerCita).not.toHaveBeenCalled();
+    });
   });
 });

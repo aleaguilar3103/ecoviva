@@ -44,7 +44,15 @@ export function datosParaCorreo(cita: Cita): DatosCorreo {
 
 const TZ = "America/Costa_Rica";
 
-function fechaLarga(iso: string): string {
+// M-a: Intl.DateTimeFormat en es-CR devuelve el día de la semana en
+// minúscula ("martes, 1 de septiembre de 2026"), como corresponde en
+// español. `capitalizar` sube la primera letra para los usos como TÍTULO
+// (el bloque de datos de la cita, o después de un guión largo en el
+// asunto). Cuando la fecha va A MITAD DE ORACIÓN ("tu cita ahora es el
+// martes…", "cancelamos la cita del martes…") hay que dejarla en minúscula:
+// en español los días no van en mayúscula ahí, y es texto que lee el
+// cliente.
+function fechaLarga(iso: string, capitalizar = true): string {
   const t = new Intl.DateTimeFormat("es-CR", {
     weekday: "long",
     day: "numeric",
@@ -52,7 +60,7 @@ function fechaLarga(iso: string): string {
     year: "numeric",
     timeZone: TZ,
   }).format(new Date(iso));
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  return capitalizar ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 }
 
 function hora(iso: string): string {
@@ -157,7 +165,7 @@ export function armarCorreo(
 
     case "reagendado":
       return {
-        subject: `Cambio de hora: tu cita ahora es el ${fechaLarga(d.inicio)}`,
+        subject: `Cambio de hora: tu cita ahora es el ${fechaLarga(d.inicio, false)}`,
         html: envoltura(
           "Cambiamos la hora de tu cita",
           `
@@ -175,7 +183,7 @@ export function armarCorreo(
         html: envoltura(
           "Tu cita fue cancelada",
           `
-          <p style="font-size:15px;color:#334155">Hola ${nombre}, cancelamos la cita del ${fechaLarga(d.inicio)} a las ${hora(d.inicio)}.</p>
+          <p style="font-size:15px;color:#334155">Hola ${nombre}, cancelamos la cita del ${fechaLarga(d.inicio, false)} a las ${hora(d.inicio)}.</p>
           <p style="font-size:15px;color:#334155">Si querés reprogramarla, respondé este correo y la coordinamos.</p>`,
         ),
         attachments: adjuntoIcs(d, true),

@@ -71,7 +71,7 @@ export async function obtenerCita(id: string): Promise<Cita | null> {
 
 async function registrar(
   citaId: string,
-  accion: "creada" | "movida" | "editada" | "cancelada",
+  accion: "creada" | "movida" | "editada" | "cancelada" | "reenviada",
   detalle: unknown,
   actor: string,
   origen: Origen,
@@ -121,6 +121,58 @@ function normalizarEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+// M-b: qué campos de DatosCita registrar en la bitácora cuando algo cambia,
+// y con qué valores. Antes, el `detalle` de una edición SIEMPRE guardaba
+// `{ inicio, lugar }` de antes y después, sin importar qué campo se editó
+// de verdad. Para un cambio que no toca ni inicio ni lugar (p. ej. solo
+// notas), eso guarda dos valores idénticos y nunca dice qué cambió — la
+// bitácora existe para responder "yo no moví eso" y así no responde nada, y
+// esa información no se puede reconstruir después porque `antes` ya se
+// perdió. Acá se compara cada campo tocado (mismo criterio de "mismo valor"
+// que ya usan `cambioVisible`/`correoModificado`: por instante para
+// `inicio`, normalizado para `cliente_email`) y solo se registra el que
+// realmente cambió.
+const CAMPOS_CITA: (keyof DatosCita)[] = [
+  "cliente_nombre",
+  "cliente_email",
+  "cliente_telefono",
+  "inicio",
+  "lugar",
+  "lote_id",
+  "notas",
+];
+
+function valoresIguales(campo: keyof DatosCita, a: unknown, b: unknown): boolean {
+  if (a == null && b == null) return true;
+  if (campo === "inicio" && typeof a === "string" && typeof b === "string") {
+    return new Date(a).getTime() === new Date(b).getTime();
+  }
+  if (campo === "cliente_email" && typeof a === "string" && typeof b === "string") {
+    return normalizarEmail(a) === normalizarEmail(b);
+  }
+  return a === b;
+}
+
+// Compara solo los campos que `cambios` tocó (los que no vinieron en el
+// PATCH ni se evalúan: nunca "cambiaron" porque nadie los mandó) contra la
+// fila resultante, y devuelve nada más los que de verdad quedaron distintos.
+function camposModificados(
+  cambios: Partial<DatosCita>,
+  antes: Cita,
+  despues: Cita,
+): Record<string, { antes: unknown; despues: unknown }> {
+  const detalle: Record<string, { antes: unknown; despues: unknown }> = {};
+  for (const campo of CAMPOS_CITA) {
+    if (cambios[campo] === undefined) continue;
+    const valorAntes = antes[campo];
+    const valorDespues = despues[campo];
+    if (!valoresIguales(campo, valorAntes, valorDespues)) {
+      detalle[campo] = { antes: valorAntes, despues: valorDespues };
+    }
+  }
+  return detalle;
+}
+
 export async function actualizarCita(
   id: string,
   cambios: Partial<DatosCita>,
@@ -130,6 +182,12 @@ export async function actualizarCita(
   const antes = await obtenerCita(id);
   if (!antes) throw new Error("Esa cita no existe.");
   if (antes.estado === "cancelada") throw new Error("Esa cita ya fue cancelada.");
+  // I2: el cron marca "completada" las citas pasadas. Sin este chequeo, el
+  // panel (rango -7d..+90d, sin filtrar por estado) deja el formulario de
+  // edición abierto sobre una visita que ya ocurrió. Mensaje distinto al de
+  // arriba a propósito: son dos causas distintas y citas.ts los mapea cada
+  // uno a su propio 409.
+  if (antes.estado === "completada") throw new Error("Esa cita ya se realizó: no se puede editar.");
 
   // Un cambio es "visible" solo si afecta lo que el cliente ve en su invitación de
   // calendario: la hora o el lugar. Editar notas, teléfono o lote no debería
@@ -175,7 +233,7 @@ export async function actualizarCita(
   await registrar(
     id,
     inicioModificado ? "movida" : "editada",
-    { antes: { inicio: antes.inicio, lugar: antes.lugar }, despues: { inicio: despues.inicio, lugar: despues.lugar } },
+    camposModificados(cambios, antes, despues),
     actor,
     origen,
   );
@@ -193,6 +251,12 @@ export async function cancelarCita(
   // le dice al llamador que esta vez no pasó nada — no vuelve a avisarle al
   // cliente por un doble clic o una carrera entre dos personas del equipo.
   if (antes.estado === "cancelada") return { cita: antes, seCancelo: false };
+  // I2: a diferencia de "cancelada" (arriba), esto SÍ es un error: cancelar
+  // una cita que el cron ya cerró como "completada" no es un doble clic
+  // inocuo, es mandarle "Tu cita fue cancelada" al cliente por una visita
+  // que ya hizo. Mensaje distinto al de "ya fue cancelada" para que
+  // citas.ts pueda distinguir los dos casos.
+  if (antes.estado === "completada") throw new Error("Esa cita ya se realizó: no se puede cancelar.");
 
   const { data, error } = await db()
     .from("citas")
@@ -204,6 +268,15 @@ export async function cancelarCita(
   if (error) reventar("cancelarCita", error, "No se pudo cancelar la cita.");
   await registrar(id, "cancelada", { inicio: antes.inicio }, actor, origen);
   return { cita: data as Cita, seCancelo: true };
+}
+
+// I3: reenvío manual del correo de confirmación (sin tocar la fila ni la
+// secuencia). No encaja en ninguna de las cuatro acciones que ya existían en
+// citas_log, así que se agrega "reenviada" (migración 0009). Sin `antes`/
+// `despues` porque no hay ningún cambio de datos que registrar — el hecho
+// mismo de que alguien lo disparó es lo que importa.
+export async function registrarReenvio(citaId: string, actor: string, origen: Origen): Promise<void> {
+  await registrar(citaId, "reenviada", null, actor, origen);
 }
 
 export async function guardarIdsRecordatorio(

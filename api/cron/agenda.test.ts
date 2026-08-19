@@ -179,6 +179,21 @@ describe("/api/cron/agenda", () => {
     expect(updateSpy).toHaveBeenCalledWith({ estado: "completada" });
   });
 
+  it("M-c: si el UPDATE de housekeeping falla, NO responde 200 — sería indistinguible de 'no había nada que cerrar'", async () => {
+    // Este es el único mecanismo automático de la rama: si falla en
+    // silencio detrás de un 200 verde, un fallo real puede pasar meses sin
+    // que nadie lo note. La reconciliación de arriba sí corrió (lo que le
+    // llega al cliente no depende de este housekeeping), así que el
+    // problema es puntual — pero el status tiene que reflejarlo.
+    respuestaUpdate = { data: null, error: { message: "boom" } };
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+    expect(res.statusCode).not.toBe(200);
+    expect(res.body).toHaveProperty("error");
+  });
+
   it("pone Cache-Control: no-store en todas las respuestas", async () => {
     const handler = await cargar();
     const res = resRecorder();

@@ -1,5 +1,5 @@
 import { requireAgenda } from "../_lib/supabase.js";
-import { listarCitas, crearCita, actualizarCita, cancelarCita } from "../_lib/agenda/db.js";
+import { listarCitas, crearCita, actualizarCita, cancelarCita, obtenerCita, registrarReenvio } from "../_lib/agenda/db.js";
 import type { Cita, DatosCita } from "../_lib/agenda/db.js";
 import { enviarAhora, type ClaseCorreo } from "../_lib/agenda/email.js";
 import { aplicarRecordatorios } from "../_lib/agenda/recordatorios.js";
@@ -132,6 +132,38 @@ export default async function handler(req: any, res: any) {
 
     const body = (req.body ?? {}) as Record<string, unknown>;
 
+    if (req.method === "POST" && body.reenviar === true) {
+      // I3: reenvío manual del correo de confirmación. El spec lo exige como
+      // salida para cuando el correo falla tras guardar la cita (p. ej.
+      // Resend caído dos minutos justo cuando se agendó): sin esto no había
+      // forma de que el cliente recibiera la invitación. A propósito NO pasa
+      // por crearCita/actualizarCita: no toca la fila ni sube ics_secuencia,
+      // porque no cambió nada de la cita — solo se repite el envío.
+      const id = typeof body.id === "string" ? body.id : null;
+      if (!id) return res.status(400).json({ error: "Falta el id de la cita" });
+
+      const cita = await obtenerCita(id);
+      if (!cita) return res.status(404).json({ error: "Esa cita no existe." });
+      if (cita.estado === "cancelada") {
+        return res.status(409).json({ error: "Esa cita ya fue cancelada: no hay nada que confirmar." });
+      }
+
+      let correo: "enviado" | "fallo" = "enviado";
+      try {
+        await enviarAhora("confirmacion", cita);
+      } catch (e) {
+        console.error("agenda/citas: no se pudo reenviar el correo de confirmación", e);
+        correo = "fallo";
+      }
+      // La bitácora no puede tumbar la respuesta: la cita y el intento de
+      // reenvío ya pasaron, es lo mismo que rige para citas_log en el resto
+      // del archivo (ver `registrar` en db.ts).
+      await registrarReenvio(cita.id, caller.email, "panel").catch((e) =>
+        console.error("agenda/citas: no se pudo registrar el reenvío en la bitácora", e),
+      );
+      return res.status(200).json({ cita, correo });
+    }
+
     if (req.method === "POST") {
       const leido = leerDatos(body);
       if ("error" in leido) return res.status(400).json({ error: leido.error });
@@ -166,11 +198,23 @@ export default async function handler(req: any, res: any) {
       // hora). Si no cambió el correo pero sí hora o lugar, es un
       // "reagendado". Si no cambió nada de lo anterior (solo notas, teléfono,
       // lote o nombre), no hay nada visible que avisar.
+      //
+      // C1: `recrear` va en `cambioVisible || correoModificado`, NUNCA solo
+      // en `correoModificado`. Los recordatorios ya programados en Resend
+      // llevan el asunto, el cuerpo y el .ics armados con el contenido de la
+      // cita al momento de programarlos. Un PATCH que solo mueve `scheduled_at`
+      // (lo que hace "reprogramar") no puede tocar ese contenido: si la hora o
+      // el lugar cambiaron, hay que cancelar los recordatorios viejos y
+      // programar unos nuevos con el contenido vigente — eso es "recrear". Si
+      // no se hace así, el cliente recibe el recordatorio a la hora nueva
+      // (correcta) pero con el texto de la cita vieja (incorrecto): se
+      // presenta al lugar y la hora equivocados.
+      const recrear = cambioVisible || correoModificado;
       let correo: "enviado" | "fallo" | "no_aplica";
       if (correoModificado) {
-        correo = await avisarAlCliente("confirmacion", cita, { recrear: correoModificado });
+        correo = await avisarAlCliente("confirmacion", cita, { recrear });
       } else if (cambioVisible) {
-        correo = await avisarAlCliente("reagendado", cita, { recrear: correoModificado });
+        correo = await avisarAlCliente("reagendado", cita, { recrear });
       } else {
         correo = "no_aplica";
       }
@@ -199,10 +243,13 @@ export default async function handler(req: any, res: any) {
     // db.ts lanza Error con texto propio en vez de códigos estructurados (está
     // cerrado y revisado, no se toca para esto), así que la única forma limpia
     // de distinguir estos dos casos del resto es comparar el mensaje exacto.
-    // "La cita no existe" no es un error del servidor (404) y "ya fue
-    // cancelada" es un conflicto de estado (409); todo lo demás sigue en 500.
+    // "La cita no existe" no es un error del servidor (404); "ya fue
+    // cancelada" y "ya se realizó" (I2: no se puede tocar una cita que el
+    // cron ya cerró) son conflictos de estado (409); todo lo demás sigue en 500.
     if (mensaje === "Esa cita no existe.") return res.status(404).json({ error: mensaje });
     if (mensaje === "Esa cita ya fue cancelada.") return res.status(409).json({ error: mensaje });
+    if (mensaje === "Esa cita ya se realizó: no se puede editar.") return res.status(409).json({ error: mensaje });
+    if (mensaje === "Esa cita ya se realizó: no se puede cancelar.") return res.status(409).json({ error: mensaje });
 
     return res.status(500).json({ error: mensaje });
   }

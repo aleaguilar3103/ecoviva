@@ -172,7 +172,18 @@ describe("aplicarRecordatorios", () => {
     expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: "em_24", r1h: "em_1" });
   });
 
-  it("reagendar dentro de la ventana: reprograma los existentes, no llama a enviarCorreo", async () => {
+  it("ruta del cron reconciliador (sin recrear): reprograma los existentes, no llama a enviarCorreo", async () => {
+    // Esta es la ruta que usa el reconciliador del cron (api/cron/agenda.ts),
+    // que llama a aplicarRecordatorios SIN `recrear` porque ahí el contenido
+    // de la cita no cambió: solo se está reparando un id que había quedado
+    // pendiente (p. ej. un fallo transitorio de Resend). Reprogramar (PATCH
+    // que solo mueve `scheduled_at`) es correcto acá porque el asunto, el
+    // cuerpo y el .ics ya reflejan la cita vigente.
+    //
+    // OJO: esto NO es lo que pasa cuando alguien mueve una cita desde el
+    // panel — ese camino (api/agenda/citas.ts) SIEMPRE pasa `recrear: true`
+    // cuando cambia algo visible, para que el contenido se regenere. Ver
+    // citas.recrear-recordatorios.test.ts.
     const cita: Cita = {
       ...CITA_BASE,
       inicio: enDias(5).toISOString(),
@@ -234,6 +245,49 @@ describe("aplicarRecordatorios", () => {
   it("si enviarCorreo lanza, no propaga y deja los ids en null", async () => {
     enviarCorreo.mockRejectedValue(new Error("Resend 500"));
     const cita: Cita = { ...CITA_BASE, inicio: enDias(3).toISOString() };
+
+    await expect(aplicarRecordatorios(cita, AHORA)).resolves.toBeUndefined();
+
+    expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: null, r1h: null });
+  });
+
+  it("I5: si reprogramarCorreo falla, el id NO queda huérfano — se intenta cancelar y se deja en null", async () => {
+    // Sin el arreglo, un reprogramar que falla deja el id viejo tal cual en
+    // la fila. El cron reconciliador solo actúa sobre ids en null, así que
+    // ese id nunca se vuelve a tocar: queda apuntando para siempre a un
+    // envío programado a la hora VIEJA de la cita.
+    reprogramarCorreo.mockRejectedValue(new Error("Resend 500"));
+    cancelarCorreo.mockResolvedValue(undefined);
+    const cita: Cita = {
+      ...CITA_BASE,
+      inicio: enDias(5).toISOString(),
+      recordatorio_24h_email_id: "em_24",
+      recordatorio_1h_email_id: "em_1",
+    };
+
+    await expect(aplicarRecordatorios(cita, AHORA)).resolves.toBeUndefined();
+
+    // Se intenta dar de baja el envío viejo (huérfano en Resend, a la hora
+    // que ya no corresponde) antes de soltarlo.
+    expect(cancelarCorreo).toHaveBeenCalledWith("em_24");
+    expect(cancelarCorreo).toHaveBeenCalledWith("em_1");
+    // Y el id queda en null para que el reconciliador del cron lo recree.
+    expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: null, r1h: null });
+  });
+
+  it("I5: si reprogramarCorreo Y el cancelarCorreo de rescate fallan, igual queda en null (no se pierde el rastro)", async () => {
+    // Un segundo fallo (p. ej. la misma caída de Resend que hizo fallar el
+    // reprogramar) no debe frenar el null: peor que un envío huérfano en
+    // Resend es que el cliente no reciba nunca ningún recordatorio nuevo
+    // porque el reconciliador ni se entera de que hace falta uno.
+    reprogramarCorreo.mockRejectedValue(new Error("Resend 500"));
+    cancelarCorreo.mockRejectedValue(new Error("Resend también caído acá"));
+    const cita: Cita = {
+      ...CITA_BASE,
+      inicio: enDias(5).toISOString(),
+      recordatorio_24h_email_id: "em_24",
+      recordatorio_1h_email_id: "em_1",
+    };
 
     await expect(aplicarRecordatorios(cita, AHORA)).resolves.toBeUndefined();
 

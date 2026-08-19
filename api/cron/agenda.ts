@@ -62,7 +62,21 @@ export default async function handler(req: any, res: any) {
       .lt("inicio", ahora.toISOString())
       .select("id");
 
-    if (error) console.error("cron/agenda: no se pudo cerrar las citas pasadas", error);
+    if (error) {
+      console.error("cron/agenda: no se pudo cerrar las citas pasadas", error);
+      // M-c: antes esto seguía respondiendo 200 con completadas:0,
+      // indistinguible de "no había nada que cerrar". Este es el único
+      // mecanismo automático de la rama — que dé verde estando roto es
+      // justo lo que deja un fallo pasar meses sin que nadie lo note. 207
+      // (Multi-Status) porque la reconciliación de arriba SÍ corrió (lo que
+      // le llega al cliente no depende de este housekeeping): es un fallo
+      // parcial, no total.
+      return res.status(207).json({
+        reconciliadas: pendientes.length,
+        completadas: 0,
+        error: "No se pudieron cerrar las citas pasadas",
+      });
+    }
 
     return res.status(200).json({
       reconciliadas: pendientes.length,
