@@ -336,6 +336,12 @@ export default function AgendaManager() {
                 Suscribí esta URL en tu calendario. Es de solo lectura y puede tardar en
                 refrescar — para cambios al instante, usá el panel.
               </p>
+              <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+                Ojo: tratá este enlace como una contraseña. Quien lo tenga ve todas tus
+                citas —nombres, teléfonos y notas internas— sin necesidad de iniciar
+                sesión. Si se te llega a escapar, generá una URL nueva: la vieja deja de
+                servir al toque.
+              </p>
               <input
                 readOnly
                 value={feedUrl}

@@ -17,6 +17,12 @@ import type { Cita } from "../_lib/agenda/db.js";
 // A diferencia del correo al cliente, acá SÍ van el teléfono y las notas
 // internas: es el calendario privado de Alina y Alejandro, no algo que ve el
 // cliente.
+//
+// Es el único endpoint público de todo el proyecto que no exige sesión (el
+// token hace ese papel), así que no puede depender de lo que haga el runtime
+// de Vercel ante una excepción sin capturar: todo lo que puede lanzar
+// (la consulta a app_users y, sobre todo, listarCitas ante un fallo de
+// Postgres) va dentro del try/catch de abajo.
 
 // Misma forma que randomUUID(): 8-4-4-4-12 en hex. Más estricto que "36
 // caracteres cualesquiera" para no gastar una consulta a la base con algo que
@@ -62,39 +68,58 @@ export default async function handler(req: any, res: any) {
   const token = typeof tokenParam === "string" ? tokenParam : "";
   if (!RE_TOKEN.test(token)) return res.status(404).send("No encontrado");
 
-  const { data: usuario, error } = await supabaseAdmin()
-    .from("app_users")
-    .select("user_id, agenda, status")
-    .eq("feed_token", token)
-    .maybeSingle();
+  try {
+    const { data: usuario, error } = await supabaseAdmin()
+      .from("app_users")
+      .select("agenda, status")
+      .eq("feed_token", token)
+      .maybeSingle();
 
-  // Mismo 404 para token inexistente, cuenta sin la bandera `agenda` y cuenta
-  // deshabilitada: son casos distintos para nosotros, pero deben ser
-  // indistinguibles para quien esté probando tokens desde afuera.
-  if (error || !usuario || usuario.agenda !== true || usuario.status !== "active") {
-    return res.status(404).send("No encontrado");
+    // Fail closed: un error de consulta se trata igual que "no existe". Pero
+    // fallar cerrado hacia afuera no es excusa para quedarse ciego hacia
+    // adentro — sin este log, un incidente de Supabase haría que el feed le
+    // devuelva 404 a todo el mundo y no quedaría ni rastro para notarlo.
+    if (error) {
+      console.error("agenda/feed: fallo al consultar app_users por token", error);
+    }
+
+    // Mismo 404 para token inexistente, cuenta sin la bandera `agenda`,
+    // cuenta deshabilitada y fallo de consulta: son casos distintos para
+    // nosotros (arriba quedó el rastro que los distingue), pero deben ser
+    // indistinguibles para quien esté probando tokens desde afuera.
+    if (error || !usuario || usuario.agenda !== true || usuario.status !== "active") {
+      return res.status(404).send("No encontrado");
+    }
+
+    const ahora = Date.now();
+    const citas = await listarCitas({
+      desde: new Date(ahora - VENTANA_ATRAS_DIAS * 24 * 60 * 60_000),
+      hasta: new Date(ahora + VENTANA_ADELANTE_DIAS * 24 * 60 * 60_000),
+    });
+
+    const eventos = citas.map(eventoDesdeCita).join("\r\n");
+
+    const cuerpo =
+      [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//EcoViva Desarrollos//Agenda//ES",
+        "CALSCALE:GREGORIAN",
+        "X-WR-CALNAME:Agenda EcoViva",
+        "X-WR-TIMEZONE:America/Costa_Rica",
+        ...(eventos ? [eventos] : []),
+        "END:VCALENDAR",
+      ].join("\r\n") + "\r\n";
+
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    return res.status(200).send(cuerpo);
+  } catch (e) {
+    // listarCitas (agenda/db.ts, vía reventar) lanza ante cualquier error de
+    // Postgres. Acá NO se responde 404: un 404 le diría al cliente de
+    // calendario "esta suscripción ya no existe" y algunos la dan de baja
+    // solos ante eso. Es un fallo del servidor — 500, para que el cliente
+    // reintente más tarde sin perder la suscripción.
+    console.error("agenda/feed error", e);
+    return res.status(500).send("Error interno");
   }
-
-  const ahora = Date.now();
-  const citas = await listarCitas({
-    desde: new Date(ahora - VENTANA_ATRAS_DIAS * 24 * 60 * 60_000),
-    hasta: new Date(ahora + VENTANA_ADELANTE_DIAS * 24 * 60 * 60_000),
-  });
-
-  const eventos = citas.map(eventoDesdeCita).join("\r\n");
-
-  const cuerpo =
-    [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//EcoViva Desarrollos//Agenda//ES",
-      "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:Agenda EcoViva",
-      "X-WR-TIMEZONE:America/Costa_Rica",
-      ...(eventos ? [eventos] : []),
-      "END:VCALENDAR",
-    ].join("\r\n") + "\r\n";
-
-  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-  return res.status(200).send(cuerpo);
 }

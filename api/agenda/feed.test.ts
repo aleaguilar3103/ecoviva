@@ -176,6 +176,78 @@ describe("/api/agenda/feed", () => {
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
   });
 
+  it("los cuatro casos malos (token inexistente, agenda=false, disabled, formato inválido) devuelven el MISMO 404 — mismo status y mismo cuerpo, sin distinción hacia afuera", async () => {
+    const resultados: { statusCode: number; body: unknown }[] = [];
+
+    colaFrom = [{ data: null, error: null }];
+    let handler = await cargar();
+    let res = resRecorder();
+    await handler(req({ token: TOKEN_VALIDO }), res);
+    resultados.push({ statusCode: res.statusCode, body: res.body });
+
+    colaFrom = [{ data: { ...CUENTA_OK, agenda: false }, error: null }];
+    handler = await cargar();
+    res = resRecorder();
+    await handler(req({ token: TOKEN_VALIDO }), res);
+    resultados.push({ statusCode: res.statusCode, body: res.body });
+
+    colaFrom = [{ data: { ...CUENTA_OK, status: "disabled" }, error: null }];
+    handler = await cargar();
+    res = resRecorder();
+    await handler(req({ token: TOKEN_VALIDO }), res);
+    resultados.push({ statusCode: res.statusCode, body: res.body });
+
+    handler = await cargar();
+    res = resRecorder();
+    await handler(req({ token: "no-es-un-uuid" }), res);
+    resultados.push({ statusCode: res.statusCode, body: res.body });
+
+    for (const r of resultados) {
+      expect(r.statusCode).toBe(404);
+      expect(r.body).toBe("No encontrado");
+    }
+    // Los cuatro son literalmente indistinguibles entre sí.
+    const unico = new Set(resultados.map((r) => `${r.statusCode}:${r.body}`));
+    expect(unico.size).toBe(1);
+  });
+
+  it("si falla la consulta a app_users, sigue devolviendo el mismo 404 (fail closed) pero deja rastro en el log", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    colaFrom = [{ data: null, error: { message: "conexión con Supabase caída" } }];
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req({ token: TOKEN_VALIDO }), res);
+    // El 404 hacia afuera no cambia: sigue siendo indistinguible de "no existe".
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toBe("No encontrado");
+    // Pero puertas adentro sí queda rastro — sin esto, un incidente de
+    // Supabase sería indistinguible de "no existe" también en los logs.
+    expect(spy).toHaveBeenCalled();
+    const detalleLogueado = spy.mock.calls.some((llamada) =>
+      llamada.some((arg) => arg && typeof arg === "object" && "message" in (arg as object)),
+    );
+    expect(detalleLogueado).toBe(true);
+    spy.mockRestore();
+  });
+
+  it("si listarCitas revienta (fallo de Postgres), responde 500 (no 404) sin propagar la excepción", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    colaFrom = [{ data: CUENTA_OK, error: null }];
+    listarCitas.mockRejectedValue(new Error("No se pudo obtener la agenda."));
+    const handler = await cargar();
+    const res = resRecorder();
+    // No debe lanzar: el handler tiene que atrapar la excepción él mismo.
+    await expect(handler(req({ token: TOKEN_VALIDO }), res)).resolves.not.toThrow();
+    // Nunca 404: un 404 le diría a un cliente de calendario "esta
+    // suscripción ya no existe" y algunos la dan de baja solos ante eso.
+    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).not.toBe(404);
+    // El detalle crudo del error no sale hacia afuera.
+    expect(String(res.body)).not.toMatch(/No se pudo obtener la agenda/);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   describe("VCALENDAR con varias citas", () => {
     it("un solo BEGIN/END VCALENDAR, tantos BEGIN:VEVENT como citas, líneas ≤75 octetos, con teléfono y notas", async () => {
       colaFrom = [{ data: CUENTA_OK, error: null }];
