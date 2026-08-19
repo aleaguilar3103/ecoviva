@@ -271,3 +271,14 @@ export function actualizarCita(
 export function cancelarCita(id: string): Promise<{ cita: CitaRow; correo: "enviado" | "fallo" | "no_aplica" }> {
   return request(`/api/agenda/citas`, { method: "DELETE", body: JSON.stringify({ id }) });
 }
+
+// URL de suscripción del calendario (.ics): el token en esa URL es la
+// credencial — quien la tenga ve la agenda completa, con teléfono y notas.
+// Por eso se puede rotar: la URL vieja deja de servir de inmediato.
+export function getFeedUrl(): Promise<{ url: string }> {
+  return request<{ url: string }>("/api/agenda/feed-token");
+}
+
+export function rotarFeedToken(): Promise<{ url: string }> {
+  return request<{ url: string }>("/api/agenda/feed-token", { method: "POST" });
+}

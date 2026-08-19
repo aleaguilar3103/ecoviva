@@ -5,6 +5,8 @@ import {
   actualizarCita,
   cancelarCita,
   getLots,
+  getFeedUrl,
+  rotarFeedToken,
   type CitaRow,
   type NuevaCita,
   type Lot,
@@ -81,6 +83,10 @@ export default function AgendaManager() {
   // que el botón se deshabilita mientras la petición está en vuelo — mismo
   // patrón que `guardando` para el botón de "Guardar".
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
+  // URL de suscripción del calendario (.ics). null mientras carga o si falló:
+  // en ese caso simplemente no se muestra el bloque, no es un error bloqueante.
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
+  const [rotandoFeed, setRotandoFeed] = useState(false);
 
   // Ventana fija: una semana atrás (para ver lo recién pasado) hasta tres
   // meses adelante. No hay selector de rango en esta tarea, es lo suficiente
@@ -109,7 +115,23 @@ export default function AgendaManager() {
     getLots()
       .then((r) => setLotes(r.lots))
       .catch(() => setLotes([]));
+    getFeedUrl()
+      .then((r) => setFeedUrl(r.url))
+      .catch(() => setFeedUrl(null));
   }, [recargar]);
+
+  async function rotarFeed() {
+    if (!confirm("La URL actual dejará de funcionar. ¿Seguir?")) return;
+    setRotandoFeed(true);
+    try {
+      const r = await rotarFeedToken();
+      setFeedUrl(r.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar la URL nueva.");
+    } finally {
+      setRotandoFeed(false);
+    }
+  }
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -306,6 +328,39 @@ export default function AgendaManager() {
               </button>
             )}
           </div>
+
+          {feedUrl && (
+            <div className="mt-6 border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold text-slate-700">Ver la agenda en tu celular</p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Suscribí esta URL en tu calendario. Es de solo lectura y puede tardar en
+                refrescar — para cambios al instante, usá el panel.
+              </p>
+              <input
+                readOnly
+                value={feedUrl}
+                onFocus={(e) => e.target.select()}
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] text-slate-600"
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(feedUrl)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                >
+                  Copiar
+                </button>
+                <button
+                  type="button"
+                  disabled={rotandoFeed}
+                  onClick={rotarFeed}
+                  className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                >
+                  {rotandoFeed ? "Generando…" : "Generar URL nueva"}
+                </button>
+              </div>
+            </div>
+          )}
         </form>
 
         <div className="space-y-3">
