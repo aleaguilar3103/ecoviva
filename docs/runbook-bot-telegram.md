@@ -10,7 +10,7 @@ No hay que repetir nada de esto:
 
 - El bot ya existe en Telegram: `@EcovivacrBot`.
 - `TELEGRAM_BOT_TOKEN` ya está guardado en `.env.local` (local, no en Vercel todavía — eso es el Paso 4).
-- Las migraciones de base de datos ya están aplicadas en producción: las tablas `citas`, `citas_log`, `agenda_acciones_pendientes`, `agenda_jobs`, `telegram_updates` y `agenda_mensajes` ya existen. **No hay que correr ninguna migración en este runbook.**
+- Las tablas de base de datos ya están creadas en producción: `citas`, `citas_log`, `agenda_acciones_pendientes`, `agenda_jobs`, `telegram_updates` y `agenda_mensajes` ya existen. **Queda UNA migración pendiente por correr** (`0012`, de la última ronda de arreglos): se aplica en el Paso 5, antes del deploy.
 - El código ya tiene: autorización por usuario (no por chat), vinculación con código de un solo uso, el agente conversacional con sus 5 herramientas, confirmación por botones, deduplicación de updates, comandos `/hoy` y `/semana`, aviso instantáneo cuando uno agenda algo y le llega a la otra persona, y el resumen diario por cron.
 
 Lo que falta es todo lo de abajo: endurecer el bot en BotFather, generar el secreto del webhook, cargar variables en Vercel, desplegar, registrar el webhook, vincular las dos cuentas, y probar.
@@ -94,7 +94,7 @@ Guardá este valor aparte también (por ejemplo, pegado en una nota temporal) �
 | `CRON_SECRET` | Protege `/api/cron/agenda` (el resumen diario, la purga de mensajes viejos y la reconciliación de recordatorios) para que no sea una URL pública que cualquiera pueda disparar. Pendiente de la fase anterior. |
 | `AGENDA_REPLY_TO` | Valor exacto: `info@ecovivadesarrollos.com`. Es la dirección a la que el cliente responde si contesta el correo de la cita — sin esto, el `reply_to` queda vacío. Pendiente de la fase anterior. |
 
-| `ANTHROPIC_API_KEY` | **Ya debería estar cargada** — la usan ECO (`api/_lib/eco/agent.ts`) y el asistente de prompts del panel. El agente conversacional del bot la usa también (`api/_lib/agenda/agente.ts`): sin ella no arranca, y el síntoma es que el bot contesta `/hoy` y `/semana` sin problema (esos no pasan por el modelo) pero se queda mudo ante cualquier otro texto. No hace falta cargarla de nuevo: solo confirmá que aparezca en la lista. |
+| `ANTHROPIC_API_KEY` | **Ya debería estar cargada** — la usan ECO (`api/_lib/eco/agent.ts`) y el asistente de prompts del panel. El agente conversacional del bot la usa también (`api/_lib/agenda/agente.ts`). No hace falta cargarla de nuevo: solo confirmá que aparezca en la lista. **Cómo se ve si falta:** `/hoy` y `/semana` siguen funcionando (no pasan por el modelo), y ante cualquier otro texto el bot contesta `"Se me complicó, probá de nuevo."` — **ese texto NO es una señal distintiva**: es el mismo que sale ante cualquier otro fallo inesperado del bot, así que desde el chat no se puede distinguir. La única forma de confirmarlo es en los logs de `api/telegram/webhook` en Vercel: buscá `"error inesperado al procesar el update"` y fijate si el detalle dice `Could not resolve authentication method`. |
 
 **Cómo saber que salió bien:** las seis primeras variables aparecen listadas en Settings → Environment Variables, cada una con las tres casillas (Production/Preview/Development) marcadas, y la séptima (`ANTHROPIC_API_KEY`) aparece también aunque no la hayas tocado vos.
 
@@ -104,7 +104,27 @@ No sigas al Paso 5 hasta que las seis estén cargadas y hayas confirmado que `AN
 
 ---
 
-## Paso 5 — Desplegar
+## Paso 5 — Aplicar la migración 0012 y desplegar
+
+**5.1 — La migración.** Entrá al panel de Supabase → **SQL Editor** y corré el contenido de `supabase/migrations/0012_citas_log_completada.sql`. Son dos líneas: amplían el check de `citas_log.accion` para que acepte `'completada'`, que es la acción con la que el cron registra las citas que cierra solo.
+
+```sql
+alter table public.citas_log drop constraint if exists citas_log_accion_check;
+alter table public.citas_log add constraint citas_log_accion_check
+  check (accion in ('creada','movida','editada','cancelada','reenviada','completada'));
+```
+
+Corré esto **antes** del deploy. Es compatible hacia atrás (solo agrega un valor permitido, no saca ninguno), así que el código viejo sigue andando igual mientras tanto.
+
+**Cómo saber que salió bien:** el SQL Editor dice "Success. No rows returned". Para confirmarlo de verdad, corré esto y tiene que aparecer `completada` en la definición:
+
+```sql
+select pg_get_constraintdef(oid) from pg_constraint where conname = 'citas_log_accion_check';
+```
+
+**Si sale mal / si te la saltás:** no se rompe nada visible — las citas pasadas se siguen cerrando igual. Lo que pasa es que el cron va a loguear `"agenda/db: no se pudo registrar el cierre automático en citas_log"` una vez por corrida, y la bitácora se queda sin el único cambio de estado automático del sistema. Si ves ese log en Vercel, es que esta migración no se aplicó.
+
+**5.2 — El deploy.**
 
 ```bash
 git push origin main
@@ -122,7 +142,7 @@ curl -s -o /dev/null -w "%{http_code}" https://www.ecovivadesarrollos.com/api/te
 
 Tiene que devolver **`405`**.
 
-**Por qué 405 y no 401:** este `curl` sin `-X POST` es un GET. El handler revisa el método ANTES que el secreto — `api/telegram/webhook.ts:559-560` corta con 405 si el método no es POST, y recién en la línea `:567-570` mira la cabecera del secreto. Un GET nunca llega a esa segunda revisión, así que el 401 no puede salir por este camino aunque el secreto esté mal cargado o ni siquiera exista todavía. **No cambies este curl a POST** — lo que este paso prueba es que la función respondió (y no el HTML del sitio, que significaría que el deploy no llegó a levantar la función).
+**Por qué 405 y no 401:** este `curl` sin `-X POST` es un GET. El handler revisa el método ANTES que el secreto — en `api/telegram/webhook.ts`, la primera puerta del `handler` corta con 405 si el método no es POST (`"Método no permitido"`), y recién la segunda mira la cabecera `x-telegram-bot-api-secret-token` para decidir el 401. Un GET nunca llega a esa segunda revisión, así que el 401 no puede salir por este camino aunque el secreto esté mal cargado o ni siquiera exista todavía. **No cambies este curl a POST** — lo que este paso prueba es que la función respondió (y no el HTML del sitio, que significaría que el deploy no llegó a levantar la función).
 
 **Si sale mal:**
 - Si devuelve `200` con HTML: el deploy no está activo todavía, o la ruta no se resolvió a la función — revisá el estado del deployment en Vercel.
@@ -221,7 +241,16 @@ Esto es nuevo respecto de lo que se armó al principio: cuando una persona agend
 
 **Cómo saber que salió bien:** Alina recibe ese mensaje en segundos (no minutos) después de que vos confirmás. Vos NO recibís ningún aviso de tu propia acción — eso es esperado, no un bug.
 
-**Si sale mal:** si Alina no recibe nada, confirmá primero que su cuenta esté vinculada (`telegram_chat_id` no nulo en su fila de `app_users` — podés verlo desde el panel: la pestaña Agenda de Alina tiene que mostrar "ya está vinculada") y que tenga `agenda = true`. Si eso está bien y aun así no llega nada, mirá los logs de la función `api/telegram/webhook` en Vercel buscando `"agenda/avisos: no se pudo avisar"` — ese log no tumba la cita (la cita ya quedó creada igual), pero te dice por qué no salió el aviso.
+**Si sale mal:** si Alina no recibe nada, revisá su fila en `app_users`. Hacen falta **las cuatro** condiciones a la vez, no solo las dos obvias — son exactamente las mismas cuatro que exige el bot para dejarla entrar (ver "Contesta 'No tenés acceso.'" al final):
+
+- `telegram_chat_id` no nulo (si nunca completó `/vincular`, esto está vacío). Podés verlo desde el panel: la pestaña Agenda de Alina tiene que mostrar "ya está vinculada".
+- `agenda = true`.
+- `role = 'admin'` (si quedó como `'vendedor'`, no recibe aviso aunque tenga `agenda = true`).
+- `status = 'active'` (si quedó `'disabled'`, tampoco).
+
+Las tres últimas son la definición compartida de "tiene acceso a la agenda" (`api/_lib/agenda/permisos.ts`), la misma que usan el panel, el bot y el feed `.ics`: mirar solo `agenda` es el error que hay que evitar acá, porque una persona a la que le revocaron el acceso desde la pestaña Usuarios sigue teniendo `agenda = true` en su fila y aun así —correctamente— no recibe nada.
+
+Si las cuatro están bien y aun así no llega nada, mirá los logs de la función `api/telegram/webhook` en Vercel buscando `"agenda/avisos: no se pudo avisar"` — ese log no tumba la cita (la cita ya quedó creada igual), pero te dice por qué no salió el aviso.
 
 Repetí la prueba al revés (Alina agenda algo, vos recibís el aviso) si querés confirmar los dos sentidos. Cancelá después la cita de prueba que quedó (mandale al bot `"cancelá la cita de prueba de Juan Pérez"` y confirmá).
 
@@ -260,7 +289,7 @@ Todos los días a las **11:00 UTC (5:00 a.m. de Costa Rica)** corre el cron `/ap
 **Si sale mal:**
 - No hay ninguna fila en `agenda_jobs` para la fecha de hoy/ayer → el cron no corrió. Confirmá en Vercel → proyecto `ecoviva` → **Settings → Cron Jobs** que `/api/cron/agenda` aparece listado y activo (los crons solo corren en deployments de Production).
 - Hay fila pero `resumen_enviado_at` en `null` → el cron corrió y el resumen no salió: o falló `resumenDiario`, o no había a quién mandárselo (nadie con la agenda vinculada), o Telegram estaba caído, o falló el registro posterior. Mirá los logs de esa invocación de la función en Vercel, buscando `"cron/agenda: fallo al mandar el resumen diario"` y `"no se pudo mandar el resumen diario a"`. **Ojo:** como `agenda_jobs.fecha` es la llave primaria, ese día ya no se reintenta solo — si querés forzarlo, borrá la fila de esa fecha y volvé a disparar el cron.
-- El mensaje le llega a uno y al otro no → esa persona no tiene `telegram_chat_id` guardado (no completó la vinculación), o su fila de `app_users` no cumple las tres condiciones de acceso a la agenda (`status='active'` **y** `role='admin'` **y** `agenda=true`) — las mismas cuatro condiciones del Paso 10, porque desde la revisión final los avisos, el bot, el feed y el panel comparten una única definición (`api/_lib/agenda/permisos.ts`). Revocarle el acceso a alguien desde la pestaña Usuarios le corta también los avisos y el resumen, que es lo que se espera.
+- El mensaje le llega a uno y al otro no → a esa persona le falta alguna de **las cuatro** condiciones que enumera el Paso 10: `telegram_chat_id` no nulo, `agenda = true`, `role = 'admin'` y `status = 'active'`. Las tres últimas son la definición compartida de acceso a la agenda (`api/_lib/agenda/permisos.ts`), así que revocarle el acceso a alguien desde la pestaña Usuarios le corta también los avisos y el resumen — eso es lo esperado, no una falla.
 
 ---
 
