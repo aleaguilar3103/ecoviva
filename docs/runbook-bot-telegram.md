@@ -48,9 +48,14 @@ Por qué: el código ya exige chat privado (`chatType !== "private"` corta el ac
 curl "https://api.telegram.org/bot$TOKEN/getMe"
 ```
 
-— y en la respuesta tiene que aparecer `"can_join_groups":false`.
+— y en la respuesta tienen que aparecer **los dos** campos, uno por cada cambio que hiciste arriba:
 
-**Si sale mal:** si `can_join_groups` sigue en `true`, repetí `/setjoingroups` en BotFather asegurándote de elegir `@EcovivacrBot` en el selector (BotFather administra varios bots a la vez si tenés más de uno, y es fácil tocar el bot equivocado).
+- `"can_join_groups":false` → corresponde al `/setjoingroups` del punto 1.
+- `"can_read_all_group_messages":false` → corresponde al `/setprivacy` del punto 2 (privacidad **Enable** significa que el bot NO lee todos los mensajes de un grupo, así que este campo tiene que quedar en `false`).
+
+Si mirás solo el primero, podés saltarte el punto 2 sin enterarte.
+
+**Si sale mal:** si alguno de los dos sigue en `true`, repetí el comando que le corresponde en BotFather asegurándote de elegir `@EcovivacrBot` en el selector (BotFather administra varios bots a la vez si tenés más de uno, y es fácil tocar el bot equivocado).
 
 ---
 
@@ -89,11 +94,13 @@ Guardá este valor aparte también (por ejemplo, pegado en una nota temporal) �
 | `CRON_SECRET` | Protege `/api/cron/agenda` (el resumen diario, la purga de mensajes viejos y la reconciliación de recordatorios) para que no sea una URL pública que cualquiera pueda disparar. Pendiente de la fase anterior. |
 | `AGENDA_REPLY_TO` | Valor exacto: `info@ecovivadesarrollos.com`. Es la dirección a la que el cliente responde si contesta el correo de la cita — sin esto, el `reply_to` queda vacío. Pendiente de la fase anterior. |
 
-**Cómo saber que salió bien:** las seis variables aparecen listadas en Settings → Environment Variables, cada una con las tres casillas (Production/Preview/Development) marcadas.
+| `ANTHROPIC_API_KEY` | **Ya debería estar cargada** — la usan ECO (`api/_lib/eco/agent.ts`) y el asistente de prompts del panel. El agente conversacional del bot la usa también (`api/_lib/agenda/agente.ts`): sin ella no arranca, y el síntoma es que el bot contesta `/hoy` y `/semana` sin problema (esos no pasan por el modelo) pero se queda mudo ante cualquier otro texto. No hace falta cargarla de nuevo: solo confirmá que aparezca en la lista. |
+
+**Cómo saber que salió bien:** las seis primeras variables aparecen listadas en Settings → Environment Variables, cada una con las tres casillas (Production/Preview/Development) marcadas, y la séptima (`ANTHROPIC_API_KEY`) aparece también aunque no la hayas tocado vos.
 
 **Si sale mal:** si Vercel te da un error de permisos a vos también, el proyecto puede tener un dueño distinto del que esperás — confirmá que estás en el equipo/cuenta correcta antes de seguir.
 
-No sigas al Paso 5 hasta que las seis estén cargadas — un deploy sin ellas va a fallar en runtime, no en el build, así que el error no se nota hasta que alguien le escribe al bot.
+No sigas al Paso 5 hasta que las seis estén cargadas y hayas confirmado que `ANTHROPIC_API_KEY` está — un deploy sin ellas va a fallar en runtime, no en el build, así que el error no se nota hasta que alguien le escribe al bot.
 
 ---
 
@@ -157,8 +164,8 @@ Tiene que devolver `"url":"https://www.ecovivadesarrollos.com/api/telegram/webho
 1. Abrí `https://www.ecovivadesarrollos.com/admin` e iniciá sesión con tu usuario del panel.
 2. Andá a la pestaña **Agenda**.
 3. Vas a ver una sección **"Conectar Telegram"**. Tocá el botón **"Conectar Telegram"**.
-4. El panel te muestra un código de 6 dígitos y te dice que le mandes `/vincular <código>` a `@EcovivacrBot`. El código dura 10 minutos.
-5. Abrí Telegram, buscá `@EcovivacrBot`, y mandale exactamente `/vincular` seguido del código, por ejemplo `/vincular 123456`.
+4. El panel te muestra un código de 8 dígitos y te dice que le mandes `/vincular <código>` a `@EcovivacrBot`. El código dura 10 minutos.
+5. Abrí Telegram, buscá `@EcovivacrBot`, y mandale exactamente `/vincular` seguido del código, por ejemplo `/vincular 12345678`. Tiene que ser el código completo: el bot rechaza cualquier cosa que no sean exactamente ocho dígitos, sin siquiera consultar la base.
 
 **Cómo saber que salió bien:** el bot contesta `Listo, <tu nombre>. Ya podés escribirme /hoy o /semana.` (o simplemente `Listo. Ya podés escribirme /hoy o /semana.` si el panel no tiene tu nombre guardado). Además, si volvés a la pestaña Agenda del panel y refrescás, la sección ahora dice que la cuenta ya está vinculada, con un botón "Desvincular".
 
@@ -174,7 +181,7 @@ Tiene que devolver `"url":"https://www.ecovivadesarrollos.com/api/telegram/webho
 Exactamente el mismo procedimiento que el Paso 7, pero Alina lo hace con su propia cuenta:
 
 1. Alina abre `https://www.ecovivadesarrollos.com/admin` e inicia sesión con **su** usuario del panel (no el tuyo).
-2. Pestaña Agenda → "Conectar Telegram" → le sale su propio código de 6 dígitos.
+2. Pestaña Agenda → "Conectar Telegram" → le sale su propio código de 8 dígitos.
 3. Desde **su** cuenta de Telegram (no la tuya), le manda `/vincular <código>` a `@EcovivacrBot`.
 
 **Cómo saber que salió bien:** el bot le contesta a Alina el mismo `Listo, <su nombre>. Ya podés escribirme /hoy o /semana.` en su propio chat con el bot.
@@ -244,7 +251,7 @@ Esta es la que confirma que todo el circuito funciona con un cliente real de por
 
 Todos los días a las **11:00 UTC (5:00 a.m. de Costa Rica)** corre el cron `/api/cron/agenda` (configurado en `vercel.json`), que entre otras cosas manda por Telegram el resumen de las citas del día a todo el que tenga la agenda vinculada. Como recién estás desplegando esto, la corrida de hoy probablemente ya pasó (o todavía no) — de cualquier forma no hace falta esperar hasta mañana para confirmar que está bien armado:
 
-**Verificación inmediata (sin esperar al cron):** entrá al panel de Supabase → **Table Editor** → tabla `agenda_jobs`. Si el cron ya corrió alguna vez desde que este código está desplegado, vas a ver una fila con la fecha de hoy (formato `YYYY-MM-DD`, zona horaria Costa Rica) y la columna `resumen_enviado_at` con un timestamp (no `null`). Una fila con `fecha` de hoy pero `resumen_enviado_at` en `null` significa que el cron reclamó el día pero el envío falló — revisá los logs de la función `api/cron/agenda` en Vercel.
+**Verificación inmediata (sin esperar al cron):** entrá al panel de Supabase → **Table Editor** → tabla `agenda_jobs`. Si el cron ya corrió alguna vez desde que este código está desplegado, vas a ver una fila con la fecha de hoy (formato `YYYY-MM-DD`, zona horaria Costa Rica) y la columna `resumen_enviado_at` con un timestamp (no `null`). Ese timestamp solo se escribe si el resumen le llegó **a alguien** de verdad: una fila con `fecha` de hoy pero `resumen_enviado_at` en `null` significa que el cron reclamó el día y el envío no le llegó a nadie — revisá los logs de la función `api/cron/agenda` en Vercel.
 
 **Verificación al día siguiente (la definitiva):** al otro día, entre las 5:00 y las 6:00 a.m. de Costa Rica (el plan Hobby de Vercel corre los cron con hasta 59 minutos de margen, así que no es al segundo), tanto vos como Alina tienen que recibir en Telegram un mensaje que empieza con `"Hoy:"` seguido de la lista de citas del día, o `"Hoy no hay citas."` si no hay ninguna agendada. Ese mensaje corto en un día vacío es a propósito — confirma que el cron corrió aunque no haya nada que listar.
 
@@ -252,8 +259,8 @@ Todos los días a las **11:00 UTC (5:00 a.m. de Costa Rica)** corre el cron `/ap
 
 **Si sale mal:**
 - No hay ninguna fila en `agenda_jobs` para la fecha de hoy/ayer → el cron no corrió. Confirmá en Vercel → proyecto `ecoviva` → **Settings → Cron Jobs** que `/api/cron/agenda` aparece listado y activo (los crons solo corren en deployments de Production).
-- Hay fila pero `resumen_enviado_at` en `null` → el cron corrió pero `resumenDiario` o el registro posterior fallaron. Mirá los logs de esa invocación de la función en Vercel, buscando `"cron/agenda: fallo al mandar el resumen diario"`.
-- El mensaje le llega a uno y al otro no → esa persona no tiene `telegram_chat_id` guardado (no completó la vinculación) o tiene `agenda = false` — mismo chequeo que en el Paso 10.
+- Hay fila pero `resumen_enviado_at` en `null` → el cron corrió y el resumen no salió: o falló `resumenDiario`, o no había a quién mandárselo (nadie con la agenda vinculada), o Telegram estaba caído, o falló el registro posterior. Mirá los logs de esa invocación de la función en Vercel, buscando `"cron/agenda: fallo al mandar el resumen diario"` y `"no se pudo mandar el resumen diario a"`. **Ojo:** como `agenda_jobs.fecha` es la llave primaria, ese día ya no se reintenta solo — si querés forzarlo, borrá la fila de esa fecha y volvé a disparar el cron.
+- El mensaje le llega a uno y al otro no → esa persona no tiene `telegram_chat_id` guardado (no completó la vinculación), o su fila de `app_users` no cumple las tres condiciones de acceso a la agenda (`status='active'` **y** `role='admin'` **y** `agenda=true`) — las mismas cuatro condiciones del Paso 10, porque desde la revisión final los avisos, el bot, el feed y el panel comparten una única definición (`api/_lib/agenda/permisos.ts`). Revocarle el acceso a alguien desde la pestaña Usuarios le corta también los avisos y el resumen, que es lo que se espera.
 
 ---
 
@@ -265,12 +272,15 @@ Síntomas reales y dónde mirar primero:
 Corré `curl "https://api.telegram.org/bot$TOKEN/getWebhookInfo"` y mirá el campo `last_error_message`. Ahí Telegram te dice la última vez que intentó entregar un update y qué pasó (por ejemplo, un timeout o un código de error HTTP). Si `pending_update_count` está subiendo, Telegram está reintentando y no está pudiendo entregar nada — el webhook puede estar mal registrado (repetí el Paso 6) o la función puede estar tirando 500 (revisá los logs de `api/telegram/webhook` en Vercel).
 
 **Contesta "No tenés acceso." a alguien que sí debería entrar.**
-El bot autoriza por `from.id` contra la tabla `app_users`, y exige **las cuatro** condiciones a la vez (`api/telegram/webhook.ts`, función `autorizar`) — no solo dos:
+El bot autoriza por `from.id` contra la tabla `app_users`, y exige **las cuatro** condiciones a la vez (`api/telegram/webhook.ts`, función `autorizar`) — no solo dos. Las tres últimas son la definición compartida de "tiene acceso a la agenda" (`api/_lib/agenda/permisos.ts`), la misma que usan el panel, el feed `.ics` y los avisos: si una persona queda afuera del bot por alguna de ellas, queda afuera de las cuatro puertas a la vez, que es lo que se espera al revocarle el acceso desde la pestaña Usuarios.
 - `telegram_chat_id` tiene que coincidir con el ID de Telegram de esa persona (si nunca hizo `/vincular` con éxito, esto está vacío).
 - `agenda` tiene que ser `true` (el permiso para usar la agenda compartida).
 - `role` tiene que ser `'admin'` (si por error quedó como `'vendedor'`, se lo rechaza aunque tenga `agenda = true`).
 - `status` tiene que ser `'active'` (si quedó `'disabled'`, también se lo rechaza).
 Revisá los cuatro campos de esa fila en `app_users`, no solo `agenda` y `telegram_chat_id`.
+
+**El bot tarda mucho y a veces no contesta a un mensaje de texto libre (pero `/hoy` y `/semana` sí funcionan).**
+Los comandos fijos no pasan por el modelo; el texto libre sí, y ese turno entero corre en segundo plano (`waitUntil`) después de que la función ya contestó 200. `vercel.json` le declara `maxDuration: 60` al webhook — el techo del plan Hobby — pero si un turno se pasa de ahí, la invocación se corta y la persona no ve respuesta. Mirá los logs de `api/telegram/webhook` en Vercel y fijate en la **duración** de esas invocaciones: si están cerca de los 60 s, avisá antes de seguir usando el bot para agendar. El caso feo es que el corte caiga justo después de tocar "Confirmar": la cita quedó creada y el correo al cliente ya salió, pero el chat no lo muestra. Ante la duda, **mirá el panel antes de volver a pedirle lo mismo al bot** — pedirlo de nuevo crea una cita nueva y le manda un segundo correo al mismo cliente.
 
 **Los botones "Confirmar"/"Cancelar" no hacen nada al tocarlos.**
 Casi seguro que el `setWebhook` del Paso 6 quedó sin `callback_query` en `allowed_updates` — Telegram ni siquiera te manda ese update. Repetí el Paso 6 con el `allowed_updates` completo tal cual está escrito ahí.

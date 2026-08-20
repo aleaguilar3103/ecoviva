@@ -292,7 +292,7 @@ export function rotarFeedToken(): Promise<{ url: string }> {
 }
 
 // Vinculación con Telegram: el código de un solo uso que la persona le manda
-// a @EcovivacrBot con "/vincular 123456".
+// a @EcovivacrBot con "/vincular 12345678".
 //
 // getEstadoTelegram() es de solo lectura (GET): solo dice si la cuenta ya
 // está vinculada, sin generar nada — es lo que se llama al montar el panel.

@@ -161,7 +161,7 @@ describe("/api/agenda/telegram-link", () => {
 
   // ── POST: acá vive la generación, gatillada solo por el botón. ──
 
-  it("POST genera un código de 6 dígitos, rellenado con ceros, y lo guarda con expiración futura", async () => {
+  it("POST genera un código de 8 dígitos, rellenado con ceros, y lo guarda con expiración futura", async () => {
     requireAgenda.mockResolvedValue(YO);
     randomInt.mockReturnValue(42); // random chico a propósito: exige el padStart
     vi.useFakeTimers();
@@ -172,21 +172,25 @@ describe("/api/agenda/telegram-link", () => {
     await handler(req("POST"), res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.codigo).toBe("000042");
+    expect(res.body.codigo).toBe("00000042");
     expect(res.body.vinculado).toBeUndefined();
     // 10 minutos exactos desde "ahora".
     expect(res.body.expira).toBe("2026-08-19T12:10:00.000Z");
     expect(updateSpy).toHaveBeenCalledWith({
-      telegram_codigo: "000042",
+      telegram_codigo: "00000042",
       telegram_codigo_expira: "2026-08-19T12:10:00.000Z",
     });
-    // randomInt, no Math.random: el rango pedido es [0, 1_000_000).
-    expect(randomInt).toHaveBeenCalledWith(0, 1_000_000);
+    // randomInt, no Math.random. M-3: el rango subió a [0, 100_000_000) — 8
+    // dígitos en vez de 6. /vincular corre ANTES de la autorización (tiene
+    // que: la persona todavía no está vinculada) y no lleva contador de
+    // intentos, así que lo único que acota el adivinado es el tamaño del
+    // espacio: 100 veces más grande, con la misma ventana de 10 minutos.
+    expect(randomInt).toHaveBeenCalledWith(0, 100_000_000);
   });
 
   it("dos POST seguidos: el segundo código reemplaza al primero, no se acumulan", async () => {
     requireAgenda.mockResolvedValue(YO);
-    randomInt.mockReturnValueOnce(111111).mockReturnValueOnce(222222);
+    randomInt.mockReturnValueOnce(11111111).mockReturnValueOnce(22222222);
     const handler = await cargar();
 
     colaFrom = [{ data: null, error: null }];
@@ -197,11 +201,11 @@ describe("/api/agenda/telegram-link", () => {
     const res2 = resRecorder();
     await handler(req("POST"), res2);
 
-    expect(res1.body.codigo).toBe("111111");
-    expect(res2.body.codigo).toBe("222222");
+    expect(res1.body.codigo).toBe("11111111");
+    expect(res2.body.codigo).toBe("22222222");
     expect(updateSpy).toHaveBeenCalledTimes(2);
     expect(updateSpy).toHaveBeenNthCalledWith(2, {
-      telegram_codigo: "222222",
+      telegram_codigo: "22222222",
       telegram_codigo_expira: expect.any(String),
     });
   });

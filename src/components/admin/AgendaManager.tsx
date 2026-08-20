@@ -523,9 +523,13 @@ export default function AgendaManager() {
                     Para manejar la agenda desde el celular, mandale este mensaje al bot{" "}
                     <strong>@EcovivacrBot</strong> en Telegram:
                   </p>
-                  <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-center text-xs text-slate-600">
-                    /vincular{" "}
-                    <span className="font-mono text-2xl font-bold tracking-[0.2em] text-slate-900">
+                  {/* M-3: el código pasó de 6 a 8 dígitos. Con el comando en
+                      la misma línea ya no entra cómodo en la columna de
+                      380px, así que va arriba y el código abajo, solo, en
+                      grande — que además es lo que se copia. */}
+                  <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-center text-xs text-slate-600">
+                    /vincular
+                    <span className="mt-1 block font-mono text-2xl font-bold tracking-[0.15em] text-slate-900">
                       {codigoGenerado.codigo}
                     </span>
                   </p>

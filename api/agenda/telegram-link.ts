@@ -28,8 +28,22 @@ const VIGENCIA_MS = 10 * 60_000;
 
 // crypto.randomInt (no Math.random): el código habilita acceso a la agenda
 // de dos personas, así que tiene que salir de un generador criptográfico.
+//
+// M-3: ocho dígitos, no seis. De las cuatro entradas del sistema, esta es la
+// más débil — las otras usan un secreto de 32 bytes (webhook), un uuid v4
+// (feed) y CRON_SECRET. `/vincular` tiene que correr ANTES de la autorización
+// (justamente sirve para obtenerla), así que no hay a quién limitarle los
+// intentos: un código fallido viene de alguien que todavía no es nadie para el
+// sistema. Sin contador de intentos, lo único que acota el adivinado es el
+// tamaño del espacio, y el bot y el protocolo exacto están publicados en un
+// repo público (docs/runbook-bot-telegram.md). Ocho dígitos lo hacen 100 veces
+// más grande con la misma ventana de 10 minutos, sin costarle nada a la
+// persona: lo copia y lo pega igual.
+const DIGITOS_CODIGO = 8;
+const TOPE_CODIGO = 10 ** DIGITOS_CODIGO;
+
 function generarCodigo(): string {
-  return String(randomInt(0, 1_000_000)).padStart(6, "0");
+  return String(randomInt(0, TOPE_CODIGO)).padStart(DIGITOS_CODIGO, "0");
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

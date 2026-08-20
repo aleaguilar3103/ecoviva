@@ -33,8 +33,9 @@ import { COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda, type FilaAccesoAgenda } from
 // de 10 s — menos que un turno del agente con varias vueltas contra el modelo.
 // Esto REDUCE la ventana, no la elimina: si la invocación igual se corta entre
 // `consumirAccion` y el `editarMensaje` final, la cita quedó creada y el correo
-// ya salió, y la persona no ve respuesta. El Paso 12-bis del runbook manda
-// medir el tiempo real de un turno contra ese límite.
+// ya salió, y la persona no ve respuesta. El runbook lo documenta en "Qué
+// hacer si algo falla" ("El bot tarda mucho y a veces no contesta"), con la
+// instrucción de mirar el panel antes de volver a pedirle lo mismo al bot.
 
 // ── Autorización ──
 //
@@ -228,9 +229,21 @@ async function responderSemana(chatId: string): Promise<void> {
 // agenda y de quién es. Por eso la respuesta ante un chat no privado es la
 // misma línea seca que usa `autorizar`: no explica nada, no menciona que
 // existe un comando de vinculación.
+// M-3: la FORMA del código se valida acá, antes de tocar la base. El panel
+// genera exactamente ocho dígitos (telegram-link.ts), así que cualquier otra
+// cosa no puede existir como código vigente y no hay razón para gastarle una
+// consulta — ni para dejar que texto arbitrario llegue a un filtro. No hay
+// contador de intentos a propósito: este comando corre ANTES de la
+// autorización (es lo que sirve para obtenerla), así que quien falla todavía
+// no es nadie para el sistema y no hay a quién contarle los intentos. Lo que
+// acota el adivinado es el tamaño del espacio — ver el porqué completo en
+// api/agenda/telegram-link.ts.
+const RE_CODIGO_VINCULAR = /^\d{8}$/;
+
 function extraerCodigo(texto: string): string | null {
   const partes = texto.trim().split(/\s+/);
-  return partes.length >= 2 ? partes[1] : null;
+  if (partes.length < 2) return null;
+  return RE_CODIGO_VINCULAR.test(partes[1]) ? partes[1] : null;
 }
 
 // Devuelve el texto a mandar y si el código LLEGÓ A CONSUMIRSE, en vez de

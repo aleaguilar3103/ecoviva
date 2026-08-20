@@ -432,7 +432,7 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     const update = updateBase({
       message: {
         message_id: 1,
-        text: "/vincular 123456",
+        text: "/vincular 12345678",
         chat: { id: 999, type: "private" },
         from: { id: 999 },
       },
@@ -467,7 +467,7 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     const update = updateBase({
       message: {
         message_id: 1,
-        text: "/vincular 123456",
+        text: "/vincular 12345678",
         chat: { id: -1002222, type: "group" },
         from: { id: 999 },
       },
@@ -515,6 +515,44 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     consoleErrorSpy.mockRestore();
   });
 
+  // M-3: la forma del código se valida ANTES de tocar la base. Sin esto,
+  // cualquier cosa que venga después de "/vincular" iba derecho a un
+  // `.eq("telegram_codigo", ...)`, y un código de largo distinto al que el
+  // panel genera no puede existir jamás.
+  it.each([
+    ["1234567", "un dígito de menos"],
+    ["123456789", "un dígito de más"],
+    ["1234567a", "con una letra"],
+    ["12 345678", "con un espacio"],
+    ["", "vacío"],
+  ])("/vincular con un código mal formado (%s: %s) no consulta la base", async (codigo) => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(
+      req({
+        secreto: SECRETO,
+        body: updateBase({
+          update_id: 990,
+          message: {
+            message_id: 1,
+            text: `/vincular ${codigo}`.trim(),
+            chat: { id: 999, type: "private" },
+            from: { id: 999 },
+          },
+        }),
+      }),
+      res,
+    );
+    await esperarProcesamiento();
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(enviarMensaje).toHaveBeenCalledWith(
+      "999",
+      "Ese código no sirve o ya venció. Generá uno nuevo desde el panel.",
+    );
+  });
+
   it("9) el update condicionado devuelve null (código vencido, inexistente o ya consumido) → avisa que no sirve", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
     colas.app_users = [{ data: null, error: null }]; // el where (código + vigencia) no matcheó ninguna fila
@@ -523,7 +561,7 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     const update = updateBase({
       message: {
         message_id: 1,
-        text: "/vincular 999999",
+        text: "/vincular 99999999",
         chat: { id: 999, type: "private" },
         from: { id: 999 },
       },
@@ -550,7 +588,7 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     const update = updateBase({
       message: {
         message_id: 1,
-        text: "/vincular 000000",
+        text: "/vincular 00000000",
         chat: { id: 999, type: "private" },
         from: { id: 999 },
       },
@@ -579,7 +617,7 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     const update = updateBase({
       message: {
         message_id: 1,
-        text: "/vincular 424242",
+        text: "/vincular 42424242",
         chat: { id: 999, type: "private" },
         from: { id: 999 },
       },
