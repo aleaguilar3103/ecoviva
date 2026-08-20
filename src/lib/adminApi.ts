@@ -290,3 +290,15 @@ export function getFeedUrl(): Promise<{ url: string }> {
 export function rotarFeedToken(): Promise<{ url: string }> {
   return request<{ url: string }>("/api/agenda/feed-token", { method: "POST" });
 }
+
+// Vinculación con Telegram: el código de un solo uso que la persona le manda
+// a @EcovivacrBot con "/vincular 123456". Un GET nuevo reemplaza el código
+// anterior, así que no hace falta (ni sirve) guardar el código en el cliente
+// entre pedidos.
+export function getCodigoTelegram(): Promise<{ codigo: string; expira: string; vinculado: boolean }> {
+  return request("/api/agenda/telegram-link");
+}
+
+export function desvincularTelegram(): Promise<{ ok: boolean }> {
+  return request("/api/agenda/telegram-link", { method: "DELETE" });
+}
