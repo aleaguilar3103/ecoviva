@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ErrorAgenda } from "../_lib/agenda/errores.js";
 
 const requireAgenda = vi.fn();
 const listarCitas = vi.fn();
@@ -9,6 +10,7 @@ const obtenerCita = vi.fn();
 const registrarReenvio = vi.fn();
 const enviarAhora = vi.fn();
 const aplicarRecordatorios = vi.fn();
+const avisarCambio = vi.fn();
 
 vi.mock("../_lib/supabase.js", () => ({
   requireAgenda: (...a: unknown[]) => requireAgenda(...a),
@@ -26,6 +28,15 @@ vi.mock("../_lib/agenda/email.js", () => ({
 }));
 vi.mock("../_lib/agenda/recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
+}));
+// operaciones.ts (la orquestación real que ejercita este archivo, sin
+// mockear) llama a avisarCambio después de guardar. Sin este mock corre la
+// implementación real, que revienta contra supabaseAdmin (no exportado acá)
+// — el catch-all de avisos.ts lo absorbe, pero es ruido ajeno a lo que este
+// archivo prueba, y deja a estos tests ciegos a una regresión real en
+// avisarCambio.
+vi.mock("../_lib/agenda/avisos.js", () => ({
+  avisarCambio: (...a: unknown[]) => avisarCambio(...a),
 }));
 
 async function cargar() {
@@ -86,9 +97,11 @@ beforeEach(() => {
   registrarReenvio.mockReset();
   enviarAhora.mockReset();
   aplicarRecordatorios.mockReset();
+  avisarCambio.mockReset();
   // Los recordatorios son un mecanismo aparte del correo inmediato: por
   // default se resuelven solos, salvo que un test necesite lo contrario.
   aplicarRecordatorios.mockResolvedValue(undefined);
+  avisarCambio.mockResolvedValue(undefined);
   registrarReenvio.mockResolvedValue(undefined);
 });
 
@@ -316,7 +329,7 @@ describe("/api/agenda/citas", () => {
   it("PATCH sobre una cita que no existe responde 404, no 500", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
-    actualizarCita.mockRejectedValue(new Error("Esa cita no existe."));
+    actualizarCita.mockRejectedValue(new ErrorAgenda("no_encontrada", "Esa cita no existe."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(
@@ -335,7 +348,7 @@ describe("/api/agenda/citas", () => {
   it("PATCH sobre una cita ya cancelada responde 409, no 500", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
-    actualizarCita.mockRejectedValue(new Error("Esa cita ya fue cancelada."));
+    actualizarCita.mockRejectedValue(new ErrorAgenda("conflicto", "Esa cita ya fue cancelada."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(
@@ -354,7 +367,7 @@ describe("/api/agenda/citas", () => {
   it("(I2) PATCH sobre una cita ya 'completada' responde 409, no 500 — el cron ya la cerró", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
-    actualizarCita.mockRejectedValue(new Error("Esa cita ya se realizó: no se puede editar."));
+    actualizarCita.mockRejectedValue(new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede editar."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(
@@ -416,7 +429,7 @@ describe("/api/agenda/citas", () => {
 
   it("DELETE sobre una cita que no existe responde 404, no 500", async () => {
     requireAgenda.mockResolvedValue(YO);
-    cancelarCita.mockRejectedValue(new Error("Esa cita no existe."));
+    cancelarCita.mockRejectedValue(new ErrorAgenda("no_encontrada", "Esa cita no existe."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("DELETE", { id: "no-existe" }), res);
@@ -425,7 +438,7 @@ describe("/api/agenda/citas", () => {
 
   it("(I2) DELETE sobre una cita ya 'completada' responde 409, no 500 — cancelarla sería avisarle al cliente por una visita que ya hizo", async () => {
     requireAgenda.mockResolvedValue(YO);
-    cancelarCita.mockRejectedValue(new Error("Esa cita ya se realizó: no se puede cancelar."));
+    cancelarCita.mockRejectedValue(new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede cancelar."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("DELETE", { id: "cita-1" }), res);

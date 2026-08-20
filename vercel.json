@@ -3,6 +3,10 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)",     "destination": "/index.html" }
   ],
+  "functions": {
+    "api/telegram/webhook.ts": { "maxDuration": 60 },
+    "api/cron/agenda.ts":      { "maxDuration": 60 }
+  },
   "crons": [
     { "path": "/api/cron/agenda", "schedule": "0 11 * * *" }
   ]

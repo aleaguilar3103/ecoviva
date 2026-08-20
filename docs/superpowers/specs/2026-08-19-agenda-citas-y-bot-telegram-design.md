@@ -238,7 +238,7 @@ panel, no para heredar toda la agenda privada de otro equipo.
 | `api/_lib/agenda/agente.ts` | Bucle de Claude y las cinco herramientas | anthropic, db |
 | `api/agenda/citas.ts` | CRUD para el panel | db, email, recordatorios |
 | `api/agenda/feed.ts` | Feed `.ics` por token | db, ics |
-| `api/agenda/telegram-link.ts` | Generar el código de 6 dígitos | db |
+| `api/agenda/telegram-link.ts` | Generar el código de 8 dígitos | db |
 | `api/cron/agenda.ts` | Resumen, reconciliación, housekeeping | db, recordatorios, telegram |
 | `api/telegram/webhook.ts` | Recibir updates, autorizar, confirmar | agente, db, telegram |
 
@@ -323,8 +323,8 @@ Comandos además del lenguaje natural: `/hoy`, `/semana`, `/vincular <código>`.
 
 ### Vincular Telegram
 
-En el panel, «Conectar Telegram» genera un código de 6 dígitos válido 10 minutos.
-`/vincular 123456` guarda el `chat_id` en la fila de esa persona. Un solo uso.
+En el panel, «Conectar Telegram» genera un código de 8 dígitos válido 10 minutos.
+`/vincular 12345678` guarda el `chat_id` en la fila de esa persona. Un solo uso.
 
 ### Avisos entre ustedes
 

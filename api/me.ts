@@ -1,4 +1,5 @@
 import { requireUser, supabaseAdmin } from "./_lib/supabase.js";
+import { ACCESO_AGENDA, COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda } from "./_lib/agenda/permisos.js";
 
 // /api/me — GET → { email, role, agenda }
 // Existe porque el rol no viaja dentro del JWT y dos pantallas lo necesitan
@@ -16,20 +17,36 @@ export default async function handler(req: any, res: any) {
 
   // La bandera se consulta aparte y no desde el Caller: requireUser corta
   // temprano para los correos break-glass y nunca lee app_users.
+  //
+  // N-1: qué significa "tiene agenda" NO se decide acá. Sale de
+  // `tieneAccesoAgenda` (api/_lib/agenda/permisos.ts), la única definición de
+  // esa regla, que consumen también el panel (requireAgenda), el bot, el feed
+  // .ics y los avisos. Antes esto derivaba la bandera a mano
+  // (`data?.agenda === true`), que es la quinta copia de una regla que existe
+  // una sola vez — y le contestaba `agenda: true` a un vendedor con la bandera
+  // puesta, así que el panel le pintaba la pestaña Agenda y cada endpoint de
+  // adentro le devolvía 401.
+  //
+  // Se evalúa en dos mitades por la MISMA razón que requireAgenda (ver el
+  // comentario largo ahí): `status` y `role` ya los resolvió requireUser,
+  // incluyendo el break-glass de BASE_ADMINS, que pasa por encima de la fila a
+  // propósito. Lo que se evalúa contra la fila real es la bandera.
   let agenda = false;
   if (caller.userId) {
     const { data, error } = await supabaseAdmin()
       .from("app_users")
-      .select("agenda")
+      .select(COLUMNAS_ACCESO_AGENDA)
       .eq("user_id", caller.userId)
-      .maybeSingle();
-    // M-d: esta es la tercera copia de esta misma consulta (junto a
-    // requireAgenda y agenda/feed.ts) y la única que se quedaba muda ante un
-    // error. Sigue fallando cerrado (agenda queda en false), pero sin este
-    // log el síntoma es "me desapareció la pestaña Agenda" sin nada que
-    // mirar para diagnosticarlo.
+      .maybeSingle<{ agenda?: unknown }>();
+    // M-d: sin este log, un fallo de la consulta se ve como "me desapareció la
+    // pestaña Agenda" y no queda nada que mirar para diagnosticarlo. Sigue
+    // fallando cerrado igual (agenda queda en false).
     if (error) console.error("me: fallo al consultar la bandera agenda", error);
-    agenda = data?.agenda === true;
+    agenda = tieneAccesoAgenda({
+      status: ACCESO_AGENDA.status,
+      role: caller.role,
+      agenda: data?.agenda,
+    });
   }
 
   return res.status(200).json({ email: caller.email, role: caller.role, agenda });

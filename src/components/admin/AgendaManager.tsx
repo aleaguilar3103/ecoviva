@@ -8,6 +8,9 @@ import {
   getLots,
   getFeedUrl,
   rotarFeedToken,
+  getEstadoTelegram,
+  generarCodigoTelegram,
+  desvincularTelegram,
   type CitaRow,
   type NuevaCita,
   type Lot,
@@ -54,6 +57,24 @@ function fechaLarga(iso: string): string {
     hour12: true,
     timeZone: "America/Costa_Rica",
   }).format(new Date(iso));
+}
+
+// Solo la hora, para la expiración del código de Telegram: no hace falta la
+// fecha completa porque el código vive nada más 10 minutos.
+function horaCorta(iso: string): string {
+  return new Intl.DateTimeFormat("es-CR", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/Costa_Rica",
+  }).format(new Date(iso));
+}
+
+// mm:ss para la cuenta regresiva del código de Telegram.
+function mmss(segundos: number): string {
+  const m = Math.floor(segundos / 60);
+  const s = String(segundos % 60).padStart(2, "0");
+  return `${m}:${s}`;
 }
 
 // I2: el rango que trae getCitas (-7d..+90d) y el orden ascendente hacen que
@@ -111,6 +132,28 @@ export default function AgendaManager() {
   // en ese caso simplemente no se muestra el bloque, no es un error bloqueante.
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [rotandoFeed, setRotandoFeed] = useState(false);
+  // Si la cuenta ya está vinculada con Telegram. null mientras carga o si
+  // falló la consulta — en ese caso el bloque simplemente no se muestra,
+  // igual que feedUrl. Se pide al montar (GET, de solo lectura) para que
+  // quien ya está vinculado vea "ya vinculada" de una vez, en vez de un
+  // botón "Conectar" que parece decir lo contrario.
+  //
+  // IMPORTANTE: este GET nunca debe generar ni guardar un código — es
+  // exactamente el bug que se arregló acá (ver telegram-link.ts). Generar
+  // algo en cada montaje del panel acuñaría una credencial de 10 minutos
+  // cada vez que alguien abre la pestaña Agenda, sin que nadie la pidiera.
+  const [vinculado, setVinculado] = useState<boolean | null>(null);
+  // El código recién generado (POST), solo existe entre que se pide y se
+  // usa/vence. Nunca se llena automáticamente al montar.
+  const [codigoGenerado, setCodigoGenerado] = useState<{
+    codigo: string;
+    expira: string;
+  } | null>(null);
+  const [generandoTelegram, setGenerandoTelegram] = useState(false);
+  const [desvinculandoTelegram, setDesvinculandoTelegram] = useState(false);
+  // Cuenta regresiva del código vigente, en segundos. null cuando no aplica
+  // (todavía no se pidió código, o ya se usó/venció y se limpió).
+  const [segundosCodigo, setSegundosCodigo] = useState<number | null>(null);
 
   // Ventana fija: una semana atrás (para ver lo recién pasado) hasta tres
   // meses adelante. No hay selector de rango en esta tarea, es lo suficiente
@@ -142,7 +185,25 @@ export default function AgendaManager() {
     getFeedUrl()
       .then((r) => setFeedUrl(r.url))
       .catch(() => setFeedUrl(null));
+    getEstadoTelegram()
+      .then((r) => setVinculado(r.vinculado))
+      .catch(() => setVinculado(null));
   }, [recargar]);
+
+  // Cuenta regresiva del código de Telegram: se recalcula cada segundo
+  // contra `expira`, no con un contador que arranca en 600 y baja — así no
+  // se desincroniza si la pestaña estuvo en segundo plano un rato.
+  useEffect(() => {
+    if (!codigoGenerado) {
+      setSegundosCodigo(null);
+      return;
+    }
+    const calcular = () =>
+      Math.max(0, Math.round((new Date(codigoGenerado.expira).getTime() - Date.now()) / 1000));
+    setSegundosCodigo(calcular());
+    const id = setInterval(() => setSegundosCodigo(calcular()), 1000);
+    return () => clearInterval(id);
+  }, [codigoGenerado]);
 
   async function rotarFeed() {
     if (!confirm("La URL actual dejará de funcionar. ¿Seguir?")) return;
@@ -154,6 +215,34 @@ export default function AgendaManager() {
       setError(e instanceof Error ? e.message : "No se pudo generar la URL nueva.");
     } finally {
       setRotandoFeed(false);
+    }
+  }
+
+  async function pedirCodigoTelegram() {
+    setGenerandoTelegram(true);
+    try {
+      const r = await generarCodigoTelegram();
+      setCodigoGenerado(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el código.");
+    } finally {
+      setGenerandoTelegram(false);
+    }
+  }
+
+  async function desvincularTelegramClick() {
+    if (!confirm("¿Desvincular esta cuenta de Telegram? Vas a dejar de poder manejar la agenda desde el celular hasta que la vincules de nuevo.")) {
+      return;
+    }
+    setDesvinculandoTelegram(true);
+    try {
+      await desvincularTelegram();
+      setVinculado(false);
+      setCodigoGenerado(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo desvincular.");
+    } finally {
+      setDesvinculandoTelegram(false);
     }
   }
 
@@ -406,6 +495,79 @@ export default function AgendaManager() {
                   {rotandoFeed ? "Generando…" : "Generar URL nueva"}
                 </button>
               </div>
+            </div>
+          )}
+
+          {vinculado !== null && (
+            <div className="mt-6 border-t border-slate-100 pt-4">
+              <p className="text-xs font-semibold text-slate-700">Conectar Telegram</p>
+
+              {vinculado ? (
+                <>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Esta cuenta ya está vinculada. Podés agendar, mover y cancelar citas
+                    escribiéndole a <strong>@EcovivacrBot</strong> desde tu celular.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={desvinculandoTelegram}
+                    onClick={desvincularTelegramClick}
+                    className="mt-2 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                  >
+                    {desvinculandoTelegram ? "Desvinculando…" : "Desvincular"}
+                  </button>
+                </>
+              ) : codigoGenerado ? (
+                <>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Para manejar la agenda desde el celular, mandale este mensaje al bot{" "}
+                    <strong>@EcovivacrBot</strong> en Telegram:
+                  </p>
+                  {/* M-3: el código pasó de 6 a 8 dígitos. Con el comando en
+                      la misma línea ya no entra cómodo en la columna de
+                      380px, así que va arriba y el código abajo, solo, en
+                      grande — que además es lo que se copia. */}
+                  <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-center text-xs text-slate-600">
+                    /vincular
+                    <span className="mt-1 block font-mono text-2xl font-bold tracking-[0.15em] text-slate-900">
+                      {codigoGenerado.codigo}
+                    </span>
+                  </p>
+                  <p className="mt-2 text-[11px] text-slate-500">
+                    {segundosCodigo !== null && segundosCodigo > 0 ? (
+                      <>
+                        Sirve por {mmss(segundosCodigo)} más (hasta las{" "}
+                        {horaCorta(codigoGenerado.expira)}).
+                      </>
+                    ) : (
+                      "Este código ya venció — generá uno nuevo."
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={generandoTelegram}
+                    onClick={pedirCodigoTelegram}
+                    className="mt-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {generandoTelegram ? "Generando…" : "Generar código nuevo"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Manejá la agenda desde el celular hablando con el bot{" "}
+                    <strong>@EcovivacrBot</strong> en Telegram.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={generandoTelegram}
+                    onClick={pedirCodigoTelegram}
+                    className="mt-2 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:opacity-60"
+                  >
+                    {generandoTelegram ? "Generando…" : "Conectar Telegram"}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </form>

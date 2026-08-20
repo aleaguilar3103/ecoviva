@@ -57,7 +57,7 @@ function resRecorder() {
 }
 
 const TOKEN_VALIDO = "11111111-1111-1111-1111-111111111111";
-const CUENTA_OK = { user_id: "uid-alina", agenda: true, status: "active" };
+const CUENTA_OK = { user_id: "uid-alina", agenda: true, status: "active", role: "admin" };
 
 // Fila completa de citas.ts, con teléfono y notas — este feed SÍ los muestra.
 const CITA_1 = {
@@ -130,6 +130,31 @@ describe("/api/agenda/feed", () => {
   });
 
   it("cuenta con status='disabled' → 404", async () => {
+    colaFrom = [{ data: { ...CUENTA_OK, status: "disabled" }, error: null }];
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req({ token: TOKEN_VALIDO }), res);
+    expect(res.statusCode).toBe(404);
+    expect(listarCitas).not.toHaveBeenCalled();
+  });
+
+  // ── C-2: el feed es la única puerta que no miraba `role` ──
+  //
+  // Degradar a alguien de admin a vendedor desde la pestaña Usuarios es el
+  // botón que se usaría para dejarla en el equipo pero sin la agenda. Su
+  // `feed_token` sigue existiendo y el celular refresca la suscripción solo:
+  // sin este chequeo, la URL guardada le sigue devolviendo teléfonos y notas
+  // internas de clientes sin que ella tenga que hacer nada.
+  it("cuenta con role='vendedor' (degradada desde el panel) → 404", async () => {
+    colaFrom = [{ data: { ...CUENTA_OK, role: "vendedor" }, error: null }];
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req({ token: TOKEN_VALIDO }), res);
+    expect(res.statusCode).toBe(404);
+    expect(listarCitas).not.toHaveBeenCalled();
+  });
+
+  it("cuenta con agenda=true pero status='disabled' → 404 aunque siga siendo admin", async () => {
     colaFrom = [{ data: { ...CUENTA_OK, status: "disabled" }, error: null }];
     const handler = await cargar();
     const res = resRecorder();

@@ -290,3 +290,25 @@ export function getFeedUrl(): Promise<{ url: string }> {
 export function rotarFeedToken(): Promise<{ url: string }> {
   return request<{ url: string }>("/api/agenda/feed-token", { method: "POST" });
 }
+
+// Vinculación con Telegram: el código de un solo uso que la persona le manda
+// a @EcovivacrBot con "/vincular 12345678".
+//
+// getEstadoTelegram() es de solo lectura (GET): solo dice si la cuenta ya
+// está vinculada, sin generar nada — es lo que se llama al montar el panel.
+// generarCodigoTelegram() es la que efectivamente acuña un código nuevo
+// (POST), y solo debe dispararse por una acción explícita de la persona (el
+// botón "Conectar Telegram"), nunca automáticamente: un código es una
+// credencial de 10 minutos, y generar uno sin que nadie lo pidió deja una
+// ventana de robo abierta de regalo.
+export function getEstadoTelegram(): Promise<{ vinculado: boolean }> {
+  return request("/api/agenda/telegram-link");
+}
+
+export function generarCodigoTelegram(): Promise<{ codigo: string; expira: string }> {
+  return request("/api/agenda/telegram-link", { method: "POST" });
+}
+
+export function desvincularTelegram(): Promise<{ ok: boolean }> {
+  return request("/api/agenda/telegram-link", { method: "DELETE" });
+}

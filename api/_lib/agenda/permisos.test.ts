@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ACCESO_AGENDA, COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda, filtrarAccesoAgenda } from "./permisos.js";
 
 // Mismo patrón que api/admin/users.test.ts: `from()` va sacando la próxima
 // respuesta de una cola en el orden en que el código bajo prueba consulta.
@@ -114,5 +115,59 @@ describe("requireAgenda", () => {
     process.env.ADMIN_API_TOKEN = "token-de-servicio";
     const { requireAgenda } = await cargar();
     expect(await requireAgenda(req("token-de-servicio"))).toBeNull();
+  });
+});
+
+// ── La definición única (C-1/C-2) ──
+//
+// Estos tests fijan la regla en sí. Los de las cuatro puertas que la consumen
+// viven en permisos.test.ts (panel, acá arriba), webhook.test.ts (bot),
+// feed.test.ts (feed .ics) y avisos.test.ts (avisos y resumen diario).
+describe("accesoAgenda — la definición compartida", () => {
+  const OK = { status: "active", role: "admin", agenda: true };
+
+  it("deja pasar solo a quien cumple las tres condiciones", () => {
+    expect(tieneAccesoAgenda(OK)).toBe(true);
+  });
+
+  it("no deja pasar a quien tiene agenda=true pero no está activa", () => {
+    expect(tieneAccesoAgenda({ ...OK, status: "disabled" })).toBe(false);
+  });
+
+  it("no deja pasar a quien tiene agenda=true pero es vendedor", () => {
+    expect(tieneAccesoAgenda({ ...OK, role: "vendedor" })).toBe(false);
+  });
+
+  it("no deja pasar a quien es admin activo pero sin la bandera", () => {
+    expect(tieneAccesoAgenda({ ...OK, agenda: false })).toBe(false);
+  });
+
+  it("falla cerrado ante null, undefined y filas a las que les falta una columna", () => {
+    expect(tieneAccesoAgenda(null)).toBe(false);
+    expect(tieneAccesoAgenda(undefined)).toBe(false);
+    // El caso real: un `select` que se quedó corto. Sin la columna no hay
+    // forma de saber, y "no sé" tiene que ser "no".
+    expect(tieneAccesoAgenda({ status: "active", agenda: true })).toBe(false);
+  });
+
+  it("las columnas a seleccionar salen de la misma definición, no de una lista aparte", () => {
+    for (const columna of Object.keys(ACCESO_AGENDA)) {
+      expect(COLUMNAS_ACCESO_AGENDA).toContain(columna);
+    }
+  });
+
+  it("el filtro de consulta aplica exactamente los mismos pares que el predicado", () => {
+    const llamadas: [string, unknown][] = [];
+    const consulta = {
+      eq(columna: string, valor: unknown) {
+        llamadas.push([columna, valor]);
+        return this;
+      },
+    };
+    filtrarAccesoAgenda(consulta);
+    expect(llamadas).toEqual(Object.entries(ACCESO_AGENDA));
+    // Y lo que el filtro deja pasar es lo mismo que el predicado deja pasar.
+    const fila = Object.fromEntries(llamadas);
+    expect(tieneAccesoAgenda(fila)).toBe(true);
   });
 });

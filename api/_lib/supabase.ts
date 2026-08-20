@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { ACCESO_AGENDA, COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda } from "./agenda/permisos.js";
 
 // Cliente server-side con service_role (bypassa RLS). Solo para uso en /api.
 // Nunca exponer SUPABASE_SERVICE_ROLE_KEY al cliente.
@@ -123,7 +124,7 @@ export async function requireAgenda(req: {
 
   const { data, error } = await supabaseAdmin()
     .from("app_users")
-    .select("agenda")
+    .select(COLUMNAS_ACCESO_AGENDA)
     .eq("user_id", caller.userId)
     .maybeSingle();
 
@@ -131,5 +132,19 @@ export async function requireAgenda(req: {
     console.error("requireAgenda: fallo al consultar la bandera", error);
     return null;
   }
-  return data?.agenda === true ? caller : null;
+
+  // La regla completa vive en api/_lib/agenda/permisos.ts y es la misma que
+  // aplican el bot, el feed y los avisos. Acá se evalúa en dos mitades a
+  // propósito: `status` y `role` ya los resolvió `requireUser` — para una
+  // persona normal cortando si no está activa, y para un BASE_ADMIN pasando
+  // POR ENCIMA de lo que diga su fila, que es justamente lo que hace que el
+  // break-glass no se pueda apagar desde el panel. Sustituirlos acá por los
+  // valores que requireUser ya dio por buenos preserva ese break-glass; lo que
+  // se evalúa contra la fila real es lo que falta, la bandera.
+  const acceso = tieneAccesoAgenda({
+    status: ACCESO_AGENDA.status,
+    role: caller.role,
+    agenda: (data as { agenda?: unknown } | null)?.agenda,
+  });
+  return acceso ? caller : null;
 }

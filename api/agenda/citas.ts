@@ -1,17 +1,21 @@
 import { requireAgenda } from "../_lib/supabase.js";
-import { listarCitas, crearCita, actualizarCita, cancelarCita, obtenerCita, registrarReenvio } from "../_lib/agenda/db.js";
-import type { Cita, DatosCita } from "../_lib/agenda/db.js";
-import { enviarAhora, type ClaseCorreo } from "../_lib/agenda/email.js";
-import { aplicarRecordatorios } from "../_lib/agenda/recordatorios.js";
+import { listarCitas } from "../_lib/agenda/db.js";
+import type { DatosCita } from "../_lib/agenda/db.js";
+import {
+  crearCitaCompleta,
+  actualizarCitaCompleta,
+  cancelarCitaCompleta,
+  reenviarConfirmacion,
+} from "../_lib/agenda/operaciones.js";
+import { esErrorAgenda } from "../_lib/agenda/errores.js";
 
 // /api/agenda/citas — CRUD de la agenda privada. Solo admin con bandera agenda.
 //
-// Crear avisa siempre ("confirmacion"). Cancelar avisa siempre, salvo que la
-// cita ya estuviera cancelada (idempotente: no se manda un segundo correo por
-// un doble clic). Editar decide entre tres correos según qué cambió — ver
-// `cambioVisible` y `correoModificado` en agenda/db.ts y su uso en el PATCH.
-
-const DURACION_MIN = 60; // fija por ahora; la columna existe pero la UI no la expone
+// Capa delgada a propósito: acá solo se valida el body HTTP, se llama a la
+// operación de dominio correspondiente (api/_lib/agenda/operaciones.ts, que
+// comparten este panel y el bot de Telegram) y se traduce el resultado a
+// código de estado. Qué correo mandar y cuándo recrear los recordatorios
+// vive en operaciones.ts — ver ahí `cambioVisible` y `correoModificado`.
 
 function correoValido(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -29,25 +33,6 @@ function textoRequerido(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t.length > 0 && t.length <= 200 ? t : null;
-}
-
-// Se avisa del solape, no se bloquea: con agenda compartida entre dos personas,
-// a veces sí quieren dos cosas a la misma hora. Bloquear crearía más fricción
-// que la que evita.
-async function haySolape(inicioIso: string, excluirId?: string): Promise<boolean> {
-  const inicio = new Date(inicioIso);
-  const fin = new Date(inicio.getTime() + DURACION_MIN * 60_000);
-  // Ventana holgada a ambos lados para traer cualquier cita que pueda solapar.
-  const vecinas = await listarCitas({
-    desde: new Date(inicio.getTime() - 4 * 60 * 60_000),
-    hasta: new Date(inicio.getTime() + 4 * 60 * 60_000),
-  });
-  return vecinas.some((c: Cita) => {
-    if (excluirId && c.id === excluirId) return false;
-    const cIni = new Date(c.inicio).getTime();
-    const cFin = cIni + (c.duracion_min ?? DURACION_MIN) * 60_000;
-    return cIni < fin.getTime() && cFin > inicio.getTime();
-  });
 }
 
 function leerDatos(body: Record<string, unknown>): { datos: DatosCita } | { error: string } {
@@ -76,39 +61,6 @@ function leerDatos(body: Record<string, unknown>): { datos: DatosCita } | { erro
       notas: typeof body.notas === "string" ? body.notas.trim() || null : null,
     },
   };
-}
-
-// El correo va DESPUÉS de guardar y nunca deshace lo guardado. Mismo criterio
-// que api/reserve.ts, donde el lead nunca se pierde porque falle un paso
-// posterior. Se reporta el resultado para que el panel lo pueda mostrar.
-//
-// `opts.recrear` se le pasa tal cual a aplicarRecordatorios: cuando el correo
-// del cliente cambió, los recordatorios ya programados hay que recrearlos
-// (cancelar los viejos y crear nuevos), porque Resend no permite cambiar el
-// destinatario de un envío ya programado.
-async function avisarAlCliente(
-  clase: ClaseCorreo,
-  cita: Cita,
-  opts: { recrear?: boolean } = {},
-): Promise<"enviado" | "fallo"> {
-  // Los recordatorios se acomodan siempre, salga o no el correo inmediato: son
-  // mecanismos independientes y el fallo de uno no debe arrastrar al otro.
-  // aplicarRecordatorios ya nunca tira, pero el .catch es una segunda red de
-  // seguridad para no dejar una promesa rechazada suelta.
-  const recordatorios = aplicarRecordatorios(cita, new Date(), opts).catch((e) => {
-    console.error("agenda/citas: no se pudieron acomodar los recordatorios", e);
-  });
-
-  let resultado: "enviado" | "fallo" = "enviado";
-  try {
-    await enviarAhora(clase, cita);
-  } catch (e) {
-    console.error(`agenda/citas: no se pudo mandar el correo "${clase}"`, e);
-    resultado = "fallo";
-  }
-
-  await recordatorios;
-  return resultado;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,34 +94,7 @@ export default async function handler(req: any, res: any) {
       const id = typeof body.id === "string" ? body.id : null;
       if (!id) return res.status(400).json({ error: "Falta el id de la cita" });
 
-      const cita = await obtenerCita(id);
-      if (!cita) return res.status(404).json({ error: "Esa cita no existe." });
-      // N2: el reenvío solo tiene sentido mientras la cita sigue "agendada".
-      // Sobre una "cancelada" no hay nada que confirmar; sobre una
-      // "completada" mandaría "Tu cita quedó agendada" con un .ics de fecha
-      // pasada por una visita que el cliente ya hizo — el mismo correo falso
-      // que I2 bloqueó en cancelar/editar, entrando por esta puerta.
-      if (cita.estado !== "agendada") {
-        const motivo =
-          cita.estado === "cancelada"
-            ? "Esa cita ya fue cancelada: no hay nada que confirmar."
-            : "Esa cita ya se realizó: no hay nada que confirmar.";
-        return res.status(409).json({ error: motivo });
-      }
-
-      let correo: "enviado" | "fallo" = "enviado";
-      try {
-        await enviarAhora("confirmacion", cita);
-      } catch (e) {
-        console.error("agenda/citas: no se pudo reenviar el correo de confirmación", e);
-        correo = "fallo";
-      }
-      // La bitácora no puede tumbar la respuesta: la cita y el intento de
-      // reenvío ya pasaron, es lo mismo que rige para citas_log en el resto
-      // del archivo (ver `registrar` en db.ts).
-      await registrarReenvio(cita.id, caller.email, "panel").catch((e) =>
-        console.error("agenda/citas: no se pudo registrar el reenvío en la bitácora", e),
-      );
+      const { cita, correo } = await reenviarConfirmacion(id, caller.email, "panel");
       return res.status(200).json({ cita, correo });
     }
 
@@ -177,13 +102,11 @@ export default async function handler(req: any, res: any) {
       const leido = leerDatos(body);
       if ("error" in leido) return res.status(400).json({ error: leido.error });
 
-      const choque = await haySolape(leido.datos.inicio);
       // La fila se devuelve completa, notas incluidas: este endpoint es del
       // panel (detrás de requireAgenda) y el panel muestra las notas internas
       // — para eso existen. La restricción de que `notas` nunca llegue al
       // cliente vive en el armado de los correos, no acá.
-      const cita = await crearCita(leido.datos, caller.email, "panel");
-      const correo = await avisarAlCliente("confirmacion", cita);
+      const { cita, choque, correo } = await crearCitaCompleta(leido.datos, caller.email, "panel");
       return res.status(200).json({ cita, choque, correo });
     }
 
@@ -194,50 +117,14 @@ export default async function handler(req: any, res: any) {
       const leido = leerDatos(body);
       if ("error" in leido) return res.status(400).json({ error: leido.error });
 
-      const choque = await haySolape(leido.datos.inicio, id);
-      const { cita, cambioVisible, correoModificado } = await actualizarCita(
-        id,
-        leido.datos,
-        caller.email,
-        "panel",
-      );
-      // Prioridad: si cambió el correo del cliente, la dirección nueva nunca
-      // vio nada de esta cita — es su primera noticia, así que es una
-      // "confirmacion", no un "reagendado" (aunque también haya cambiado la
-      // hora). Si no cambió el correo pero sí hora o lugar, es un
-      // "reagendado". Si no cambió nada de lo anterior (solo notas, teléfono,
-      // lote o nombre), no hay nada visible que avisar.
-      //
-      // C1: `recrear` va en `cambioVisible || correoModificado`, NUNCA solo
-      // en `correoModificado`. Los recordatorios ya programados en Resend
-      // llevan el asunto, el cuerpo y el .ics armados con el contenido de la
-      // cita al momento de programarlos. Un PATCH que solo mueve `scheduled_at`
-      // (lo que hace "reprogramar") no puede tocar ese contenido: si la hora o
-      // el lugar cambiaron, hay que cancelar los recordatorios viejos y
-      // programar unos nuevos con el contenido vigente — eso es "recrear". Si
-      // no se hace así, el cliente recibe el recordatorio a la hora nueva
-      // (correcta) pero con el texto de la cita vieja (incorrecto): se
-      // presenta al lugar y la hora equivocados.
-      const recrear = cambioVisible || correoModificado;
-      let correo: "enviado" | "fallo" | "no_aplica";
-      if (correoModificado) {
-        correo = await avisarAlCliente("confirmacion", cita, { recrear });
-      } else if (cambioVisible) {
-        correo = await avisarAlCliente("reagendado", cita, { recrear });
-      } else {
-        correo = "no_aplica";
-      }
+      const { cita, choque, correo } = await actualizarCitaCompleta(id, leido.datos, caller.email, "panel");
       return res.status(200).json({ cita, choque, correo });
     }
 
     if (req.method === "DELETE") {
       const id = typeof body.id === "string" ? body.id : null;
       if (!id) return res.status(400).json({ error: "Falta el id de la cita" });
-      const { cita, seCancelo } = await cancelarCita(id, caller.email, "panel");
-      // Idempotente: si ya estaba cancelada (doble clic, o dos personas
-      // cancelando la misma cita), no se le manda un segundo correo de
-      // cancelación al cliente.
-      const correo = seCancelo ? await avisarAlCliente("cancelacion", cita) : "no_aplica";
+      const { cita, correo } = await cancelarCitaCompleta(id, caller.email, "panel");
       return res.status(200).json({ cita, correo });
     }
 
@@ -249,16 +136,18 @@ export default async function handler(req: any, res: any) {
     console.error("agenda/citas error", e);
     const mensaje = e instanceof Error ? e.message : "Error inesperado";
 
-    // db.ts lanza Error con texto propio en vez de códigos estructurados (está
-    // cerrado y revisado, no se toca para esto), así que la única forma limpia
-    // de distinguir estos dos casos del resto es comparar el mensaje exacto.
-    // "La cita no existe" no es un error del servidor (404); "ya fue
-    // cancelada" y "ya se realizó" (I2: no se puede tocar una cita que el
-    // cron ya cerró) son conflictos de estado (409); todo lo demás sigue en 500.
-    if (mensaje === "Esa cita no existe.") return res.status(404).json({ error: mensaje });
-    if (mensaje === "Esa cita ya fue cancelada.") return res.status(409).json({ error: mensaje });
-    if (mensaje === "Esa cita ya se realizó: no se puede editar.") return res.status(409).json({ error: mensaje });
-    if (mensaje === "Esa cita ya se realizó: no se puede cancelar.") return res.status(409).json({ error: mensaje });
+    // db.ts y operaciones.ts lanzan ErrorAgenda con un código
+    // ("no_encontrada" | "conflicto") para estos seis casos de siempre — "la
+    // cita no existe" no es un error del servidor (404); "ya fue cancelada",
+    // "ya se realizó" (I2: no se puede tocar una cita que el cron ya cerró)
+    // y las dos variantes del reenvío (I3/N2) son conflictos de estado
+    // (409). Es la misma señal que va a leer el bot de Telegram (Task 5):
+    // un solo lugar decide el código, ningún consumidor vuelve a comparar
+    // el texto del mensaje a mano. Se distingue con esErrorAgenda (nombre +
+    // código), no con `instanceof`: ver el porqué en agenda/errores.ts.
+    if (esErrorAgenda(e)) {
+      return res.status(e.codigo === "no_encontrada" ? 404 : 409).json({ error: e.message });
+    }
 
     return res.status(500).json({ error: mensaje });
   }

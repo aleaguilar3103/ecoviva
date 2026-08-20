@@ -37,7 +37,7 @@
 | `api/_lib/agenda/acciones.ts` | Acciones pendientes de confirmar: guardar, leer, consumir, expirar |
 | `api/_lib/agenda/agente.ts` | Definición de las 5 herramientas, el bucle manual y la intercepción de escrituras |
 | `api/telegram/webhook.ts` | Recibe updates, autoriza, deduplica, despacha |
-| `api/agenda/telegram-link.ts` | Genera el código de 6 dígitos para vincular |
+| `api/agenda/telegram-link.ts` | Genera el código de 8 dígitos para vincular |
 | `api/_lib/agenda/avisos.ts` | Aviso instantáneo a la otra persona y resumen diario |
 | `api/cron/agenda.ts` (modificar) | Agrega el resumen diario |
 | `src/lib/adminApi.ts` (modificar) | Llamadas de vinculación |
@@ -317,7 +317,7 @@ export async function escribiendo(chatId: string): Promise<void> {
 Crear `api/agenda/telegram-link.test.ts` con estos casos:
 
 1. Sin permiso de agenda → 401, y no se toca la base.
-2. `GET` genera un código de **6 dígitos** y lo guarda con expiración futura.
+2. ~~`GET` genera un código~~ **[Corregido durante la ejecución]** El `GET` es de SOLO LECTURA y la generación vive en el `POST`. Se cambió a propósito: el panel llama al `GET` al montar la pestaña Agenda, así que un `GET` que generara acuñaría una credencial viva de 10 minutos cada vez que alguien abre la pestaña, sin que nadie la pida. El `POST` genera el código de **8 dígitos** y lo guarda con expiración futura.
 3. `GET` cuando la cuenta ya tiene `telegram_chat_id` → responde `vinculado: true`.
 4. `DELETE` limpia `telegram_chat_id`, `telegram_codigo` y `telegram_codigo_expira`.
 
@@ -332,7 +332,7 @@ Expected: FAIL — no existe el módulo.
 
 Crear `api/agenda/telegram-link.ts`. Puntos que no son obvios:
 
-- El código son **6 dígitos**, generados con `crypto.randomInt(0, 1_000_000)` y rellenados con ceros a la izquierda (`String(n).padStart(6, "0")`). No uses `Math.random()`: es un código de un solo uso que da acceso a la agenda.
+- El código son **8 dígitos**, generados con `crypto.randomInt(0, 100_000_000)` y rellenados con ceros a la izquierda (`String(n).padStart(8, "0")`). No uses `Math.random()`: es un código de un solo uso que da acceso a la agenda.
 - Expira a los **10 minutos**: `new Date(Date.now() + 10 * 60_000)`.
 - Un `GET` nuevo **reemplaza** el código anterior. No acumules códigos vivos.
 - `requireAgenda` es la primera línea del handler, antes de leer nada.
@@ -355,7 +355,7 @@ export function desvincularTelegram(): Promise<{ ok: boolean }> {
 }
 ```
 
-En `AgendaManager.tsx`, junto al bloque del feed, agregá uno de Telegram: un botón «Conectar Telegram» que pide el código y lo muestra grande, con la instrucción de mandarle `/vincular 123456` a **@EcovivacrBot**, y una cuenta regresiva o al menos la hora de expiración. Si ya está vinculado, mostrá eso y un botón para desvincular.
+En `AgendaManager.tsx`, junto al bloque del feed, agregá uno de Telegram: un botón «Conectar Telegram» que pide el código y lo muestra grande, con la instrucción de mandarle `/vincular 12345678` a **@EcovivacrBot**, y una cuenta regresiva o al menos la hora de expiración. Si ya está vinculado, mostrá eso y un botón para desvincular.
 
 Reusá el estilo de los bloques que ya están en el componente. Que el texto diga con qué bot hablar — sin eso, el código no sirve de nada.
 
@@ -465,7 +465,7 @@ return res.status(200).json({ ok: true });
 
 - [ ] **Step 5: Comandos**
 
-- `/vincular 123456` — busca en `app_users` una fila con ese `telegram_codigo` **y** `telegram_codigo_expira > now()`. Si la hay: guarda `telegram_chat_id = from.id`, limpia el código y confirma con el nombre de la persona. Si no: `"Ese código no sirve o ya venció. Generá uno nuevo desde el panel."` **Un solo uso:** el código se limpia en el mismo update.
+- `/vincular 12345678` — busca en `app_users` una fila con ese `telegram_codigo` **y** `telegram_codigo_expira > now()`. Si la hay: guarda `telegram_chat_id = from.id`, limpia el código y confirma con el nombre de la persona. Si no: `"Ese código no sirve o ya venció. Generá uno nuevo desde el panel."` **Un solo uso:** el código se limpia en el mismo update.
 - `/hoy` — las citas de hoy en hora de Costa Rica, en orden. Si no hay: «Hoy no tenés nada agendado.»
 - `/semana` — de hoy a 7 días.
 - `/start` — un saludo corto que diga qué es y cómo vincularse, **solo si ya está autorizado**; si no, la línea seca.
@@ -966,7 +966,7 @@ Los pasos, en orden:
           "allowed_updates":["message","callback_query"]}'
    ```
    Verificación: `getWebhookInfo` devuelve la URL y `pending_update_count: 0`. Explicá que `allowed_updates` acota lo que Telegram manda a lo que el bot usa.
-7. **Vincular el Telegram de Alejandro** — panel → Agenda → Conectar Telegram → código → `/vincular 123456` al bot. Verificación: el bot confirma con el nombre.
+7. **Vincular el Telegram de Alejandro** — panel → Agenda → Conectar Telegram → código → `/vincular 12345678` al bot. Verificación: el bot confirma con el nombre.
 8. **Vincular el de Alina** — igual, con su propia cuenta del panel.
 9. **Prueba de humo** — `/hoy` (debe contestar), un texto cualquiera (debe contestar el agente), y **desde una tercera cuenta de Telegram** mandarle algo: debe recibir «No tenés acceso.» y nada más.
 10. **Prueba real de punta a punta** — agendar una cita de prueba por el bot con el correo de uno de ustedes, confirmar con el botón, revisar que llegue el correo con la invitación, moverla, y confirmar que el evento **se mueve** en el calendario en vez de duplicarse. Después cancelarla.
