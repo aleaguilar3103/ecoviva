@@ -28,32 +28,6 @@ vi.mock("../_lib/agenda/email.js", () => ({
 vi.mock("../_lib/agenda/recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
 }));
-// errores.js no tiene nada que mockear funcionalmente (ErrorAgenda es una
-// clase sin dependencias externas) — pero hay que envolverla en vi.mock
-// igual, por una razón de identidad, no de comportamiento: cargar() llama a
-// vi.resetModules() antes de cada import dinámico de citas.ts, y un módulo
-// real no mockeado se vuelve a evaluar DESDE CERO en cada ciclo. Sin esto,
-// cada cargar() le daría a citas.ts una copia NUEVA de la clase ErrorAgenda,
-// distinta de la que usan los `new ErrorAgenda(...)` de este archivo, y su
-// `instanceof ErrorAgenda` fallaría entre dos copias de "la misma" clase
-// (se comprobó a mano: dos imports de errores.js separados por un
-// resetModules() dan clases con === false entre sí). vi.hoisted() define
-// esta clase doble UNA SOLA VEZ, antes de que exista ningún resetModules, y
-// el mock siempre reexporta esa misma referencia — la misma identidad que
-// va a ver cualquier copia de citas.ts que se cargue después.
-const { ErrorAgenda: ErrorAgendaDoble } = vi.hoisted(() => {
-  class ErrorAgenda extends Error {
-    constructor(
-      public readonly codigo: "no_encontrada" | "conflicto",
-      mensaje: string,
-    ) {
-      super(mensaje);
-      this.name = "ErrorAgenda";
-    }
-  }
-  return { ErrorAgenda };
-});
-vi.mock("../_lib/agenda/errores.js", () => ({ ErrorAgenda: ErrorAgendaDoble }));
 
 async function cargar() {
   vi.resetModules();

@@ -15,3 +15,18 @@ export class ErrorAgenda extends Error {
     this.name = "ErrorAgenda";
   }
 }
+
+// Se identifica por `name` y no con `instanceof` a propósito. `instanceof`
+// exige que exista una sola copia del módulo en memoria: si por empaquetado
+// o interoperación de formatos hubiera dos, devolvería false en silencio y
+// los 404/409 se caerían a 500 sin que nada avise — justo el fallo mudo que
+// este archivo vino a eliminar. Comparar el nombre y validar el código
+// funciona igual sin importar cuántas copias haya.
+export function esErrorAgenda(e: unknown): e is ErrorAgenda {
+  return (
+    e instanceof Error &&
+    e.name === "ErrorAgenda" &&
+    ((e as ErrorAgenda).codigo === "no_encontrada" ||
+      (e as ErrorAgenda).codigo === "conflicto")
+  );
+}

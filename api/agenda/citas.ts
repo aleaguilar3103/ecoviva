@@ -7,7 +7,7 @@ import {
   cancelarCitaCompleta,
   reenviarConfirmacion,
 } from "../_lib/agenda/operaciones.js";
-import { ErrorAgenda } from "../_lib/agenda/errores.js";
+import { esErrorAgenda } from "../_lib/agenda/errores.js";
 
 // /api/agenda/citas — CRUD de la agenda privada. Solo admin con bandera agenda.
 //
@@ -143,8 +143,9 @@ export default async function handler(req: any, res: any) {
     // y las dos variantes del reenvío (I3/N2) son conflictos de estado
     // (409). Es la misma señal que va a leer el bot de Telegram (Task 5):
     // un solo lugar decide el código, ningún consumidor vuelve a comparar
-    // el texto del mensaje a mano.
-    if (e instanceof ErrorAgenda) {
+    // el texto del mensaje a mano. Se distingue con esErrorAgenda (nombre +
+    // código), no con `instanceof`: ver el porqué en agenda/errores.ts.
+    if (esErrorAgenda(e)) {
       return res.status(e.codigo === "no_encontrada" ? 404 : 409).json({ error: e.message });
     }
 
