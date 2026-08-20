@@ -45,10 +45,16 @@ function crearCadena(resolver: () => unknown) {
 // sentada. Por eso esta tabla es un array en memoria y su cadena resuelve
 // insert/delete de verdad, igual que hace acciones.test.ts.
 //
-// El resolver corre DE FORMA SÍNCRONA (aunque se envuelva en una Promise):
-// es lo que permite que el test del doble toque (más abajo) discrimine una
-// implementación atómica de una que no lo es. Ver el comentario largo en
-// acciones.test.ts para el porqué completo.
+// Arreglo 5 (ronda de revisión): igual que en acciones.test.ts, este
+// `resolver()` NO implementa un `.select()` suelto real — cualquier select
+// sin un `.delete()` antes vuelve `null` de entrada, exista o no la fila. Lo
+// que el test del doble toque (más abajo) demuestra es que `consumirAccion`
+// usa `delete()` como su única operación contra esta tabla: una
+// implementación select-y-después-delete falla ya en su primera llamada, sin
+// que haga falta concurrencia real para que se note (verificado corriendo la
+// versión secuencial, sin Promise.all, contra la implementación insegura —
+// también da rojo). Ver el comentario largo en acciones.test.ts para el
+// detalle completo.
 interface FilaAccion {
   id: string;
   chat_id: string;
@@ -904,6 +910,68 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     expect(textos.some((t) => /venció o ya la usaste/i.test(t))).toBe(true);
   });
 
+  // Arreglo 2 (ronda de revisión): con los botones todavía visibles después
+  // de un toque (Arreglo 1 los estaba dejando ahí), es plausible que alguien
+  // toque "Confirmar" y, dudando si pegó, toque "Cancelar" sobre el MISMO
+  // mensaje. Si el "ok:" gana la carrera y ejecuta de verdad la cancelación
+  // (con su correo, irreversible), el "no:" que llega después NO puede
+  // escribir "Cancelado." — eso sería mentir sobre algo que sí ocurrió y ya
+  // no se puede deshacer. La rama "no:" tiene que mirar qué le devolvió
+  // consumirAccion, igual que ya hace la rama "ok:".
+  it("ok: y no: compitiendo sobre el MISMO id (ok gana la carrera) → el mensaje final nunca dice 'Cancelado.'", async () => {
+    colas.telegram_updates = [{ data: null, error: null }, { data: null, error: null }];
+    colas.app_users = [
+      { data: FILA_AUTORIZADA, error: null },
+      { data: FILA_AUTORIZADA, error: null },
+    ];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+
+    const { default: handler } = await cargar();
+    const res1 = resRecorder();
+    const res2 = resRecorder();
+    const updateOk = callbackUpdate({
+      update_id: 922,
+      callback_query: {
+        id: "cbq-ok",
+        data: "ok:accion-1",
+        from: { id: 999 },
+        message: { message_id: 5, chat: { id: 999, type: "private" } },
+      },
+    });
+    const updateNo = callbackUpdate({
+      update_id: 923,
+      callback_query: {
+        id: "cbq-no",
+        data: "no:accion-1",
+        from: { id: 999 },
+        message: { message_id: 5, chat: { id: 999, type: "private" } },
+      },
+    });
+
+    // "ok:" se dispara primero (array literal, evaluación sincrónica en
+    // orden): en nuestro mock gana la carrera de forma determinística, igual
+    // que en el test de "el MISMO ok:<id> dos veces" de arriba.
+    const p1 = handler(req({ secreto: SECRETO, body: updateOk }), res1);
+    const p2 = handler(req({ secreto: SECRETO, body: updateNo }), res2);
+    await Promise.all([p1, p2]);
+    await Promise.all(waitUntilMock.mock.calls.map(([p]) => p));
+
+    expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+    expect(editarMensaje).toHaveBeenCalledTimes(2);
+    const textos = editarMensaje.mock.calls.map((c) => c[2] as string);
+    // La aserción central del arreglo: "Cancelado." NUNCA debe aparecer,
+    // porque lo que de verdad pasó fue una cancelación real (con correo).
+    expect(textos).not.toContain("Cancelado.");
+    expect(textos.some((t) => /Cita cancelada/.test(t))).toBe(true);
+    expect(textos.some((t) => /venció o ya la usaste/i.test(t))).toBe(true);
+  });
+
   it("no:<id> → no se llama ninguna operación, y la acción queda consumida (un ok posterior ya no hace nada)", async () => {
     colas.telegram_updates = [{ data: null, error: null }, { data: null, error: null }];
     colas.app_users = [
@@ -984,6 +1052,69 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     expect(crearCitaCompleta).not.toHaveBeenCalled();
     expect(actualizarCitaCompleta).not.toHaveBeenCalled();
     expect(editarMensaje).not.toHaveBeenCalled();
+  });
+
+  // Arreglo 3 (ronda de revisión): si ejecutarAccion salió bien — la cita ya
+  // se creó/canceló de verdad, con su correo mandado — pero el editarMensaje
+  // final falla (un hipo de red hacia Telegram), la persona NO puede leer
+  // "Se me complicó, probá de nuevo.": ese texto invita a reintentar algo
+  // que YA pasó, y un reintento humano generaría una acción NUEVA que, al
+  // confirmarse, sí duplicaría la cita.
+  it("la acción se ejecuta bien pero falla el editarMensaje final → avisa por un mensaje NUEVO, no dice 'probá de nuevo'", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+    editarMensaje.mockRejectedValue(new Error("hipo de red hacia Telegram"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 960 }) }), res);
+    await esperarProcesamiento();
+
+    // La ejecución real SÍ pasó — no se reintenta ni se deshace.
+    expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+    // Al fallar la edición, se avisa por un mensaje NUEVO con el mismo texto
+    // del resultado (no se pierde la noticia de lo que pasó).
+    expect(enviarMensaje).toHaveBeenCalledTimes(1);
+    const [chatIdArg, textoArg] = enviarMensaje.mock.calls[0];
+    expect(chatIdArg).toBe("999");
+    expect(textoArg).toMatch(/Cita cancelada/);
+    // Nunca el texto que invita a reintentar algo que ya pasó.
+    expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("si TAMBIÉN falla el aviso por mensaje nuevo, se loguea y no revienta (tampoco manda 'probá de nuevo')", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+    editarMensaje.mockRejectedValue(new Error("hipo de red hacia Telegram"));
+    enviarMensaje.mockRejectedValue(new Error("Telegram también caído para sendMessage"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 961 }) }), res);
+    await esperarProcesamiento();
+
+    expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
+    consoleErrorSpy.mockRestore();
   });
 });
 

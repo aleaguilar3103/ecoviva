@@ -57,6 +57,23 @@ function campoTexto(entrada: Record<string, unknown>, clave: string): string | u
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
+// Arreglo 4 (ronda de revisión): `citas.cliente_email` es `text not null`
+// SIN restricción de formato en la base, así que sin este chequeo una cita
+// con el correo mal escrito se guarda igual — y el fallo de envío que viene
+// después es indistinguible, para quien lee el resultado en Telegram, de un
+// hipo transitorio de Resend. Mismo criterio que `correoValido` en
+// api/agenda/citas.ts (duplicado a propósito, no importado: ese archivo es
+// una ruta HTTP del panel, y un módulo de dominio como este no debería
+// depender de una ruta de API — mismo razonamiento que ya usa este archivo
+// para no importar `fechaHoraLarga`/`inicioDeHoyCR` de agente.ts/webhook.ts.
+// Si el criterio cambia en un lado, hay que replicarlo a mano en el otro).
+// Devuelve el correo normalizado (recortado y en minúsculas) o `null` si no
+// tiene forma de correo.
+function correoValido(v: string): string | null {
+  const email = v.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
 // ── Guardar ──
 //
 // Se llama apenas el agente propone una escritura: el resumen ya se le
@@ -143,14 +160,20 @@ function textoResultado(accionTexto: string, cita: Cita, correo: ResultadoCorreo
 
 async function ejecutarCrear(entrada: Record<string, unknown>, actor: string): Promise<string> {
   const cliente_nombre = campoTexto(entrada, "cliente_nombre");
-  const cliente_email = campoTexto(entrada, "cliente_email");
+  const cliente_email_crudo = campoTexto(entrada, "cliente_email");
   const inicio = campoTexto(entrada, "inicio");
   const lugar = campoTexto(entrada, "lugar");
   // No debería pasar: crear_cita exige estos cuatro campos en su esquema
   // (ver agente.ts). Si igual faltan, mejor avisar que mandarle a
   // operaciones.ts un dato a medias.
-  if (!cliente_nombre || !cliente_email || !inicio || !lugar) {
+  if (!cliente_nombre || !cliente_email_crudo || !inicio || !lugar) {
     return "Me faltó algún dato para crear la cita (nombre, correo, fecha o lugar). Pedímelo de nuevo.";
+  }
+  // Arreglo 4: el formato del correo SÍ se valida acá — la base no lo hace
+  // (ver el comentario largo en correoValido más arriba).
+  const cliente_email = correoValido(cliente_email_crudo);
+  if (!cliente_email) {
+    return `Ese correo (${cliente_email_crudo}) no parece válido. Decime el correo bien escrito del cliente y probamos de nuevo.`;
   }
   const datos: DatosCita = {
     cliente_nombre,
@@ -196,11 +219,25 @@ async function ejecutarEditar(entrada: Record<string, unknown>, actor: string): 
   const actual = await obtenerCita(id);
   if (!actual) throw new ErrorAgenda("no_encontrada", "Esa cita ya no existe.");
 
+  // Arreglo 4: solo se valida si el correo es uno de los campos que de
+  // verdad cambian — si no vino en `entrada`, se preserva el que ya tenía
+  // la cita (ese ya pasó por esta misma validación cuando se creó/editó por
+  // última vez, no hace falta revalidarlo).
+  const cliente_email_crudo = campoTexto(entrada, "cliente_email");
+  let cliente_email = actual.cliente_email;
+  if (cliente_email_crudo !== undefined) {
+    const normalizado = correoValido(cliente_email_crudo);
+    if (!normalizado) {
+      return `Ese correo (${cliente_email_crudo}) no parece válido. Decime el correo bien escrito del cliente y probamos de nuevo.`;
+    }
+    cliente_email = normalizado;
+  }
+
   // Mismo criterio que mover_cita: editar_cita solo trae los campos que
   // cambian, el resto se completa con la cita actual.
   const datos: DatosCita = {
     cliente_nombre: campoTexto(entrada, "cliente_nombre") ?? actual.cliente_nombre,
-    cliente_email: campoTexto(entrada, "cliente_email") ?? actual.cliente_email,
+    cliente_email,
     cliente_telefono: campoTexto(entrada, "cliente_telefono") ?? actual.cliente_telefono,
     inicio: actual.inicio,
     lugar: campoTexto(entrada, "lugar") ?? actual.lugar,

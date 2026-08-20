@@ -24,17 +24,32 @@ vi.mock("./db.js", () => ({
 
 // ── Mock de supabase: tabla en memoria que modela agenda_acciones_pendientes ──
 //
-// El resolver de cada operación corre DE FORMA SÍNCRONA (aunque después se
-// envuelva en una Promise): es lo que le permite a este mock discriminar de
-// verdad una implementación atómica (delete con las tres condiciones en el
-// where) de una que no lo es (select y después delete). Con dos llamadas
-// disparadas por Promise.all, la síncrona resuelve el "toque" completo antes
-// de que la segunda ni siquiera empiece a construir su consulta — igual que
-// una fila que Postgres bloquea durante un DELETE. Una implementación
-// select-y-después-delete, en cambio, dispara DOS awaits separados: los dos
-// SELECT concurrentes alcanzan a leer la fila todavía viva antes de que
-// cualquiera de los DELETE la borre, y las dos llamadas terminan devolviendo
-// la acción — el mismo doble-toque que este archivo existe para evitar.
+// Arreglo 5 (ronda de revisión): este comentario antes afirmaba que el mock
+// reproducía una carrera concurrente real (dos SELECT que alcanzan a leer la
+// fila viva antes de que cualquiera de los DELETE la borre). Eso es FALSO:
+// el `resolver()` de acá abajo no tiene ninguna rama para `modo === "select"`
+// — un `.select()` suelto (sin `.delete()` antes) siempre cae al `return
+// { data: null, error: null }` del final, exista o no la fila. No modela una
+// lectura real, así que no hay ningún SELECT "que alcanza a leer la fila
+// viva" que simular: ese select ya vuelve `null` de entrada, sin importar
+// concurrencia ni timing.
+//
+// Lo que este mock SÍ demuestra —y es lo único que hace falta para el test
+// de abajo— es más simple: que `consumirAccion` hace del `delete()` (con las
+// tres condiciones) su ÚNICA operación contra la tabla, sin un `select()`
+// previo. Una implementación select-y-después-delete falla este test ya en
+// su PRIMERA llamada (ese select suelto siempre da `null`, así que ni
+// siquiera llega a hacer el delete), sin que haga falta ninguna concurrencia
+// para que se note — un revisor lo confirmó revirtiendo el código y
+// corriendo la versión SECUENCIAL (sin Promise.all) contra la implementación
+// insegura: también da rojo, por esta misma razón. `Promise.all` sigue
+// siendo la forma correcta de expresar "dos toques al mismo botón" en el
+// test (es lo que pasaría de verdad), pero la garantía que este mock en
+// particular puede probar es más chica de lo que decía el comentario
+// original: "delete es la primera y única operación", no "sobrevive a una
+// carrera real". La atomicidad de verdad —que Postgres serialice dos
+// DELETE...WHERE concurrentes— no se puede demostrar contra una base en
+// memoria de un solo hilo; eso solo lo garantiza Postgres en producción.
 interface FilaAccion {
   id: string;
   chat_id: string;
@@ -342,5 +357,84 @@ describe("ejecutarAccion — el texto para la persona", () => {
     expect(spy).toHaveBeenCalled();
     expect(texto).not.toMatch(/boom de postgres/);
     spy.mockRestore();
+  });
+});
+
+// Arreglo 4 (ronda de revisión): `citas.cliente_email` es `text not null`
+// SIN restricción de formato en la base, y `campoTexto` solo exige que el
+// valor no esté vacío. Sin esta validación, una cita con el correo mal
+// escrito se guarda igual, y el fallo de envío que viene después (Resend
+// rechaza la dirección) es indistinguible — para quien lee el mensaje de
+// Telegram — de un hipo transitorio: Alina o Alejandro podrían reintentar
+// el reenvío desde el panel para siempre sin ninguna señal de que la causa
+// es permanente. El panel (api/agenda/citas.ts, `correoValido`) ya rechaza
+// esto de entrada; acá hace falta el mismo criterio.
+describe("ejecutarAccion — validación del correo (Arreglo 4)", () => {
+  it("crear_cita con un correo malformado no llama a crearCitaCompleta y avisa que hay que corregirlo", async () => {
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      {
+        herramienta: "crear_cita",
+        entrada: {
+          cliente_nombre: "María",
+          cliente_email: "maria-arroba-mal-escrito",
+          inicio: "2026-09-01T10:00:00-06:00",
+          lugar: "Llanada",
+        },
+      },
+      "alina@ecoviva.test",
+    );
+    expect(crearCitaCompleta).not.toHaveBeenCalled();
+    expect(texto).toMatch(/correo/i);
+    expect(texto).toMatch(/no parece válido|inválido/i);
+  });
+
+  it("crear_cita con un correo válido pero con mayúsculas y espacios lo normaliza antes de guardar", async () => {
+    crearCitaCompleta.mockResolvedValue({ cita: CITA_ACTUAL, choque: false, correo: "enviado" });
+    const { ejecutarAccion } = await cargar();
+    await ejecutarAccion(
+      {
+        herramienta: "crear_cita",
+        entrada: {
+          cliente_nombre: "María",
+          cliente_email: "  Maria@Example.COM  ",
+          inicio: "2026-09-01T10:00:00-06:00",
+          lugar: "Llanada",
+        },
+      },
+      "alina@ecoviva.test",
+    );
+    expect(crearCitaCompleta).toHaveBeenCalledWith(
+      expect.objectContaining({ cliente_email: "maria@example.com" }),
+      "alina@ecoviva.test",
+      "telegram",
+    );
+  });
+
+  it("editar_cita con un correo nuevo malformado no llama a actualizarCitaCompleta y avisa", async () => {
+    obtenerCita.mockResolvedValue(CITA_ACTUAL);
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      { herramienta: "editar_cita", entrada: { id: "c1", cliente_email: "no-es-un-correo" } },
+      "alina@ecoviva.test",
+    );
+    expect(actualizarCitaCompleta).not.toHaveBeenCalled();
+    expect(texto).toMatch(/correo/i);
+  });
+
+  it("editar_cita sin tocar el correo no lo valida de nuevo (usa el que ya tenía la cita)", async () => {
+    obtenerCita.mockResolvedValue(CITA_ACTUAL);
+    actualizarCitaCompleta.mockResolvedValue({ cita: CITA_ACTUAL, choque: false, correo: "no_aplica" });
+    const { ejecutarAccion } = await cargar();
+    await ejecutarAccion(
+      { herramienta: "editar_cita", entrada: { id: "c1", lugar: "Oficina EcoViva" } },
+      "alina@ecoviva.test",
+    );
+    expect(actualizarCitaCompleta).toHaveBeenCalledWith(
+      "c1",
+      expect.objectContaining({ cliente_email: CITA_ACTUAL.cliente_email, lugar: "Oficina EcoViva" }),
+      "alina@ecoviva.test",
+      "telegram",
+    );
   });
 });

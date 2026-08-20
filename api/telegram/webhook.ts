@@ -368,7 +368,19 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
       // Se consume igual que un "ok", aunque no se ejecute nada: si no se
       // consumiera acá, la acción quedaría viva y un "ok" posterior sobre
       // el mismo id la ejecutaría igual, como si nunca se hubiera cancelado.
-      await consumirAccion(id, chatId);
+      //
+      // Arreglo 2 (ronda de revisión): hay que MIRAR qué devolvió el
+      // consumo, no asumir que "no:" siempre significa que no pasó nada. Si
+      // alguien tocó "Confirmar" primero y ganó la carrera (la acción ya se
+      // ejecutó — cita creada, correo mandado, irreversible) y este "no:"
+      // llega después sobre el mismo id, `consumirAccion` acá devuelve
+      // `null` (la fila ya no está). Escribir "Cancelado." en ese caso sería
+      // mentir sobre algo que sí ocurrió y no se puede deshacer.
+      const consumida = await consumirAccion(id, chatId);
+      if (!consumida) {
+        await editarMensaje(chatId, messageId, CONFIRMACION_VENCIDA);
+        return;
+      }
       await editarMensaje(chatId, messageId, "Cancelado.");
       return;
     }
@@ -389,7 +401,32 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
     // Se EDITA el mensaje original, nunca se manda uno nuevo: al editarlo
     // los botones desaparecen y el chat queda con el registro de lo que se
     // hizo, en vez de un botón muerto que invita a tocarlo otra vez.
-    await editarMensaje(chatId, messageId, texto);
+    //
+    // Arreglo 3 (ronda de revisión): a partir de acá la acción YA se
+    // ejecutó — no hay forma de deshacerla ni tiene sentido reintentarla.
+    // Por eso este `editarMensaje` va en SU PROPIO try/catch, separado del
+    // catch general de más abajo: si cae al catch general, la persona lee
+    // "Se me complicó, probá de nuevo." — un texto que invita a reintentar
+    // algo que YA pasó. Un reintento humano (mandar el mensaje de nuevo)
+    // generaría una acción NUEVA que, al confirmarse, SÍ duplicaría la cita
+    // — no porque falle la atomicidad de consumirAccion, sino porque el
+    // aviso mintió sobre el estado. Mismo principio que rige todo este
+    // archivo: lo que ya se hizo no se pierde, y no se anuncia como que no
+    // se hizo. Si falla la edición, se intenta avisar por un mensaje NUEVO
+    // (con el mismo texto del resultado); si eso también falla, se loguea y
+    // no se hace nada más — no queda ninguna forma honesta de decir "no sé
+    // si te llegó el aviso, pero la cita SÍ quedó hecha" que no sea, en el
+    // peor caso, silencio.
+    try {
+      await editarMensaje(chatId, messageId, texto);
+    } catch (e) {
+      console.error("telegram/webhook: la acción se ejecutó pero no se pudo editar el mensaje original", e);
+      try {
+        await enviarMensaje(chatId, texto);
+      } catch (e2) {
+        console.error("telegram/webhook: tampoco se pudo avisar el resultado por un mensaje nuevo", e2);
+      }
+    }
   } catch (e) {
     console.error("telegram/webhook: error inesperado al procesar el callback", e);
     try {

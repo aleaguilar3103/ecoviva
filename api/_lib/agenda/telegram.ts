@@ -47,14 +47,26 @@ export async function enviarMensaje(
   return res.message_id as number;
 }
 
-// Se usa al confirmar o cancelar: se reescribe el mensaje original para que los
-// botones desaparezcan y no se pueda tocar dos veces.
+// Se usa al confirmar o cancelar: se reescribe el mensaje original con el
+// resultado. `reply_markup: { inline_keyboard: [] }` va SIEMPRE explícito a
+// propósito: la documentación de Telegram dice que OMITIR `reply_markup` en
+// editMessageText CONSERVA el teclado que el mensaje ya tenía, no lo borra.
+// Sin este campo, los botones "Confirmar"/"Cancelar" seguirían visibles
+// después de editar el texto — invitando a tocarlos de nuevo sobre una
+// acción que ya se consumió (ver acciones.ts). Como el único uso de esta
+// función es reescribir un mensaje que YA no debe tener botones, limpiarlo
+// siempre es lo correcto: no hay ningún llamador que quiera conservarlos.
 export async function editarMensaje(
   chatId: string,
   messageId: number,
   texto: string,
 ): Promise<void> {
-  await pedir("editMessageText", { chat_id: chatId, message_id: messageId, text: texto });
+  await pedir("editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text: texto,
+    reply_markup: { inline_keyboard: [] },
+  });
 }
 
 export async function responderCallback(callbackId: string, texto?: string): Promise<void> {
