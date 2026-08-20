@@ -141,11 +141,13 @@ const enviarMensaje = vi.fn();
 const escribiendo = vi.fn();
 const editarMensaje = vi.fn();
 const responderCallback = vi.fn();
+const quitarBotones = vi.fn();
 vi.mock("../_lib/agenda/telegram.js", () => ({
   enviarMensaje: (...a: unknown[]) => enviarMensaje(...a),
   escribiendo: (...a: unknown[]) => escribiendo(...a),
   editarMensaje: (...a: unknown[]) => editarMensaje(...a),
   responderCallback: (...a: unknown[]) => responderCallback(...a),
+  quitarBotones: (...a: unknown[]) => quitarBotones(...a),
 }));
 
 // db.js: listarCitas se mockea, igual que en cron/agenda.test.ts. obtenerCita
@@ -232,6 +234,9 @@ async function esperarUltimoProcesamiento() {
 }
 
 const SECRETO = "secreto-de-prueba-123";
+// Mismo texto exacto que CONFIRMACION_VENCIDA en webhook.ts (no se exporta:
+// es un detalle interno del módulo, así que se replica acá para asertarlo).
+const CONFIRMACION_VENCIDA = "Esa confirmación ya no vale — venció o ya la usaste.";
 
 function updateBase(overrides: Record<string, unknown> = {}) {
   return {
@@ -833,6 +838,8 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 910 }) }), res);
     await esperarProcesamiento();
 
+    // Se ganó la acción: se contesta el callback SIN texto (no hay toast
+    // que mostrar, la persona va a leer el resultado en el mensaje editado).
     expect(responderCallback).toHaveBeenCalledWith("cbq-1");
     expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
     expect(cancelarCitaCompleta).toHaveBeenCalledWith("cita-1", "alinaramirezgamboa@gmail.com", "telegram");
@@ -846,6 +853,9 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     expect(messageIdArg).toBe(5);
     expect(textoArg).toMatch(/Cita cancelada/);
     expect(enviarMensaje).not.toHaveBeenCalled();
+    // quitarBotones es solo para la rama que NO se lleva la acción:
+    // editarMensaje ya limpia el teclado por su cuenta (Arreglo 1).
+    expect(quitarBotones).not.toHaveBeenCalled();
 
     // Y la acción quedó consumida: ya no está en la tabla.
     expect(filasAcciones).toHaveLength(0);
@@ -902,12 +912,23 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     // La defensa real: la operación de dominio se ejecuta UNA sola vez.
     expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
 
-    // Los dos toques reciben una respuesta (los dos mensajes se editan),
-    // pero solo uno cuenta la cancelación real; el otro avisa que ya no vale.
-    expect(editarMensaje).toHaveBeenCalledTimes(2);
-    const textos = editarMensaje.mock.calls.map((c) => c[2] as string);
-    expect(textos.some((t) => /Cita cancelada/.test(t))).toBe(true);
-    expect(textos.some((t) => /venció o ya la usaste/i.test(t))).toBe(true);
+    // Ronda 2 de revisión: la rama que NO se lleva la acción (le devuelve
+    // null) YA NO edita el mensaje — no sabe si venció o si la otra rama
+    // ejecutó de verdad, así que no puede afirmar nada sobre el resultado.
+    // Solo la que ganó la fila edita el texto; la que perdió le quita los
+    // botones sin tocarlo, y avisa por el toast (efímero) del callback.
+    expect(editarMensaje).toHaveBeenCalledTimes(1);
+    expect(editarMensaje.mock.calls[0][2]).toMatch(/Cita cancelada/);
+    expect(quitarBotones).toHaveBeenCalledTimes(1);
+    expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+
+    // Los dos toques SÍ reciben una respuesta cada uno (el callback se
+    // contesta una vez por camino): una sin texto (la que ejecutó, antes de
+    // ejecutarAccion) y otra con el toast de "ya no vale" (la que perdió).
+    expect(responderCallback).toHaveBeenCalledTimes(2);
+    const respuestasConTexto = responderCallback.mock.calls.filter((c) => c[1] !== undefined);
+    expect(respuestasConTexto).toHaveLength(1);
+    expect(respuestasConTexto[0][1]).toMatch(/venció o ya la usaste/i);
   });
 
   // Arreglo 2 (ronda de revisión): con los botones todavía visibles después
@@ -963,13 +984,19 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     await Promise.all(waitUntilMock.mock.calls.map(([p]) => p));
 
     expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
-    expect(editarMensaje).toHaveBeenCalledTimes(2);
-    const textos = editarMensaje.mock.calls.map((c) => c[2] as string);
-    // La aserción central del arreglo: "Cancelado." NUNCA debe aparecer,
-    // porque lo que de verdad pasó fue una cancelación real (con correo).
-    expect(textos).not.toContain("Cancelado.");
-    expect(textos.some((t) => /Cita cancelada/.test(t))).toBe(true);
-    expect(textos.some((t) => /venció o ya la usaste/i.test(t))).toBe(true);
+
+    // Ronda 2 de revisión: la aserción central de ESTE arreglo pasó a ser
+    // más fuerte que "nunca dice Cancelado." — ahora la rama "no:" (que
+    // perdió la carrera) directamente NO EDITA el mensaje. Solo la que ganó
+    // (el "ok:") escribe el resultado real.
+    expect(editarMensaje).toHaveBeenCalledTimes(1);
+    const [, , textoEditado] = editarMensaje.mock.calls[0];
+    expect(textoEditado).not.toBe("Cancelado.");
+    expect(textoEditado).toMatch(/Cita cancelada/);
+
+    // La rama "no:" (perdedora) le quitó los botones sin tocar el texto.
+    expect(quitarBotones).toHaveBeenCalledTimes(1);
+    expect(quitarBotones).toHaveBeenCalledWith("999", 5);
   });
 
   it("no:<id> → no se llama ninguna operación, y la acción queda consumida (un ok posterior ya no hace nada)", async () => {
@@ -1031,7 +1058,14 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     await esperarUltimoProcesamiento();
 
     expect(cancelarCitaCompleta).not.toHaveBeenCalled();
-    expect(editarMensaje).toHaveBeenLastCalledWith("999", 7, "Esa confirmación ya no vale — venció o ya la usaste.");
+    // Ronda 2 de revisión: este "ok" tardío obtiene null (la fila ya la
+    // consumió el "no:" de arriba) — no puede saber si "venció" o si otra
+    // rama ejecutó de verdad, así que NO edita el mensaje. Solo le quita los
+    // botones y avisa por el toast del callback.
+    expect(editarMensaje).toHaveBeenCalledTimes(1); // solo el "Cancelado." de arriba, ninguno más
+    expect(quitarBotones).toHaveBeenCalledWith("999", 7);
+    const ultimaRespuesta = responderCallback.mock.calls[responderCallback.mock.calls.length - 1];
+    expect(ultimaRespuesta[1]).toBe("Esa confirmación ya no vale — venció o ya la usaste.");
   });
 
   it("callback_data en un formato que no reconocemos se ignora (no ejecuta nada, no revienta)", async () => {
@@ -1052,6 +1086,102 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     expect(crearCitaCompleta).not.toHaveBeenCalled();
     expect(actualizarCitaCompleta).not.toHaveBeenCalled();
     expect(editarMensaje).not.toHaveBeenCalled();
+  });
+
+  // Ronda 2 de revisión: "un callback se contesta UNA sola vez" — contestarlo
+  // dos veces falla contra la API real de Telegram. Estos cuatro cubren los
+  // cuatro caminos posibles (no:/ok: × con fila viva/sin fila) y verifican
+  // que cada uno llama a responderCallback EXACTAMENTE una vez, con o sin
+  // texto de toast según corresponda.
+  describe("responderCallback se llama exactamente una vez por camino", () => {
+    it("no: con la fila todavía viva → una sola respuesta, SIN texto", async () => {
+      colas.telegram_updates = [{ data: null, error: null }];
+      colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+      filasAcciones.push({
+        id: "accion-1",
+        chat_id: "999",
+        accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+        expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      });
+      const { default: handler } = await cargar();
+      const res = resRecorder();
+      const update = callbackUpdate({
+        update_id: 970,
+        callback_query: { id: "cbq-no-viva", data: "no:accion-1", from: { id: 999 }, message: { message_id: 5, chat: { id: 999, type: "private" } } },
+      });
+      await handler(req({ secreto: SECRETO, body: update }), res);
+      await esperarProcesamiento();
+
+      expect(responderCallback).toHaveBeenCalledTimes(1);
+      expect(responderCallback).toHaveBeenCalledWith("cbq-no-viva");
+      expect(editarMensaje).toHaveBeenCalledWith("999", 5, "Cancelado.");
+      expect(quitarBotones).not.toHaveBeenCalled();
+    });
+
+    it("no: sin fila (ya venció o ya se consumió) → una sola respuesta, CON texto de toast", async () => {
+      colas.telegram_updates = [{ data: null, error: null }];
+      colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+      // No se deja ninguna fila en filasAcciones: consumirAccion va a null.
+      const { default: handler } = await cargar();
+      const res = resRecorder();
+      const update = callbackUpdate({
+        update_id: 971,
+        callback_query: { id: "cbq-no-muerta", data: "no:accion-x", from: { id: 999 }, message: { message_id: 5, chat: { id: 999, type: "private" } } },
+      });
+      await handler(req({ secreto: SECRETO, body: update }), res);
+      await esperarProcesamiento();
+
+      expect(responderCallback).toHaveBeenCalledTimes(1);
+      expect(responderCallback).toHaveBeenCalledWith("cbq-no-muerta", CONFIRMACION_VENCIDA);
+      expect(editarMensaje).not.toHaveBeenCalled();
+      expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+    });
+
+    it("ok: con la fila todavía viva → una sola respuesta, SIN texto (el resultado va en el mensaje editado)", async () => {
+      colas.telegram_updates = [{ data: null, error: null }];
+      colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+      filasAcciones.push({
+        id: "accion-1",
+        chat_id: "999",
+        accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+        expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+      });
+      cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+      const { default: handler } = await cargar();
+      const res = resRecorder();
+      const update = callbackUpdate({
+        update_id: 972,
+        callback_query: { id: "cbq-ok-viva", data: "ok:accion-1", from: { id: 999 }, message: { message_id: 5, chat: { id: 999, type: "private" } } },
+      });
+      await handler(req({ secreto: SECRETO, body: update }), res);
+      await esperarProcesamiento();
+
+      expect(responderCallback).toHaveBeenCalledTimes(1);
+      expect(responderCallback).toHaveBeenCalledWith("cbq-ok-viva");
+      expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+      expect(quitarBotones).not.toHaveBeenCalled();
+    });
+
+    it("ok: sin fila (ya venció o ya se consumió) → una sola respuesta, CON texto de toast, no ejecuta nada", async () => {
+      colas.telegram_updates = [{ data: null, error: null }];
+      colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+      const { default: handler } = await cargar();
+      const res = resRecorder();
+      const update = callbackUpdate({
+        update_id: 973,
+        callback_query: { id: "cbq-ok-muerta", data: "ok:accion-x", from: { id: 999 }, message: { message_id: 5, chat: { id: 999, type: "private" } } },
+      });
+      await handler(req({ secreto: SECRETO, body: update }), res);
+      await esperarProcesamiento();
+
+      expect(responderCallback).toHaveBeenCalledTimes(1);
+      expect(responderCallback).toHaveBeenCalledWith("cbq-ok-muerta", CONFIRMACION_VENCIDA);
+      expect(cancelarCitaCompleta).not.toHaveBeenCalled();
+      expect(crearCitaCompleta).not.toHaveBeenCalled();
+      expect(actualizarCitaCompleta).not.toHaveBeenCalled();
+      expect(editarMensaje).not.toHaveBeenCalled();
+      expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+    });
   });
 
   // Arreglo 3 (ronda de revisión): si ejecutarAccion salió bien — la cita ya

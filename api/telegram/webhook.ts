@@ -1,6 +1,6 @@
 import { waitUntil } from "@vercel/functions";
 import { supabaseAdmin } from "../_lib/supabase.js";
-import { enviarMensaje, escribiendo, editarMensaje, responderCallback } from "../_lib/agenda/telegram.js";
+import { enviarMensaje, escribiendo, editarMensaje, responderCallback, quitarBotones } from "../_lib/agenda/telegram.js";
 import { listarCitas, type Cita } from "../_lib/agenda/db.js";
 import { correrAgente, type Mensaje } from "../_lib/agenda/agente.js";
 import { guardarAccion, consumirAccion, ejecutarAccion } from "../_lib/agenda/acciones.js";
@@ -341,6 +341,34 @@ const RE_CALLBACK = /^(ok|no):(.+)$/;
 
 // No debe tirar NUNCA, por la misma razón que procesarUpdate: un error acá
 // se ve, desde Telegram, como un botón que no hace nada.
+//
+// ── LA REGLA CENTRAL (ronda 2 de revisión) ──
+// Una rama que NO se llevó la acción (consumirAccion le devolvió `null`)
+// NUNCA escribe el texto del mensaje. No sabe si la acción venció sola, o
+// si la otra rama —la que sí ganó la fila— ya ejecutó de verdad (cita
+// creada, correo mandado, irreversible). Afirmar cualquiera de las dos
+// cosas sería, en el peor caso, mentir sobre un hecho que ya pasó. El texto
+// del mensaje le pertenece ÚNICA Y EXCLUSIVAMENTE a la rama que se llevó la
+// fila: la que sabe, porque lo hizo ella misma, qué fue lo que pasó.
+//
+// Por eso las dos ramas que obtienen `null` (tanto "no:" como "ok:") jamás
+// llaman a `editarMensaje`. Lo único que hacen es: (a) avisar por el TOAST
+// del callback —efímero, solo lo ve quien tocó, y desaparece— con
+// `CONFIRMACION_VENCIDA`, y (b) `quitarBotones`, que toca el TECLADO sin
+// tocar el TEXTO — así no hay invitación a tocar de nuevo, pero tampoco se
+// pisa lo que la rama ganadora vaya a escribir (antes o después, no importa
+// el orden en que lleguen las dos respuestas HTTP a Telegram).
+//
+// Un callback se contesta UNA sola vez — contestarlo dos veces falla contra
+// la API real. Por eso cada uno de los cuatro caminos (no:/ok: × con
+// fila/sin fila) llama a `responderCallback` EXACTAMENTE una vez:
+//   - "no:" contesta DESPUÉS de consumir (un solo `delete`, rápido —
+//     Telegram da varios segundos de margen), con o sin texto según si
+//     obtuvo la fila.
+//   - "ok:" con fila SÍ contesta ANTES de `ejecutarAccion` (que puede
+//     tardar — manda un correo): sin eso, el botón queda "cargando" todo
+//     ese tiempo. "ok:" sin fila contesta con el toast apenas sabe que no
+//     hay nada que ejecutar — no llega a acercarse a `ejecutarAccion`.
 async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {
   let chatId: string | undefined;
   try {
@@ -357,30 +385,22 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
     const match = RE_CALLBACK.exec(cb.data ?? "");
     if (!match || messageId === undefined) return; // no es un botón nuestro: se ignora
 
-    // Cuanto antes: sin este aviso a Telegram, a la persona le queda el
-    // botón "cargando" dando vueltas mientras se ejecuta la acción (que
-    // puede tardar — manda un correo).
-    await responderCallback(cb.id);
-
     const [, tipo, id] = match;
 
     if (tipo === "no") {
       // Se consume igual que un "ok", aunque no se ejecute nada: si no se
       // consumiera acá, la acción quedaría viva y un "ok" posterior sobre
       // el mismo id la ejecutaría igual, como si nunca se hubiera cancelado.
-      //
-      // Arreglo 2 (ronda de revisión): hay que MIRAR qué devolvió el
-      // consumo, no asumir que "no:" siempre significa que no pasó nada. Si
-      // alguien tocó "Confirmar" primero y ganó la carrera (la acción ya se
-      // ejecutó — cita creada, correo mandado, irreversible) y este "no:"
-      // llega después sobre el mismo id, `consumirAccion` acá devuelve
-      // `null` (la fila ya no está). Escribir "Cancelado." en ese caso sería
-      // mentir sobre algo que sí ocurrió y no se puede deshacer.
       const consumida = await consumirAccion(id, chatId);
       if (!consumida) {
-        await editarMensaje(chatId, messageId, CONFIRMACION_VENCIDA);
+        // No se llevó nada: no sabe si venció o si "ok:" ya ejecutó de
+        // verdad. Toast + quitar botones, JAMÁS editarMensaje (ver la regla
+        // central arriba).
+        await responderCallback(cb.id, CONFIRMACION_VENCIDA);
+        await quitarBotones(chatId, messageId);
         return;
       }
+      await responderCallback(cb.id);
       await editarMensaje(chatId, messageId, "Cancelado.");
       return;
     }
@@ -393,14 +413,25 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
     // forma de que un segundo "ok" sobre el mismo id vuelva a pasar por acá.
     const accion = await consumirAccion(id, chatId);
     if (!accion) {
-      await editarMensaje(chatId, messageId, CONFIRMACION_VENCIDA);
+      // Mismo caso que arriba: no se llevó nada, no puede afirmar nada.
+      await responderCallback(cb.id, CONFIRMACION_VENCIDA);
+      await quitarBotones(chatId, messageId);
       return;
     }
+
+    // Se ganó la fila: se contesta ACÁ, ANTES de ejecutarAccion (que puede
+    // tardar — manda un correo), para que el botón no quede "cargando"
+    // mientras tanto. Sin texto: el resultado va a quedar escrito en el
+    // mensaje editado más abajo, no hace falta repetirlo en el toast.
+    await responderCallback(cb.id);
 
     const texto = await ejecutarAccion(accion, autorizado.email);
     // Se EDITA el mensaje original, nunca se manda uno nuevo: al editarlo
     // los botones desaparecen y el chat queda con el registro de lo que se
-    // hizo, en vez de un botón muerto que invita a tocarlo otra vez.
+    // hizo, en vez de un botón muerto que invita a tocarlo otra vez. (Esto
+    // aplica SOLO a este camino — el único que de verdad ejecutó algo y
+    // sabe qué escribir; los dos caminos con `null` de arriba nunca llegan
+    // acá.)
     //
     // Arreglo 3 (ronda de revisión): a partir de acá la acción YA se
     // ejecutó — no hay forma de deshacerla ni tiene sentido reintentarla.

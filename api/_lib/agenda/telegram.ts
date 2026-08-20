@@ -69,6 +69,23 @@ export async function editarMensaje(
   });
 }
 
+// Quita el teclado sin tocar el texto del mensaje — usa editMessageReplyMarkup,
+// no editMessageText. Se usa cuando la rama que llama a esto NO se llevó la
+// acción (consumirAccion le devolvió null): no sabe si venció o si otra rama
+// ya ejecutó de verdad, así que no puede escribir NINGÚN texto sobre el
+// resultado — ver el porqué completo en webhook.ts, procesarCallback. Pero sí
+// puede (y debe) sacar los botones, para no dejar una invitación a tocarlos
+// de nuevo sobre una acción que ya no está viva. Es idempotente y nunca pisa
+// el texto que otra rama (la que sí ganó) haya escrito o vaya a escribir en
+// el mismo mensaje.
+export async function quitarBotones(chatId: string, messageId: number): Promise<void> {
+  await pedir("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: { inline_keyboard: [] },
+  });
+}
+
 export async function responderCallback(callbackId: string, texto?: string): Promise<void> {
   await pedir("answerCallbackQuery", { callback_query_id: callbackId, text: texto });
 }

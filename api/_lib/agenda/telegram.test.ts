@@ -47,6 +47,33 @@ describe("editarMensaje", () => {
   });
 });
 
+describe("quitarBotones", () => {
+  // Ronda 2 de revisión sobre Task 5: la rama que NO se llevó la acción (le
+  // devuelve null) no puede escribir el TEXTO del mensaje — no sabe si
+  // venció o si la otra rama ya ejecutó de verdad, y afirmar cualquiera de
+  // las dos sería mentir. Pero sí puede (y debe) sacar los botones, para que
+  // no quede una invitación a tocarlos de nuevo. `editMessageReplyMarkup` es
+  // justo eso: toca el teclado, nunca el texto.
+  it("usa editMessageReplyMarkup con inline_keyboard vacío, sin tocar el texto del mensaje", async () => {
+    fetchMock.mockImplementationOnce(() => respuestaOk());
+    const { quitarBotones } = await import("./telegram");
+    await quitarBotones("999", 5);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, opts] = fetchMock.mock.calls[0] as [string, { body: string }];
+    expect(url).toMatch(/\/editMessageReplyMarkup$/);
+    const body = JSON.parse(opts.body);
+    expect(body).toEqual({
+      chat_id: "999",
+      message_id: 5,
+      reply_markup: { inline_keyboard: [] },
+    });
+    // A propósito: nunca manda "text" — editMessageReplyMarkup no lo acepta,
+    // y este helper no tiene por qué conocer ningún texto.
+    expect(body.text).toBeUndefined();
+  });
+});
+
 describe("enviarMensaje", () => {
   it("sin botones, no manda reply_markup", async () => {
     fetchMock.mockImplementationOnce(() => respuestaOk());
