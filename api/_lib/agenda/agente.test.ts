@@ -125,7 +125,7 @@ describe("correrAgente", () => {
     expect(create.mock.calls.length).toBeLessThanOrEqual(6);
   });
 
-  it("buscar_citas con fechas sin hora las interpreta como medianoche de Costa Rica, no UTC", async () => {
+  it("buscar_citas con fechas sin hora: 'desde' abre el día y 'hasta' lo cierra entero, en hora de Costa Rica", async () => {
     listarCitas.mockResolvedValue([]);
     create
       .mockResolvedValueOnce(pideHerramienta("buscar_citas", { desde: "2026-08-21", hasta: "2026-08-22" }))
@@ -140,7 +140,50 @@ describe("correrAgente", () => {
     // 00:00 UTC — seis horas antes de lo debido — y una cita a las 7 p. m. de
     // Costa Rica el jueves queda fuera del rango.
     expect(arg.desde.toISOString()).toBe("2026-08-21T06:00:00.000Z");
-    expect(arg.hasta.toISOString()).toBe("2026-08-22T06:00:00.000Z");
+    // I-3: este test ANTES afirmaba 2026-08-22T06:00:00.000Z acá, o sea el
+    // truncamiento como si fuera lo correcto. `listarCitas` filtra
+    // `inicio <= hasta`: con la medianoche del 22 se pierde el día 22 entero
+    // salvo lo que caiga exactamente a las 00:00. Una fecha pelada en el
+    // extremo superior tiene que cubrir hasta el final de ESE día en CR.
+    expect(arg.hasta.toISOString()).toBe("2026-08-23T05:59:59.999Z");
+  });
+
+  // ── I-3, el escenario que lo vuelve grave ──
+  // "¿qué tengo el jueves?" → el modelo manda desde == hasta, que es la
+  // lectura natural de "el rango es ese día". Con los dos extremos en el mismo
+  // instante el rango tiene ancho cero, listarCitas devuelve [] y el bot
+  // contesta que el jueves está libre con tres visitas agendadas — y después
+  // agenda una cuarta encima.
+  it("buscar_citas con desde == hasta (un solo día) cubre el día completo, no un rango de ancho cero", async () => {
+    listarCitas.mockResolvedValue([]);
+    create
+      .mockResolvedValueOnce(pideHerramienta("buscar_citas", { desde: "2026-08-21", hasta: "2026-08-21" }))
+      .mockResolvedValueOnce(respondeTexto("ok"));
+    const { correrAgente } = await cargar();
+    await correrAgente({ mensaje: "qué tengo el jueves", historial: [], ahora: AHORA });
+
+    const arg = listarCitas.mock.calls[0][0] as { desde: Date; hasta: Date };
+    expect(arg.desde.toISOString()).toBe("2026-08-21T06:00:00.000Z");
+    expect(arg.hasta.toISOString()).toBe("2026-08-22T05:59:59.999Z");
+    expect(arg.hasta.getTime() - arg.desde.getTime()).toBe(24 * 60 * 60_000 - 1);
+  });
+
+  it("si 'hasta' ya trae hora, se respeta tal cual (no se lo empuja a fin de día)", async () => {
+    listarCitas.mockResolvedValue([]);
+    create
+      .mockResolvedValueOnce(
+        pideHerramienta("buscar_citas", {
+          desde: "2026-08-21T08:00:00-06:00",
+          hasta: "2026-08-21T12:00:00-06:00",
+        }),
+      )
+      .mockResolvedValueOnce(respondeTexto("ok"));
+    const { correrAgente } = await cargar();
+    await correrAgente({ mensaje: "qué tengo el jueves en la mañana", historial: [], ahora: AHORA });
+
+    const arg = listarCitas.mock.calls[0][0] as { desde: Date; hasta: Date };
+    expect(arg.desde.toISOString()).toBe("2026-08-21T14:00:00.000Z");
+    expect(arg.hasta.toISOString()).toBe("2026-08-21T18:00:00.000Z");
   });
 
   it("si pide dos escrituras a la vez, toma una sola y lo dice", async () => {

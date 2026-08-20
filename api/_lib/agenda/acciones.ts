@@ -147,14 +147,28 @@ export async function consumirAccion(id: string, chatId: string): Promise<Accion
 // por eso, si el correo al cliente falló, lo dice claro — sin que parezca
 // que la cita no se guardó. La cita SÍ quedó: lo que falló es el aviso, y
 // hay que decírselo para que la persona avise por otro medio.
-function textoResultado(accionTexto: string, cita: Cita, correo: ResultadoCorreo): string {
+//
+// I-2: el choque de horarios se avisa acá igual que en el panel
+// (AgendaManager.tsx). La decisión del proyecto es "se avisa, no se bloquea"
+// —con agenda compartida entre dos personas, bloquear crea más fricción que la
+// que evita— pero avisar solo por el panel deja el aviso justo afuera de la
+// interfaz que más se usa, el teléfono. Misma línea literal que el panel, para
+// que las dos interfaces digan lo mismo ante el mismo hecho.
+const AVISO_CHOQUE = "Ojo: ya tenías algo a esa hora.";
+const AVISO_CORREO_FALLIDO =
+  "Ojo: no se pudo mandar el correo al cliente. La cita SÍ quedó guardada — avisale por otro medio.";
+
+function textoResultado(
+  accionTexto: string,
+  cita: Cita,
+  correo: ResultadoCorreo,
+  choque = false,
+): string {
   const lineas = [accionTexto, fechaHoraLarga(new Date(cita.inicio)), `${cita.cliente_nombre} — ${cita.lugar}`];
-  if (correo === "fallo") {
-    lineas.push(
-      "",
-      "Ojo: no se pudo mandar el correo al cliente. La cita SÍ quedó guardada — avisale por otro medio.",
-    );
-  }
+  const avisos: string[] = [];
+  if (choque) avisos.push(AVISO_CHOQUE);
+  if (correo === "fallo") avisos.push(AVISO_CORREO_FALLIDO);
+  if (avisos.length) lineas.push("", ...avisos);
   return lineas.join("\n");
 }
 
@@ -183,8 +197,8 @@ async function ejecutarCrear(entrada: Record<string, unknown>, actor: string): P
     lugar,
     notas: campoTexto(entrada, "notas") ?? null,
   };
-  const { cita, correo } = await crearCitaCompleta(datos, actor, "telegram");
-  return textoResultado("Cita creada.", cita, correo);
+  const { cita, choque, correo } = await crearCitaCompleta(datos, actor, "telegram");
+  return textoResultado("Cita creada.", cita, correo, choque);
 }
 
 async function ejecutarMover(entrada: Record<string, unknown>, actor: string): Promise<string> {
@@ -208,8 +222,21 @@ async function ejecutarMover(entrada: Record<string, unknown>, actor: string): P
     lote_id: actual.lote_id,
     notas: actual.notas,
   };
-  const { cita, correo } = await actualizarCitaCompleta(id, datos, actor, "telegram");
-  return textoResultado("Cita movida.", cita, correo);
+  const { cita, choque, correo } = await actualizarCitaCompleta(id, datos, actor, "telegram");
+  // M-6: mover_cita solo toca `inicio` (el resto se copia de la cita actual),
+  // así que un "no_aplica" acá significa exactamente una cosa: el `inicio`
+  // propuesto era el que la cita ya tenía. No subió la secuencia del .ics ni
+  // le salió correo al cliente — decir "Cita movida." y mostrar la fecha de
+  // siempre como si fuera la nueva sería afirmar un cambio que no pasó. Mismo
+  // criterio que ejecutarCancelar con una cita ya cancelada, más abajo.
+  if (correo === "no_aplica") {
+    return [
+      "Esa cita ya estaba a esa hora — no moví nada ni le avisé al cliente.",
+      fechaHoraLarga(new Date(cita.inicio)),
+      `${cita.cliente_nombre} — ${cita.lugar}`,
+    ].join("\n");
+  }
+  return textoResultado("Cita movida.", cita, correo, choque);
 }
 
 async function ejecutarEditar(entrada: Record<string, unknown>, actor: string): Promise<string> {
@@ -244,8 +271,12 @@ async function ejecutarEditar(entrada: Record<string, unknown>, actor: string): 
     lote_id: actual.lote_id,
     notas: campoTexto(entrada, "notas") ?? actual.notas,
   };
-  const { cita, correo } = await actualizarCitaCompleta(id, datos, actor, "telegram");
-  return textoResultado("Cita editada.", cita, correo);
+  // A diferencia de mover_cita (arriba), acá un "no_aplica" NO es un no-op:
+  // editar_cita puede cambiar notas, teléfono, nombre o lote — cosas que el
+  // cliente no ve en su invitación y por eso no le generan correo, pero que sí
+  // cambiaron de verdad. "Cita editada." es cierto igual.
+  const { cita, choque, correo } = await actualizarCitaCompleta(id, datos, actor, "telegram");
+  return textoResultado("Cita editada.", cita, correo, choque);
 }
 
 async function ejecutarCancelar(entrada: Record<string, unknown>, actor: string): Promise<string> {

@@ -95,7 +95,10 @@ const HERRAMIENTAS: Anthropic.Tool[] = [
         },
         hasta: {
           type: "string",
-          description: "Fin del rango, en ISO (ej. \"2026-08-28\" o \"2026-08-28T23:59:59-06:00\").",
+          description:
+            "Fin del rango, en ISO. Una fecha sin hora (ej. \"2026-08-28\") cubre ese día completo, " +
+            "hasta las 11:59 p. m. de Costa Rica; para cortar antes, mandá la hora exacta " +
+            "(ej. \"2026-08-28T12:00:00-06:00\"). Para un solo día, mandá la misma fecha en \"desde\" y \"hasta\".",
         },
         incluir_canceladas: {
           type: "boolean",
@@ -242,11 +245,23 @@ function campoTexto(entrada: Record<string, unknown>, clave: string): string | u
 // fechas "peladas" (AAAA-MM-DD), porque `new Date("2026-08-21")` sin este
 // ajuste las lee como medianoche UTC, seis horas antes de lo que es medianoche
 // acá, y eso corre el rango de búsqueda entero.
-function interpretarFecha(txt: string): Date | null {
+//
+// I-3: una fecha pelada NO significa lo mismo en los dos extremos del rango.
+// En `desde` es "desde que empieza ese día"; en `hasta` es "hasta que ese día
+// termina". Interpretar las dos como medianoche era correcto de un lado y
+// silenciosamente lossy del otro, porque `listarCitas` filtra
+// `inicio <= hasta`: "¿qué tengo el jueves?" con desde == hasta daba un rango
+// de ancho cero y el bot contestaba "No hay citas en ese rango" con el día
+// lleno. Por eso `finDeDia` — el mismo criterio que ya usan /hoy y /semana en
+// telegram/webhook.ts, que cierran con `desde + 24h − 1ms`.
+function interpretarFecha(txt: string, opts: { finDeDia?: boolean } = {}): Date | null {
   const soloFecha = /^\d{4}-\d{2}-\d{2}$/;
   if (soloFecha.test(txt)) {
     const [anio, mes, dia] = txt.split("-").map(Number);
-    return new Date(Date.UTC(anio, mes - 1, dia, 6, 0, 0, 0));
+    const medianoche = Date.UTC(anio, mes - 1, dia, 6, 0, 0, 0);
+    // Fin de día = medianoche del día siguiente menos 1 ms, o sea las
+    // 23:59:59.999 de ese mismo día en Costa Rica.
+    return new Date(opts.finDeDia ? medianoche + 24 * 60 * 60_000 - 1 : medianoche);
   }
   const fecha = new Date(txt);
   return Number.isNaN(fecha.getTime()) ? null : fecha;
@@ -258,7 +273,7 @@ async function ejecutarBuscarCitas(
   const desdeTxt = campoTexto(entrada, "desde");
   const hastaTxt = campoTexto(entrada, "hasta");
   const desde = desdeTxt ? interpretarFecha(desdeTxt) : null;
-  const hasta = hastaTxt ? interpretarFecha(hastaTxt) : null;
+  const hasta = hastaTxt ? interpretarFecha(hastaTxt, { finDeDia: true }) : null;
   if (!desde || !hasta) {
     return {
       esError: true,

@@ -329,6 +329,137 @@ describe("ejecutarAccion — el texto para la persona", () => {
     expect(texto).toMatch(/quedó guardada/i);
   });
 
+  // ── I-2: el choque de horarios se avisa también por el bot ──
+  //
+  // La decisión del proyecto es "se avisa, no se bloquea". El panel lo hace
+  // (AgendaManager.tsx), el bot no lo hacía: los tres ejecutores destructuraban
+  // `{ cita, correo }` y tiraban `choque` a la basura. Escenario: Alina agenda
+  // por el bot a las 10:00 en Llanada, Alejandro ya tenía una visita a las
+  // 10:00 en Río Celeste, el bot contesta "Cita creada." sin una palabra y los
+  // dos clientes se enteran el día de la visita.
+  it("crear_cita con choque lo avisa en el texto, sin bloquear la creación", async () => {
+    crearCitaCompleta.mockResolvedValue({ cita: CITA_ACTUAL, choque: true, correo: "enviado" });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      {
+        herramienta: "crear_cita",
+        entrada: {
+          cliente_nombre: "María",
+          cliente_email: "maria@example.com",
+          inicio: "2026-09-01T10:00:00-06:00",
+          lugar: "Llanada",
+        },
+      },
+      "alina@ecoviva.test",
+    );
+    expect(crearCitaCompleta).toHaveBeenCalled(); // no se bloqueó
+    expect(texto).toMatch(/Cita creada\./);
+    expect(texto).toMatch(/ya tenías algo a esa hora/i);
+  });
+
+  it("mover_cita con choque también lo avisa", async () => {
+    obtenerCita.mockResolvedValue(CITA_ACTUAL);
+    actualizarCitaCompleta.mockResolvedValue({
+      cita: { ...CITA_ACTUAL, inicio: "2026-09-02T16:00:00+00:00" },
+      choque: true,
+      correo: "enviado",
+    });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      { herramienta: "mover_cita", entrada: { id: "c1", inicio: "2026-09-02T10:00:00-06:00" } },
+      "alina@ecoviva.test",
+    );
+    expect(texto).toMatch(/Cita movida\./);
+    expect(texto).toMatch(/ya tenías algo a esa hora/i);
+  });
+
+  it("editar_cita con choque también lo avisa", async () => {
+    obtenerCita.mockResolvedValue(CITA_ACTUAL);
+    actualizarCitaCompleta.mockResolvedValue({ cita: CITA_ACTUAL, choque: true, correo: "enviado" });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      { herramienta: "editar_cita", entrada: { id: "c1", lugar: "Oficina EcoViva" } },
+      "alina@ecoviva.test",
+    );
+    expect(texto).toMatch(/Cita editada\./);
+    expect(texto).toMatch(/ya tenías algo a esa hora/i);
+  });
+
+  it("sin choque no aparece ninguna línea de solape", async () => {
+    crearCitaCompleta.mockResolvedValue({ cita: CITA_ACTUAL, choque: false, correo: "enviado" });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      {
+        herramienta: "crear_cita",
+        entrada: {
+          cliente_nombre: "María",
+          cliente_email: "maria@example.com",
+          inicio: "2026-09-01T10:00:00-06:00",
+          lugar: "Llanada",
+        },
+      },
+      "alina@ecoviva.test",
+    );
+    expect(texto).not.toMatch(/esa hora/i);
+  });
+
+  it("si hay choque Y el correo falló, se avisan los dos", async () => {
+    crearCitaCompleta.mockResolvedValue({ cita: CITA_ACTUAL, choque: true, correo: "fallo" });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      {
+        herramienta: "crear_cita",
+        entrada: {
+          cliente_nombre: "María",
+          cliente_email: "maria@example.com",
+          inicio: "2026-09-01T10:00:00-06:00",
+          lugar: "Llanada",
+        },
+      },
+      "alina@ecoviva.test",
+    );
+    expect(texto).toMatch(/ya tenías algo a esa hora/i);
+    expect(texto).toMatch(/no se pudo mandar el correo/i);
+  });
+
+  // ── M-6: "Cita movida." cuando no se movió nada ──
+  //
+  // Si el modelo propone mover_cita al mismo `inicio` que ya tenía, no sube la
+  // secuencia del .ics ni le sale correo al cliente (correo = "no_aplica"), y
+  // el texto igual afirmaba que se movió, mostrando la fecha vieja como si
+  // fuera la nueva. ejecutarCancelar ya distinguía el caso equivalente.
+  it("mover_cita al mismo horario que ya tenía no dice 'Cita movida.'", async () => {
+    obtenerCita.mockResolvedValue(CITA_ACTUAL);
+    actualizarCitaCompleta.mockResolvedValue({
+      cita: CITA_ACTUAL,
+      choque: false,
+      correo: "no_aplica",
+    });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      { herramienta: "mover_cita", entrada: { id: "c1", inicio: "2026-09-01T10:00:00-06:00" } },
+      "alina@ecoviva.test",
+    );
+    expect(texto).not.toMatch(/Cita movida\./);
+    expect(texto).toMatch(/ya estaba a esa hora/i);
+    expect(texto).toMatch(/ni le avisé al cliente/i);
+  });
+
+  it("editar_cita con correo 'no_aplica' SÍ dice 'Cita editada.' (cambió algo interno, no es un no-op)", async () => {
+    obtenerCita.mockResolvedValue(CITA_ACTUAL);
+    actualizarCitaCompleta.mockResolvedValue({
+      cita: CITA_ACTUAL,
+      choque: false,
+      correo: "no_aplica",
+    });
+    const { ejecutarAccion } = await cargar();
+    const texto = await ejecutarAccion(
+      { herramienta: "editar_cita", entrada: { id: "c1", notas: "regatea mucho" } },
+      "alina@ecoviva.test",
+    );
+    expect(texto).toMatch(/Cita editada\./);
+  });
+
   it("un ErrorAgenda de operaciones.ts se traduce a su propio mensaje, no al genérico", async () => {
     cancelarCitaCompleta.mockRejectedValue(
       new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede cancelar."),

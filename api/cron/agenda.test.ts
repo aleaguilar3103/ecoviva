@@ -364,6 +364,11 @@ describe("/api/cron/agenda", () => {
 
   describe("agenda_jobs.resumen_enviado_at (ronda de arreglos)", () => {
     it("envío exitoso deja resumen_enviado_at con la hora real, sobre la fila de hoy", async () => {
+      // I-1: este test corría con el default `mockResolvedValue(0)` — o sea,
+      // con CERO envíos — y aun así exigía el timestamp. Le puso "envío
+      // exitoso" a un caso de envío nulo, y por eso el defecto pasó la
+      // revisión de la tarea 6. Un envío exitoso es el que sale de verdad.
+      resumenDiario.mockResolvedValue(2);
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-08-19T11:00:00.000Z"));
       const handler = await cargar();
@@ -373,6 +378,34 @@ describe("/api/cron/agenda", () => {
       expect(updateJobsSpy).toHaveBeenCalledWith({ resumen_enviado_at: "2026-08-19T11:00:00.000Z" });
       expect(eqJobsSpy).toHaveBeenCalledWith("fecha", "2026-08-19");
       vi.useRealTimers();
+    });
+
+    it("si el resumen no le llegó a NADIE (0 envíos), resumen_enviado_at NO se estampa", async () => {
+      // La columna existe para que `null` signifique "el cron reclamó el día
+      // pero el envío nunca se confirmó". `resumenDiario` nunca tira: si
+      // Telegram está caído, si falla la consulta de destinatarios o si las
+      // dos personas bloquearon el bot, devuelve 0. Estampar la hora igual
+      // convierte esa columna en una mentira, y como `agenda_jobs.fecha` es
+      // PK, el día no se reintenta nunca más: el operador ve verde sobre un
+      // mecanismo muerto (Paso 12 del runbook).
+      resumenDiario.mockResolvedValue(0);
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(resumenDiario).toHaveBeenCalled();
+      expect(insertJobsSpy).toHaveBeenCalled(); // el gate SÍ reclamó el día
+      expect(updateJobsSpy).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(200); // y no frena nada de lo que sigue
+    });
+
+    it("si el resumen salió aunque sea a UNA persona, sí se estampa", async () => {
+      resumenDiario.mockResolvedValue(1);
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(updateJobsSpy).toHaveBeenCalled();
     });
 
     it("si resumenDiario tira, la fila del gate existe pero resumen_enviado_at nunca se toca (queda en null)", async () => {
@@ -390,6 +423,7 @@ describe("/api/cron/agenda", () => {
     });
 
     it("si el UPDATE de resumen_enviado_at falla, no rompe nada: la reconciliación se corre igual", async () => {
+      resumenDiario.mockResolvedValue(2);
       respuestaUpdateJob = { error: { message: "boom de postgres" } };
       const sin24h = cita({ id: "sin-24h", recordatorio_24h_email_id: null });
       listarCitas.mockResolvedValue([sin24h]);

@@ -298,6 +298,27 @@ const CITA_PARA_ACCIONES = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` borra las LLAMADAS pero no las IMPLEMENTACIONES: un
+  // `mockRejectedValue` de un test se le filtraba a todos los que corrían
+  // después (el de "falla el editarMensaje final" no se notaba solo porque
+  // estaba al final del archivo). Estos espías no tienen implementación
+  // propia — se la pone cada test — así que resetearlos es lo correcto.
+  // `from` NO va acá: su implementación se define en el módulo.
+  for (const espia of [
+    enviarMensaje,
+    escribiendo,
+    editarMensaje,
+    responderCallback,
+    quitarBotones,
+    listarCitas,
+    obtenerCita,
+    correrAgente,
+    crearCitaCompleta,
+    actualizarCitaCompleta,
+    cancelarCitaCompleta,
+  ]) {
+    espia.mockReset();
+  }
   colas = {};
   filasAcciones = [];
   proximoIdAccion = 1;
@@ -465,6 +486,35 @@ describe("POST /api/telegram/webhook — /vincular", () => {
   // Test 3 del coordinador: el update condicionado no encuentra fila (código
   // que no existe, que ya venció, o que alguien más se llevó primero en la
   // carrera) → mensaje de código inválido, nada se vincula.
+  // I-4, mismo criterio: /vincular consume un código de un solo uso. Si el
+  // saludo posterior no sale, "probá de nuevo" manda a la persona a repetir un
+  // comando cuyo código ya se gastó — el bot le contestaría "Ese código no
+  // sirve" sobre una vinculación que SÍ quedó hecha.
+  it("el código se consume pero falla el saludo → no dice 'probá de nuevo'", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: { email: "alina@x.com", full_name: "Alina" }, error: null }];
+    enviarMensaje.mockRejectedValue(new Error("Telegram caído"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(
+      req({
+        secreto: SECRETO,
+        body: updateBase({
+          update_id: 980,
+          message: { message_id: 1, text: "/vincular 12345678", chat: { id: 999, type: "private" }, from: { id: 999 } },
+        }),
+      }),
+      res,
+    );
+    await esperarProcesamiento();
+
+    expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
   it("9) el update condicionado devuelve null (código vencido, inexistente o ya consumido) → avisa que no sirve", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
     colas.app_users = [{ data: null, error: null }]; // el where (código + vigencia) no matcheó ninguna fila
@@ -1219,6 +1269,154 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
     // Nunca el texto que invita a reintentar algo que ya pasó.
     expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
     expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  // ── I-4: después de un consumo, ningún camino puede invitar a reintentar ──
+  //
+  // Es la quinta vez que aparece esta familia de defecto en la rama, así que
+  // estos tests cubren TODOS los caminos posteriores a un `consumirAccion`, no
+  // solo el que la revisión encontró. El caso concreto: la persona toca
+  // "Confirmar" y, dudando si pegó, toca "Cancelar" sobre el mismo mensaje.
+  // La rama ganadora ejecuta de verdad (cita creada, correo al cliente ya
+  // mandado, irreversible) y deja el teclado vacío al editar el mensaje. La
+  // perdedora hace `quitarBotones` sobre un teclado ya vacío, Telegram
+  // responde 400 "message is not modified", y eso caía al catch general con
+  // "Se me complicó, probá de nuevo." — invitando a repetir lo que la otra
+  // rama ya hizo.
+  const CONSUMOS_QUE_NO_INVITAN_A_REINTENTAR: {
+    nombre: string;
+    data: string;
+    conFila: boolean;
+    romper: () => void;
+  }[] = [
+    {
+      nombre: "no: sin fila y quitarBotones tira (400 'message is not modified')",
+      data: "no:accion-1",
+      conFila: false,
+      romper: () => quitarBotones.mockRejectedValue(new Error("400 message is not modified")),
+    },
+    {
+      nombre: "ok: sin fila y quitarBotones tira (el caso exacto de la revisión)",
+      data: "ok:accion-1",
+      conFila: false,
+      romper: () => quitarBotones.mockRejectedValue(new Error("400 message is not modified")),
+    },
+    {
+      nombre: "no: sin fila y responderCallback tira (el toast tampoco puede tumbar nada)",
+      data: "no:accion-1",
+      conFila: false,
+      romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+    },
+    {
+      nombre: "ok: sin fila y responderCallback tira",
+      data: "ok:accion-1",
+      conFila: false,
+      romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+    },
+    {
+      nombre: "no: CON fila y el editarMensaje de 'Cancelado.' tira",
+      data: "no:accion-1",
+      conFila: true,
+      romper: () => editarMensaje.mockRejectedValue(new Error("hipo de red")),
+    },
+    {
+      nombre: "no: CON fila y responderCallback tira",
+      data: "no:accion-1",
+      conFila: true,
+      romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+    },
+    {
+      nombre: "ok: CON fila y responderCallback tira ANTES de ejecutar",
+      data: "ok:accion-1",
+      conFila: true,
+      romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+    },
+  ];
+
+  for (const caso of CONSUMOS_QUE_NO_INVITAN_A_REINTENTAR) {
+    it(`${caso.nombre} → nunca "Se me complicó, probá de nuevo."`, async () => {
+      colas.telegram_updates = [{ data: null, error: null }];
+      colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+      if (caso.conFila) {
+        filasAcciones.push({
+          id: "accion-1",
+          chat_id: "999",
+          accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+          expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+        });
+      }
+      cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+      caso.romper();
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const { default: handler } = await cargar();
+      const res = resRecorder();
+      await handler(
+        req({ secreto: SECRETO, body: callbackUpdate({ update_id: 970, callback_query: { id: "cbq-1", data: caso.data, from: { id: 999 }, message: { message_id: 5, chat: { id: 999, type: "private" } } } }) }),
+        res,
+      );
+      await esperarProcesamiento();
+
+      expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+  }
+
+  it("ok: CON fila y responderCallback caído → la acción se ejecuta igual y el resultado se escribe", async () => {
+    // El toast es cosmético: que falle no puede dejar sin ejecutar una acción
+    // que la persona YA confirmó y cuya fila ya se consumió.
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+    responderCallback.mockRejectedValue(new Error("400 query is too old"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 971 }) }), res);
+    await esperarProcesamiento();
+
+    expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+    expect(editarMensaje).toHaveBeenCalledWith("999", 5, expect.stringMatching(/Cita cancelada/));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("no: CON fila y editarMensaje caído → avisa 'Cancelado.' por un mensaje nuevo", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    editarMensaje.mockRejectedValue(new Error("hipo de red"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(
+      req({
+        secreto: SECRETO,
+        body: callbackUpdate({
+          update_id: 972,
+          callback_query: { id: "cbq-1", data: "no:accion-1", from: { id: 999 }, message: { message_id: 5, chat: { id: 999, type: "private" } } },
+        }),
+      }),
+      res,
+    );
+    await esperarProcesamiento();
+
+    expect(enviarMensaje).toHaveBeenCalledWith("999", "Cancelado.");
+    expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
     consoleErrorSpy.mockRestore();
   });
 

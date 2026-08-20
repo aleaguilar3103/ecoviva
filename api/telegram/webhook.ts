@@ -25,6 +25,16 @@ import { COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda, type FilaAccesoAgenda } from
 //   4. Autorización por from.id (el USUARIO, no el chat) — se aplica IGUAL a
 //      un mensaje de texto que a un toque de botón: un botón no es una
 //      excepción a la autorización.
+//
+// I-5: TODO el turno vive dentro de `waitUntil`, después de haber contestado
+// 200. `waitUntil` mantiene viva la invocación pero NO la exime del
+// `maxDuration` de la función, así que vercel.json lo declara explícito (60 s)
+// en vez de dejarlo al default del plan, que no está confirmado y en Hobby es
+// de 10 s — menos que un turno del agente con varias vueltas contra el modelo.
+// Esto REDUCE la ventana, no la elimina: si la invocación igual se corta entre
+// `consumirAccion` y el `editarMensaje` final, la cita quedó creada y el correo
+// ya salió, y la persona no ve respuesta. El Paso 12-bis del runbook manda
+// medir el tiempo real de un turno contra ese límite.
 
 // ── Autorización ──
 //
@@ -223,21 +233,31 @@ function extraerCodigo(texto: string): string | null {
   return partes.length >= 2 ? partes[1] : null;
 }
 
+// Devuelve el texto a mandar y si el código LLEGÓ A CONSUMIRSE, en vez de
+// mandar el mensaje ella misma. La diferencia importa por I-4 (ver LA SEGUNDA
+// REGLA en procesarCallback): el código de /vincular es una credencial de un
+// solo uso, así que una vez consumida, un fallo al mandar el saludo no puede
+// terminar en "probá de nuevo" — la persona repetiría el comando con un código
+// que ya se gastó y el bot le contestaría "Ese código no sirve" sobre una
+// vinculación que SÍ quedó hecha. Quien llama marca `postConsumo` con esto
+// ANTES de intentar mandar nada.
+interface ResultadoVincular {
+  consumido: boolean;
+  texto: string;
+}
+
 async function manejarVincular(
   texto: string,
   fromId: number | undefined,
   chatType: string | undefined,
-  chatId: string,
-): Promise<void> {
+): Promise<ResultadoVincular> {
   if (chatType !== "private") {
-    await enviarMensaje(chatId, LINEA_SECA);
-    return;
+    return { consumido: false, texto: LINEA_SECA };
   }
 
   const codigo = extraerCodigo(texto);
   if (!fromId || !codigo) {
-    await enviarMensaje(chatId, CODIGO_INVALIDO);
-    return;
+    return { consumido: false, texto: CODIGO_INVALIDO };
   }
 
   const db = supabaseAdmin();
@@ -271,24 +291,21 @@ async function manejarVincular(
     // que puede pasar en el uso normal, no un error de sistema — y sigue
     // existiendo con el update atómico, es un caso distinto al de arriba.
     if (error.code === "23505") {
-      await enviarMensaje(chatId, TELEGRAM_YA_VINCULADO);
-      return;
+      return { consumido: false, texto: TELEGRAM_YA_VINCULADO };
     }
     console.error("telegram/webhook: fallo al vincular", error);
-    await enviarMensaje(chatId, ERROR_GENERICO);
-    return;
+    return { consumido: false, texto: ERROR_GENERICO };
   }
   if (!data) {
     // El código no existe, ya venció, o alguien se lo llevó primero en la
     // carrera descrita arriba: en los tres casos, Postgres no tocó ninguna
     // fila y acá no hay forma (ni falta) de distinguirlos.
-    await enviarMensaje(chatId, CODIGO_INVALIDO);
-    return;
+    return { consumido: false, texto: CODIGO_INVALIDO };
   }
 
   const nombre = (data.full_name as string | null)?.trim();
   const saludo = nombre ? `Listo, ${nombre}` : "Listo";
-  await enviarMensaje(chatId, `${saludo}. Ya podés escribirme /hoy o /semana.`);
+  return { consumido: true, texto: `${saludo}. Ya podés escribirme /hoy o /semana.` };
 }
 
 // ── Historial reciente de la conversación con el agente ──
@@ -343,6 +360,18 @@ async function guardarMensaje(chatId: string, rol: Mensaje["rol"], contenido: st
 // agenda_acciones_pendientes. Cualquier otra forma se ignora.
 const RE_CALLBACK = /^(ok|no):(.+)$/;
 
+// Ejecuta algo cuyo fallo no puede cambiar el curso de nada: se loguea y se
+// sigue. Existe para que las llamadas a Telegram posteriores a un consumo
+// (toasts, quitar botones) no puedan caer al catch general — ver LA SEGUNDA
+// REGLA abajo.
+async function sinTumbar(que: string, fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn();
+  } catch (e) {
+    console.error(`telegram/webhook: ${que}`, e);
+  }
+}
+
 // No debe tirar NUNCA, por la misma razón que procesarUpdate: un error acá
 // se ve, desde Telegram, como un botón que no hace nada.
 //
@@ -363,6 +392,29 @@ const RE_CALLBACK = /^(ok|no):(.+)$/;
 // pisa lo que la rama ganadora vaya a escribir (antes o después, no importa
 // el orden en que lleguen las dos respuestas HTTP a Telegram).
 //
+// ── LA SEGUNDA REGLA (I-4, revisión final) ──
+// A PARTIR DE UN `consumirAccion`, NINGÚN camino puede terminar en un texto
+// que invite a reintentar. No importa si ejecutó esta rama o la otra: una vez
+// que la fila se consumió, o esta rama hizo algo irreversible (cita creada,
+// correo al cliente ya mandado) o lo hizo la otra, y no hay forma de
+// distinguirlo desde acá. `ERROR_GENERICO` dice "Se me complicó, probá de
+// nuevo." — un reintento humano genera una acción NUEVA que, al confirmarse,
+// duplica de verdad la cita y el correo. No porque falle la atomicidad de
+// `consumirAccion`, sino porque el aviso mintió sobre el estado.
+//
+// Se sostiene de dos formas a la vez, porque la disciplina sola ya falló
+// cuatro veces en esta rama:
+//   (a) cada llamada frágil posterior al consumo va envuelta en `sinTumbar`
+//       (o en su propio try/catch cuando además hay un plan B), así que un
+//       400 de Telegram —"message is not modified" cuando el teclado ya
+//       estaba vacío, "query is too old" en un toast— se loguea y sigue;
+//   (b) `postConsumo` es un cierre estructural: el catch general no manda
+//       ERROR_GENERICO si ya hubo un consumo, aunque mañana alguien agregue
+//       una línea sin envolver. El catch general queda entonces como red de
+//       lo ANTERIOR al consumo (autorizar, o el propio consumirAccion
+//       reventando), que es donde "probá de nuevo" sí es honesto: ahí no
+//       pasó nada todavía.
+//
 // Un callback se contesta UNA sola vez — contestarlo dos veces falla contra
 // la API real. Por eso cada uno de los cuatro caminos (no:/ok: × con
 // fila/sin fila) llama a `responderCallback` EXACTAMENTE una vez:
@@ -375,6 +427,10 @@ const RE_CALLBACK = /^(ok|no):(.+)$/;
 //     hay nada que ejecutar — no llega a acercarse a `ejecutarAccion`.
 async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {
   let chatId: string | undefined;
+  // Queda en true apenas `consumirAccion` CONTESTA — con fila o sin ella, da
+  // igual: desde ese instante ya no se puede invitar a reintentar (ver LA
+  // SEGUNDA REGLA arriba).
+  let postConsumo = false;
   try {
     // Un botón NO es una excepción a la autorización: cualquiera que
     // consiga el identificador de un mensaje podría intentar tocarlo. Se
@@ -396,16 +452,34 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
       // consumiera acá, la acción quedaría viva y un "ok" posterior sobre
       // el mismo id la ejecutaría igual, como si nunca se hubiera cancelado.
       const consumida = await consumirAccion(id, chatId);
+      postConsumo = true;
       if (!consumida) {
         // No se llevó nada: no sabe si venció o si "ok:" ya ejecutó de
         // verdad. Toast + quitar botones, JAMÁS editarMensaje (ver la regla
-        // central arriba).
-        await responderCallback(cb.id, CONFIRMACION_VENCIDA);
-        await quitarBotones(chatId, messageId);
+        // central arriba). Los dos van envueltos: `quitarBotones` sobre un
+        // teclado que la rama ganadora ya vació devuelve 400 "message is not
+        // modified", y el toast puede llegar tarde ("query is too old").
+        await sinTumbar("no se pudo avisar por el toast que la confirmación ya no valía", () =>
+          responderCallback(cb.id, CONFIRMACION_VENCIDA),
+        );
+        await sinTumbar("no se pudieron quitar los botones de una confirmación ya consumida", () =>
+          quitarBotones(autorizado.chatId, messageId),
+        );
         return;
       }
-      await responderCallback(cb.id);
-      await editarMensaje(chatId, messageId, "Cancelado.");
+      await sinTumbar("no se pudo contestar el toast de la cancelación", () =>
+        responderCallback(cb.id),
+      );
+      // La acción YA se consumió: quedó cancelada de verdad y no hay forma de
+      // volver atrás. Mismo plan B que el camino de "ok:" más abajo.
+      try {
+        await editarMensaje(chatId, messageId, "Cancelado.");
+      } catch (e) {
+        console.error("telegram/webhook: la acción se canceló pero no se pudo editar el mensaje original", e);
+        await sinTumbar("tampoco se pudo avisar la cancelación por un mensaje nuevo", () =>
+          enviarMensaje(autorizado.chatId, "Cancelado."),
+        );
+      }
       return;
     }
 
@@ -416,10 +490,18 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
     // devuelve la acción, acá es la ÚNICA vez que se ejecuta: no queda
     // forma de que un segundo "ok" sobre el mismo id vuelva a pasar por acá.
     const accion = await consumirAccion(id, chatId);
+    postConsumo = true;
     if (!accion) {
-      // Mismo caso que arriba: no se llevó nada, no puede afirmar nada.
-      await responderCallback(cb.id, CONFIRMACION_VENCIDA);
-      await quitarBotones(chatId, messageId);
+      // Mismo caso que arriba: no se llevó nada, no puede afirmar nada. Este
+      // es el camino exacto del hallazgo I-4: dos toques seguidos sobre el
+      // mismo mensaje, "ok:" gana y ejecuta, y el `quitarBotones` de "no:"
+      // choca contra el teclado que "ok:" ya dejó vacío.
+      await sinTumbar("no se pudo avisar por el toast que la confirmación ya no valía", () =>
+        responderCallback(cb.id, CONFIRMACION_VENCIDA),
+      );
+      await sinTumbar("no se pudieron quitar los botones de una confirmación ya consumida", () =>
+        quitarBotones(autorizado.chatId, messageId),
+      );
       return;
     }
 
@@ -427,7 +509,11 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
     // tardar — manda un correo), para que el botón no quede "cargando"
     // mientras tanto. Sin texto: el resultado va a quedar escrito en el
     // mensaje editado más abajo, no hace falta repetirlo en el toast.
-    await responderCallback(cb.id);
+    // Envuelto: el toast es cosmético y su fallo no puede dejar sin ejecutar
+    // una acción que la persona ya confirmó y cuya fila ya se consumió.
+    await sinTumbar("no se pudo contestar el toast antes de ejecutar la acción", () =>
+      responderCallback(cb.id),
+    );
 
     const texto = await ejecutarAccion(accion, autorizado.email);
     // Se EDITA el mensaje original, nunca se manda uno nuevo: al editarlo
@@ -464,6 +550,10 @@ async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]
     }
   } catch (e) {
     console.error("telegram/webhook: error inesperado al procesar el callback", e);
+    // El cierre estructural de LA SEGUNDA REGLA: después de un consumo no se
+    // manda ERROR_GENERICO ni aunque el error venga de una línea que nadie
+    // envolvió. Antes del consumo sí, que es donde "probá de nuevo" es cierto.
+    if (postConsumo) return;
     try {
       if (chatId) await enviarMensaje(chatId, ERROR_GENERICO);
     } catch (e2) {
@@ -483,6 +573,9 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
   }
 
   const msg = update.message;
+  // Mismo cierre estructural que en procesarCallback (LA SEGUNDA REGLA): el
+  // único camino de acá que consume algo de un solo uso es /vincular.
+  let postConsumo = false;
   try {
     if (!msg || typeof msg.text !== "string" || !msg.chat) return; // nada que responder acá
 
@@ -492,7 +585,11 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
     const texto = msg.text.trim();
 
     if (texto.startsWith("/vincular")) {
-      await manejarVincular(texto, fromId, chatType, chatId);
+      const resultado = await manejarVincular(texto, fromId, chatType);
+      // Se marca ANTES de mandar nada: si el envío falla, el código ya se
+      // gastó igual y "probá de nuevo" sería una invitación falsa.
+      if (resultado.consumido) postConsumo = true;
+      await enviarMensaje(chatId, resultado.texto);
       return;
     }
 
@@ -546,6 +643,7 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
     }
   } catch (e) {
     console.error("telegram/webhook: error inesperado al procesar el update", e);
+    if (postConsumo) return;
     try {
       const chatId = msg?.chat?.id;
       if (chatId) await enviarMensaje(String(chatId), ERROR_GENERICO);

@@ -14,12 +14,12 @@ import { resumenDiario } from "../_lib/agenda/avisos.js";
 //   0. Mandar el resumen diario de la agenda por Telegram (avisos.ts), a
 //      quien tenga la agenda vinculada. Protegido contra que Vercel repita
 //      la corrida con la tabla agenda_jobs (ver primeraVezHoy más abajo).
-//      Una vez que sale de verdad, se deja constancia en
-//      agenda_jobs.resumen_enviado_at (ver marcarResumenEnviado): una fila
-//      con esa columna en null significa que el día quedó reclamado pero el
-//      envío nunca se confirmó (falló resumenDiario, o falló el propio
-//      registro) — dato consultable en vez de silencio indistinguible de un
-//      día normal.
+//      Una vez que sale de verdad —o sea, cuando resumenDiario reporta al
+//      menos UN envío— se deja constancia en agenda_jobs.resumen_enviado_at
+//      (ver marcarResumenEnviado): una fila con esa columna en null significa
+//      que el día quedó reclamado pero el envío nunca se confirmó (falló
+//      resumenDiario, no había a quién mandarle, o falló el propio registro)
+//      — dato consultable en vez de silencio indistinguible de un día normal.
 //   1. Purgar agenda_mensajes: borrar el historial de conversación del bot
 //      de más de 24 horas. Esa tabla guarda el texto crudo de lo que Alina
 //      y Alejandro le escriben al bot — nombres, teléfonos y correos de
@@ -126,11 +126,17 @@ export default async function handler(req: any, res: any) {
   try {
     const fechaHoy = claveDiaCR(ahora);
     if (await primeraVezHoy(fechaHoy)) {
-      await resumenDiario(ahora);
-      // Recién acá es cierto que el resumen salió — por eso el timestamp
-      // se escribe después de que termina bien, nunca en el insert del
-      // gate de arriba.
-      await marcarResumenEnviado(fechaHoy, new Date());
+      const enviados = await resumenDiario(ahora);
+      // I-1: el timestamp se estampa SOLO si el resumen le llegó a alguien.
+      // resumenDiario nunca tira: envuelve todo y devuelve cuántos envíos
+      // salieron de verdad, así que un 0 es "no le llegó a nadie" (Telegram
+      // caído, la consulta de destinatarios falló, o nadie tiene el bot
+      // vinculado) y no un error que se pueda ver desde acá. Estampar la
+      // hora igual dejaría la columna mintiendo, y como `fecha` es la PK de
+      // agenda_jobs el día no se reintenta nunca más: quedaría verde sobre
+      // un mecanismo muerto. Con esto, un `null` significa exactamente lo
+      // que el encabezado del archivo dice que significa.
+      if (enviados > 0) await marcarResumenEnviado(fechaHoy, new Date());
     }
   } catch (e) {
     console.error("cron/agenda: fallo al mandar el resumen diario", e);
