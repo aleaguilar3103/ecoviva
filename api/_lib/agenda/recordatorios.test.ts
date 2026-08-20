@@ -172,6 +172,26 @@ describe("aplicarRecordatorios", () => {
     expect(guardarIdsRecordatorio).toHaveBeenCalledWith("cita-1", { r24h: "em_24", r1h: "em_1" });
   });
 
+  // Decisión de producto (no re-decidir): la copia interna en BCC es SOLO
+  // para los transaccionales que salen por enviarAhora (email.ts) —
+  // confirmación, reagendado, cancelación. Los recordatorios son 2 por cita
+  // y no agregan nada que el resumen diario y Telegram no cubran ya; llevar
+  // BCC acá llenaría el buzón de Alina y Alejandro sin sentido. Esta ruta
+  // llama a enviarCorreo (resend.js) DIRECTO, sin pasar por enviarAhora, así
+  // que no tiene ninguna oportunidad de agregar `bcc` — este test lo deja
+  // explícito para que revertir esa separación se note en rojo.
+  it("los recordatorios NO llevan BCC: la llamada a enviarCorreo no incluye la clave", async () => {
+    enviarCorreo.mockResolvedValueOnce("em_24").mockResolvedValueOnce("em_1");
+    const cita: Cita = { ...CITA_BASE, inicio: enDias(3).toISOString() };
+
+    await aplicarRecordatorios(cita, AHORA);
+
+    expect(enviarCorreo).toHaveBeenCalledTimes(2);
+    for (const [opts] of enviarCorreo.mock.calls) {
+      expect("bcc" in opts).toBe(false);
+    }
+  });
+
   it("ruta del cron reconciliador (sin recrear): reprograma los existentes, no llama a enviarCorreo", async () => {
     // Esta es la ruta que usa el reconciliador del cron (api/cron/agenda.ts),
     // que llama a aplicarRecordatorios SIN `recrear` porque ahí el contenido

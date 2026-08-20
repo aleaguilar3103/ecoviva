@@ -1,5 +1,6 @@
 import { construirIcs } from "./ics.js";
 import { enviarCorreo, type Adjunto } from "./resend.js";
+import { emailsCopiaEquipo } from "./copiaEquipo.js";
 import type { Cita } from "./db.js";
 
 // Redacción de los correos al cliente.
@@ -234,11 +235,35 @@ export function armarCorreo(
   }
 }
 
-// Envío inmediato (confirmación, reagendado, cancelación). Los recordatorios
+// El dueño pidió que Alina y Alejandro reciban en BCC estos correos, para
+// ver exactamente lo que ve el cliente. Quiénes son se resuelve al momento
+// de mandar (ver agenda/copiaEquipo.ts) — nunca una dirección fija, para que
+// deshabilitar a alguien desde el panel alcance por sí solo para sacarlo de
+// la copia, sin tocar nada más.
+//
+// Falla abierto: un problema al resolver la copia interna JAMÁS puede
+// impedir que el correo le llegue al cliente. `emailsCopiaEquipo()` ya
+// nunca tira (devuelve [] y loguea si la consulta falla), pero el try/catch
+// de acá es la misma "última red de seguridad" que usa avisos.ts — que el
+// contrato se sostenga aunque ese archivo cambie mañana.
+async function copiaInterna(): Promise<string[]> {
+  try {
+    return await emailsCopiaEquipo();
+  } catch (e) {
+    console.error("agenda/email: no se pudo resolver la copia interna, el correo sale igual sin BCC", e);
+    return [];
+  }
+}
+
+// Envío inmediato (confirmación, reagendado, cancelación) — los tres
+// transaccionales que además llevan copia interna en BCC. Los recordatorios
 // programados no pasan por acá: se agendan con `enviarCorreo({ cuando })`
-// desde donde se decida la hora exacta de disparo.
+// desde recordatorios.ts, directo contra resend.ts, y a propósito SIN bcc —
+// son 2 por cita y no agregan nada que el resumen diario y Telegram no
+// cubran ya (decisión de producto, ver el comentario en recordatorios.ts).
 export async function enviarAhora(clase: ClaseCorreo, cita: Cita): Promise<void> {
   const d = datosParaCorreo(cita);
   const { subject, html, attachments } = armarCorreo(clase, d);
-  await enviarCorreo({ to: d.cliente_email, subject, html, attachments });
+  const bcc = await copiaInterna();
+  await enviarCorreo({ to: d.cliente_email, subject, html, attachments, bcc });
 }

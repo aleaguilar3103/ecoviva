@@ -1,5 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { datosParaCorreo, armarCorreo, type ClaseCorreo } from "./email";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// `enviarAhora` es la única función de este archivo con efectos: manda por
+// Resend y, ahora, copia a quienes tienen acceso a la agenda (BCC). Las dos
+// dependencias se mockean para probarla sin red ni Supabase de por medio.
+// `armarCorreo`/`datosParaCorreo`, arriba, siguen probándose puras y sin
+// mocks — por eso estos `vi.mock` no les afectan un pelo.
+const enviarCorreo = vi.fn();
+const emailsCopiaEquipo = vi.fn();
+
+vi.mock("./resend.js", () => ({
+  enviarCorreo: (...a: unknown[]) => enviarCorreo(...a),
+}));
+vi.mock("./copiaEquipo.js", () => ({
+  emailsCopiaEquipo: (...a: unknown[]) => emailsCopiaEquipo(...a),
+}));
+
+import { datosParaCorreo, armarCorreo, enviarAhora, type ClaseCorreo } from "./email";
 import type { Cita } from "./db";
 
 // Token deliberadamente imposible de aparecer por accidente en un correo real:
@@ -37,6 +53,71 @@ const CLASES_CORREO: ClaseCorreo[] = [
   "recordatorio24h",
   "recordatorio1h",
 ];
+
+beforeEach(() => {
+  enviarCorreo.mockReset();
+  emailsCopiaEquipo.mockReset();
+  enviarCorreo.mockResolvedValue("email-id-1");
+  emailsCopiaEquipo.mockResolvedValue([]);
+});
+
+// El dueño pidió que Alina y Alejandro reciban en BCC los correos
+// transaccionales al cliente (confirmación, reagendado, cancelación), que son
+// justo los que salen por acá. Quién entra en esa copia lo resuelve
+// emailsCopiaEquipo() (agenda/copiaEquipo.ts) al momento de mandar — acá se
+// prueba que enviarAhora la consuma y la use, y que un fallo al resolverla
+// nunca le impida al cliente recibir su cita.
+describe("enviarAhora — copia interna en BCC", () => {
+  it("lleva en BCC exactamente lo que devuelve emailsCopiaEquipo()", async () => {
+    emailsCopiaEquipo.mockResolvedValue(["alina@x.com", "alejandro@x.com"]);
+
+    await enviarAhora("confirmacion", CITA);
+
+    expect(enviarCorreo).toHaveBeenCalledTimes(1);
+    const [opts] = enviarCorreo.mock.calls[0];
+    expect(opts.to).toBe("maria@example.com");
+    expect(opts.bcc).toEqual(["alina@x.com", "alejandro@x.com"]);
+  });
+
+  it("con la copia vacía, pasa un bcc vacío (resend.ts es quien decide no mandar la clave)", async () => {
+    emailsCopiaEquipo.mockResolvedValue([]);
+
+    await enviarAhora("confirmacion", CITA);
+
+    const [opts] = enviarCorreo.mock.calls[0];
+    expect(opts.bcc).toEqual([]);
+  });
+
+  // Falla abierto hacia el cliente: si resolver a quién copiar revienta, el
+  // correo al cliente sale igual (con to/subject/html intactos) y sin BCC —
+  // nunca puede pasar que un problema de la copia interna le impida al
+  // cliente recibir la confirmación de su cita.
+  it("si emailsCopiaEquipo() falla, el correo al cliente sale igual y sin BCC", async () => {
+    emailsCopiaEquipo.mockRejectedValue(new Error("boom de postgres"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(enviarAhora("confirmacion", CITA)).resolves.toBeUndefined();
+
+    expect(enviarCorreo).toHaveBeenCalledTimes(1);
+    const [opts] = enviarCorreo.mock.calls[0];
+    expect(opts.to).toBe("maria@example.com");
+    expect(opts.subject).toEqual(expect.any(String));
+    expect(opts.bcc).toEqual([]);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("reagendado y cancelación también llevan la copia (no solo confirmación)", async () => {
+    emailsCopiaEquipo.mockResolvedValue(["alina@x.com"]);
+
+    await enviarAhora("reagendado", CITA);
+    await enviarAhora("cancelacion", CITA);
+
+    expect(enviarCorreo).toHaveBeenCalledTimes(2);
+    expect(enviarCorreo.mock.calls[0][0].bcc).toEqual(["alina@x.com"]);
+    expect(enviarCorreo.mock.calls[1][0].bcc).toEqual(["alina@x.com"]);
+  });
+});
 
 describe("datosParaCorreo", () => {
   it("no deja pasar las notas internas ni el teléfono", () => {

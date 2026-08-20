@@ -2,7 +2,7 @@
 //
 // ── LA ÚNICA DEFINICIÓN de "esta persona tiene acceso a la agenda" ──
 //
-// Esta regla se aplica en CINCO lugares distintos, cada uno con su propia forma
+// Esta regla se aplica en SEIS lugares distintos, cada uno con su propia forma
 // de encontrar la fila de app_users:
 //
 //   1. El panel      — `requireAgenda` (api/_lib/supabase.ts), por user_id del JWT.
@@ -11,20 +11,25 @@
 //   4. Los avisos    — `destinatarios` (api/_lib/agenda/avisos.ts), a todos a la vez.
 //   5. /api/me       — api/me.ts, que es lo que el panel usa para decidir si le
 //                      pinta a la persona la pestaña Agenda.
+//   6. La copia BCC  — `emailsCopiaEquipo` (api/_lib/agenda/copiaEquipo.ts), a
+//                      todos a la vez, para copiar los correos transaccionales
+//                      al cliente. Aparte de los avisos (4) a propósito: ese
+//                      archivo es de Telegram, y el correo no tiene por qué
+//                      depender de él — ver el encabezado de copiaEquipo.ts.
 //
-// Antes la regla estaba ESCRITA en los cinco, y divergieron: el bot exigía las
-// tres condiciones, el feed se olvidaba de `role`, los avisos solo miraban
-// `agenda`, y /api/me le contestaba `agenda: true` a un vendedor con la bandera
-// puesta. La consecuencia real (hallazgos C-1 y C-2 de la revisión final) es
-// que deshabilitar a alguien desde el panel la sacaba del panel, del bot y del
-// feed, pero le seguía mandando a su Telegram personal cada aviso de cita y la
-// agenda diaria completa —con nombres, teléfonos y notas internas de clientes—
-// sin ninguna forma de cortarlo desde el producto.
+// Antes la regla estaba ESCRITA en los cinco originales, y divergieron: el bot
+// exigía las tres condiciones, el feed se olvidaba de `role`, los avisos solo
+// miraban `agenda`, y /api/me le contestaba `agenda: true` a un vendedor con la
+// bandera puesta. La consecuencia real (hallazgos C-1 y C-2 de la revisión
+// final) es que deshabilitar a alguien desde el panel la sacaba del panel, del
+// bot y del feed, pero le seguía mandando a su Telegram personal cada aviso de
+// cita y la agenda diaria completa —con nombres, teléfonos y notas internas de
+// clientes— sin ninguna forma de cortarlo desde el producto.
 //
 // El defecto no fue que alguien escribiera mal un filtro: fue que existieran
-// cinco lugares donde escribirlo. Por eso la regla vive ACÁ y en ningún otro
+// varios lugares donde escribirlo. Por eso la regla vive ACÁ y en ningún otro
 // lado. Si mañana hay que agregarle una condición (o sacarle una), se toca
-// `ACCESO_AGENDA` y las cinco puertas la heredan solas — `tieneAccesoAgenda`,
+// `ACCESO_AGENDA` y las seis puertas la heredan solas — `tieneAccesoAgenda`,
 // `filtrarAccesoAgenda` y `COLUMNAS_ACCESO_AGENDA` se derivan del objeto, no
 // repiten sus campos a mano.
 //
@@ -42,7 +47,7 @@
 //
 // Vive en api/_lib/agenda/ y no en api/_lib/supabase.ts porque es una regla de
 // ESTE dominio (quién comparte la agenda de Alina y Alejandro), no del control
-// de acceso general del panel. Y no importa nada: así cualquiera de las cuatro
+// de acceso general del panel. Y no importa nada: así cualquiera de las seis
 // puertas puede consumirla sin arrastrar dependencias ni crear un ciclo con
 // supabase.ts, que sí la importa.
 

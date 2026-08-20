@@ -120,9 +120,10 @@ describe("requireAgenda", () => {
 
 // ── La definición única (C-1/C-2) ──
 //
-// Estos tests fijan la regla en sí. Los de las cuatro puertas que la consumen
+// Estos tests fijan la regla en sí. Los de las seis puertas que la consumen
 // viven en permisos.test.ts (panel, acá arriba), webhook.test.ts (bot),
-// feed.test.ts (feed .ics) y avisos.test.ts (avisos y resumen diario).
+// feed.test.ts (feed .ics), avisos.test.ts (avisos y resumen diario), /api/me
+// y copiaEquipo.test.ts (la copia BCC de los correos al cliente).
 describe("accesoAgenda — la definición compartida", () => {
   const OK = { status: "active", role: "admin", agenda: true };
 

@@ -150,6 +150,12 @@ export async function aplicarRecordatorios(
           continue; // el id no cambia
         }
 
+        // A propósito SIN `bcc`: la copia interna para Alina y Alejandro es
+        // solo para los transaccionales que salen por enviarAhora (email.ts)
+        // — confirmación, reagendado, cancelación. Los recordatorios son 2
+        // por cita y no agregan nada que el resumen diario y Telegram no
+        // cubran ya; copiarlos también llenaría el buzón sin sentido. Ver el
+        // porqué completo en el encabezado de agenda/copiaEquipo.ts.
         const { subject, html, attachments } = armarCorreo(CLASE_A_CORREO[a.clase], d);
         const id = await enviarCorreo({
           to: d.cliente_email,

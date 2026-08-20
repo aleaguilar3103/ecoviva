@@ -35,6 +35,12 @@ export async function enviarCorreo(opts: {
   subject: string;
   html: string;
   attachments?: Adjunto[];
+  // Copia oculta — hoy la usa solo enviarAhora (email.ts) para copiar a
+  // quien tiene acceso a la agenda en los correos transaccionales al
+  // cliente. Opcional y solo se manda si trae algo: un `bcc: []` explícito
+  // no es lo mismo que omitir el campo para la API de Resend, así que un
+  // array vacío NO agrega la clave al cuerpo (ver el `if` de abajo).
+  bcc?: string[];
   cuando?: Date; // si viene, se programa en vez de enviarse ya
 }): Promise<string> {
   const body: Record<string, unknown> = {
@@ -46,6 +52,7 @@ export async function enviarCorreo(opts: {
   // Que el cliente pueda responder y le llegue a una persona, no al buzón nulo.
   if (process.env.AGENDA_REPLY_TO) body.reply_to = [process.env.AGENDA_REPLY_TO];
   if (opts.attachments?.length) body.attachments = opts.attachments;
+  if (opts.bcc?.length) body.bcc = opts.bcc;
   if (opts.cuando) body.scheduled_at = opts.cuando.toISOString();
 
   const json = await pedir("/emails", "POST", body);
