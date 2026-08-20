@@ -75,7 +75,9 @@ beforeEach(() => {
 });
 
 describe("/api/agenda/telegram-link", () => {
-  it("rechaza sin permiso de agenda (GET) y no toca la base", async () => {
+  // ── Permisos ──
+
+  it("GET sin permiso de agenda → 401, sin tocar la base", async () => {
     requireAgenda.mockResolvedValue(null);
     const handler = await cargar();
     const res = resRecorder();
@@ -84,7 +86,16 @@ describe("/api/agenda/telegram-link", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
-  it("rechaza sin permiso de agenda (DELETE) y no toca la base", async () => {
+  it("POST sin permiso de agenda → 401, sin tocar la base", async () => {
+    requireAgenda.mockResolvedValue(null);
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("POST"), res);
+    expect(res.statusCode).toBe(401);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("DELETE sin permiso de agenda → 401, sin tocar la base", async () => {
     requireAgenda.mockResolvedValue(null);
     const handler = await cargar();
     const res = resRecorder();
@@ -93,67 +104,48 @@ describe("/api/agenda/telegram-link", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
-  it("GET genera un código de 6 dígitos, rellenado con ceros, y lo guarda con expiración futura", async () => {
+  // ── GET: de solo lectura. Este es el test que importa (ver progress.md /
+  // ronda de arreglo): un GET que escribiera generaría una credencial viva de
+  // 10 minutos cada vez que el panel monta el componente, sin que nadie la
+  // pidiera. Si algún día alguien vuelve a meter la generación acá, este test
+  // se pone rojo y nada más — es la regla, no un efecto colateral de otro
+  // assert. ──
+
+  it("GET NO escribe en la base (ni vinculado ni sin vincular)", async () => {
     requireAgenda.mockResolvedValue(YO);
-    randomInt.mockReturnValue(42); // random chico a propósito: exige el padStart
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-19T12:00:00.000Z"));
-    colaFrom = [
-      { data: { telegram_chat_id: null }, error: null }, // select
-      { data: null, error: null }, // update
-    ];
+
+    colaFrom = [{ data: { telegram_chat_id: null }, error: null }];
+    const handler = await cargar();
+    await handler(req("GET"), resRecorder());
+    expect(updateSpy).not.toHaveBeenCalled();
+
+    colaFrom = [{ data: { telegram_chat_id: "999888777" }, error: null }];
+    await handler(req("GET"), resRecorder());
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("GET con cuenta vinculada → { vinculado: true }, sin código en la respuesta", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    colaFrom = [{ data: { telegram_chat_id: "999888777" }, error: null }];
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("GET"), res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.codigo).toBe("000042");
-    expect(res.body.vinculado).toBe(false);
-    // 10 minutos exactos desde "ahora".
-    expect(res.body.expira).toBe("2026-08-19T12:10:00.000Z");
-    expect(updateSpy).toHaveBeenCalledWith({
-      telegram_codigo: "000042",
-      telegram_codigo_expira: "2026-08-19T12:10:00.000Z",
-    });
-    // randomInt, no Math.random: el rango pedido es [0, 1_000_000).
-    expect(randomInt).toHaveBeenCalledWith(0, 1_000_000);
+    expect(res.body).toEqual({ vinculado: true });
+    expect(res.body.codigo).toBeUndefined();
   });
 
-  it("un GET nuevo reemplaza el código anterior, no lo acumula", async () => {
+  it("GET con cuenta sin vincular → { vinculado: false }, sin código en la respuesta", async () => {
     requireAgenda.mockResolvedValue(YO);
-    randomInt.mockReturnValueOnce(111111).mockReturnValueOnce(222222);
-    const handler = await cargar();
-
-    colaFrom = [{ data: { telegram_chat_id: null }, error: null }, { data: null, error: null }];
-    const res1 = resRecorder();
-    await handler(req("GET"), res1);
-
-    colaFrom = [{ data: { telegram_chat_id: null }, error: null }, { data: null, error: null }];
-    const res2 = resRecorder();
-    await handler(req("GET"), res2);
-
-    expect(res1.body.codigo).toBe("111111");
-    expect(res2.body.codigo).toBe("222222");
-    // La segunda llamada a update pisa el código, no lo agrega a una lista.
-    expect(updateSpy).toHaveBeenNthCalledWith(2, {
-      telegram_codigo: "222222",
-      telegram_codigo_expira: expect.any(String),
-    });
-  });
-
-  it("GET cuando la cuenta ya tiene telegram_chat_id responde vinculado: true", async () => {
-    requireAgenda.mockResolvedValue(YO);
-    randomInt.mockReturnValue(5);
-    colaFrom = [
-      { data: { telegram_chat_id: "999888777" }, error: null }, // select
-      { data: null, error: null }, // update
-    ];
+    colaFrom = [{ data: { telegram_chat_id: null }, error: null }];
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("GET"), res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.vinculado).toBe(true);
+    expect(res.body).toEqual({ vinculado: false });
+    expect(res.body.codigo).toBeUndefined();
   });
 
   it("GET devuelve 500 si falla la lectura, sin exponer el detalle crudo", async () => {
@@ -164,21 +156,68 @@ describe("/api/agenda/telegram-link", () => {
     await handler(req("GET"), res);
     expect(res.statusCode).toBe(500);
     expect(JSON.stringify(res.body)).not.toMatch(/boom de postgres/);
+    expect(updateSpy).not.toHaveBeenCalled();
   });
 
-  it("GET devuelve 500 si falla la escritura del código, sin exponer el detalle crudo", async () => {
+  // ── POST: acá vive la generación, gatillada solo por el botón. ──
+
+  it("POST genera un código de 6 dígitos, rellenado con ceros, y lo guarda con expiración futura", async () => {
     requireAgenda.mockResolvedValue(YO);
-    randomInt.mockReturnValue(1);
-    colaFrom = [
-      { data: { telegram_chat_id: null }, error: null }, // select
-      { data: null, error: { message: "boom de postgres" } }, // update
-    ];
+    randomInt.mockReturnValue(42); // random chico a propósito: exige el padStart
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-19T12:00:00.000Z"));
+    colaFrom = [{ data: null, error: null }]; // update
     const handler = await cargar();
     const res = resRecorder();
-    await handler(req("GET"), res);
+    await handler(req("POST"), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.codigo).toBe("000042");
+    expect(res.body.vinculado).toBeUndefined();
+    // 10 minutos exactos desde "ahora".
+    expect(res.body.expira).toBe("2026-08-19T12:10:00.000Z");
+    expect(updateSpy).toHaveBeenCalledWith({
+      telegram_codigo: "000042",
+      telegram_codigo_expira: "2026-08-19T12:10:00.000Z",
+    });
+    // randomInt, no Math.random: el rango pedido es [0, 1_000_000).
+    expect(randomInt).toHaveBeenCalledWith(0, 1_000_000);
+  });
+
+  it("dos POST seguidos: el segundo código reemplaza al primero, no se acumulan", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    randomInt.mockReturnValueOnce(111111).mockReturnValueOnce(222222);
+    const handler = await cargar();
+
+    colaFrom = [{ data: null, error: null }];
+    const res1 = resRecorder();
+    await handler(req("POST"), res1);
+
+    colaFrom = [{ data: null, error: null }];
+    const res2 = resRecorder();
+    await handler(req("POST"), res2);
+
+    expect(res1.body.codigo).toBe("111111");
+    expect(res2.body.codigo).toBe("222222");
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(updateSpy).toHaveBeenNthCalledWith(2, {
+      telegram_codigo: "222222",
+      telegram_codigo_expira: expect.any(String),
+    });
+  });
+
+  it("POST devuelve 500 si falla la escritura, sin exponer el detalle crudo", async () => {
+    requireAgenda.mockResolvedValue(YO);
+    randomInt.mockReturnValue(1);
+    colaFrom = [{ data: null, error: { message: "boom de postgres" } }];
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req("POST"), res);
     expect(res.statusCode).toBe(500);
     expect(JSON.stringify(res.body)).not.toMatch(/boom de postgres/);
   });
+
+  // ── DELETE: sin cambios respecto a la ronda anterior. ──
 
   it("DELETE limpia telegram_chat_id, telegram_codigo y telegram_codigo_expira", async () => {
     requireAgenda.mockResolvedValue(YO);
@@ -210,7 +249,7 @@ describe("/api/agenda/telegram-link", () => {
     requireAgenda.mockResolvedValue(YO);
     const handler = await cargar();
     const res = resRecorder();
-    await handler(req("POST"), res);
+    await handler(req("PATCH"), res);
     expect(res.statusCode).toBe(405);
   });
 
