@@ -2,13 +2,17 @@ import { waitUntil } from "@vercel/functions";
 import { supabaseAdmin } from "../_lib/supabase.js";
 import { enviarMensaje, escribiendo } from "../_lib/agenda/telegram.js";
 import { listarCitas, type Cita } from "../_lib/agenda/db.js";
+import { correrAgente, type Mensaje } from "../_lib/agenda/agente.js";
 
 // /api/telegram/webhook — recibe los updates de Telegram para el bot de la
 // agenda privada de Alina y Alejandro.
 //
-// En esta tarea el bot todavía NO habla con Claude: responde a /vincular,
-// /hoy y /semana, y cualquier otro texto recibe "Todavía no sé responder
-// eso." La Task 4 le pone el agente conversacional encima de este esqueleto.
+// /vincular, /hoy y /semana se resuelven acá mismo, sin pasar por el modelo:
+// son deterministas y no vale la pena pagar una llamada a Claude por ellos.
+// Cualquier otro texto se lo pasa al agente conversacional (agenda/agente.ts).
+// El agente puede proponer una escritura (crear, mover, editar o cancelar una
+// cita): en esta tarea el turno corta y se muestra el resumen como texto
+// plano — los botones para confirmarla son la Task 5.
 //
 // Cuatro puertas, en orden, cortando en la primera que falla:
 //   1. Método (solo POST).
@@ -67,7 +71,11 @@ const CODIGO_INVALIDO = "Ese código no sirve o ya venció. Generá uno nuevo de
 const TELEGRAM_YA_VINCULADO =
   "Ese Telegram ya está vinculado a otra cuenta. Desvinculalo primero desde el panel.";
 const ERROR_GENERICO = "Se me complicó, probá de nuevo.";
-const TODAVIA_NO = "Todavía no sé responder eso.";
+// Los botones de confirmación son la Task 5. Hasta entonces, una escritura
+// propuesta por el agente se muestra como texto con esta nota, para que a
+// nadie le quede la impresión de que ya se agendó, movió o canceló algo.
+const NOTA_CONFIRMACION_PENDIENTE =
+  "Todavía no tengo botones para esto acá (llegan pronto). Si de verdad querés que lo haga, avisame por otro medio.";
 const MENSAJE_START =
   "Soy el bot de la agenda de EcoViva. Escribime /hoy o /semana para ver las citas. " +
   "Si en algún momento necesitás vincular otro Telegram, generá un código nuevo desde el panel y mandame /vincular <código>.";
@@ -265,6 +273,51 @@ async function manejarVincular(
   await enviarMensaje(chatId, `${saludo}. Ya podés escribirme /hoy o /semana.`);
 }
 
+// ── Historial reciente de la conversación con el agente ──
+//
+// Cada mensaje de Telegram es una invocación NUEVA del webhook, en otro
+// proceso: sin guardar lo que se dijo, el agente no podría entender un "sí,
+// ese" o un "cambialo a las 11". La tabla es chica a propósito (solo
+// chat_id, rol, contenido): alcanza con lo último de la última hora para
+// dar contexto, no hace falta guardar conversaciones enteras acá.
+const HISTORIAL_MINUTOS = 60;
+const HISTORIAL_TOPE = 20;
+
+async function cargarHistorial(chatId: string): Promise<Mensaje[]> {
+  const desde = new Date(Date.now() - HISTORIAL_MINUTOS * 60_000).toISOString();
+  const { data, error } = await supabaseAdmin()
+    .from("agenda_mensajes")
+    .select("rol, contenido")
+    .eq("chat_id", chatId)
+    .gte("created_at", desde)
+    .order("created_at", { ascending: false })
+    .limit(HISTORIAL_TOPE);
+
+  if (error) {
+    // Sin historial el agente igual contesta (solo pierde contexto de corto
+    // plazo), así que un hipo acá no debe tumbar la respuesta.
+    console.error("telegram/webhook: no se pudo cargar el historial de la conversación", error);
+    return [];
+  }
+
+  // Se pidió del más nuevo al más viejo para que el tope de 20 se quede con
+  // los últimos mensajes de la hora; acá se da vuelta para que correrAgente
+  // los reciba en el orden en que de verdad se dijeron.
+  return (data ?? [])
+    .slice()
+    .reverse()
+    .map((f) => ({ rol: f.rol as Mensaje["rol"], texto: String(f.contenido) }));
+}
+
+async function guardarMensaje(chatId: string, rol: Mensaje["rol"], contenido: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("agenda_mensajes")
+    .insert({ chat_id: chatId, rol, contenido });
+  // Peor que perder un renglón del historial es dejar a la persona sin
+  // respuesta porque falló guardar la bitácora: se loguea y se sigue.
+  if (error) console.error("telegram/webhook: no se pudo guardar el mensaje en el historial", error);
+}
+
 // ── Procesamiento de un update ya deduplicado ──
 // No debe tirar NUNCA: un error silencioso acá se ve, desde Telegram, como
 // un bot que ignora a la gente. Se envuelve entero en try/catch, se loguea
@@ -307,8 +360,21 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
       return;
     }
 
-    // La Task 4 reemplaza esto por el agente conversacional.
-    await enviarMensaje(chatId, TODAVIA_NO);
+    // Cualquier otro texto: lo entiende el agente conversacional. Si propone
+    // una escritura, el turno corta y acá se muestra el resumen como texto
+    // (sin botones todavía — eso es la Task 5).
+    await escribiendo(chatId);
+    const historial = await cargarHistorial(chatId);
+    const resultado = await correrAgente({ mensaje: texto, historial, ahora: new Date() });
+    await guardarMensaje(chatId, "usuario", texto);
+
+    if (resultado.tipo === "texto") {
+      await guardarMensaje(chatId, "agente", resultado.texto);
+      await enviarMensaje(chatId, resultado.texto);
+    } else {
+      await guardarMensaje(chatId, "agente", resultado.resumen);
+      await enviarMensaje(chatId, `${resultado.resumen}\n\n${NOTA_CONFIRMACION_PENDIENTE}`);
+    }
   } catch (e) {
     console.error("telegram/webhook: error inesperado al procesar el update", e);
     try {

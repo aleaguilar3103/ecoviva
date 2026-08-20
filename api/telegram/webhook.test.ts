@@ -15,6 +15,12 @@ function crearCadena(resolver: () => unknown) {
   cadena.select = vi.fn(self);
   cadena.eq = vi.fn(self);
   cadena.gt = vi.fn(self);
+  // gte/order/limit: la carga del historial de agenda_mensajes (Task 4) las
+  // usa. La cadena termina resolviendo con `.then` (más abajo), como
+  // cualquier query de postgrest-js que no llama a `.maybeSingle()`.
+  cadena.gte = vi.fn(self);
+  cadena.order = vi.fn(self);
+  cadena.limit = vi.fn(self);
   cadena.insert = vi.fn((arg: unknown) => {
     insertSpy(arg);
     return cadena;
@@ -53,6 +59,14 @@ vi.mock("../_lib/agenda/telegram.js", () => ({
 const listarCitas = vi.fn();
 vi.mock("../_lib/agenda/db.js", () => ({
   listarCitas: (...a: unknown[]) => listarCitas(...a),
+}));
+
+// agente.js: el agente conversacional en sí ya tiene su propia batería de
+// tests (agenda/agente.test.ts). Acá solo importa el ENCHUFE: que el webhook
+// lo llame con lo correcto y traduzca su resultado a Telegram.
+const correrAgente = vi.fn();
+vi.mock("../_lib/agenda/agente.js", () => ({
+  correrAgente: (...a: unknown[]) => correrAgente(...a),
 }));
 
 // waitUntil: en producción dispara y no espera. En el test capturamos la
@@ -509,9 +523,10 @@ describe("POST /api/telegram/webhook — comandos de un usuario autorizado", () 
     expect(enviarMensaje).toHaveBeenCalledWith("999", "No tenés acceso.");
   });
 
-  it("texto que no es ningún comando conocido → 'Todavía no sé responder eso.'", async () => {
+  it("texto libre (tipo 'texto') → se lo pasa al agente y contesta lo que devuelve", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
     colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    correrAgente.mockResolvedValue({ tipo: "texto", texto: "¿A qué hora querés la cita?" });
     const { default: handler } = await cargar();
     const res = resRecorder();
     const update = updateBase({
@@ -525,7 +540,87 @@ describe("POST /api/telegram/webhook — comandos de un usuario autorizado", () 
     });
     await handler(req({ secreto: SECRETO, body: update }), res);
     await esperarProcesamiento();
-    expect(enviarMensaje).toHaveBeenCalledWith("999", "Todavía no sé responder eso.");
+
+    expect(correrAgente).toHaveBeenCalledTimes(1);
+    const arg = correrAgente.mock.calls[0][0] as { mensaje: string; historial: unknown[]; ahora: Date };
+    expect(arg.mensaje).toBe("hola eco");
+    expect(arg.ahora).toBeInstanceOf(Date);
+    expect(enviarMensaje).toHaveBeenCalledWith("999", "¿A qué hora querés la cita?");
+    // Se guardan los dos lados de la conversación en agenda_mensajes.
+    expect(insertSpy).toHaveBeenCalledWith({ chat_id: "999", rol: "usuario", contenido: "hola eco" });
+    expect(insertSpy).toHaveBeenCalledWith({
+      chat_id: "999",
+      rol: "agente",
+      contenido: "¿A qué hora querés la cita?",
+    });
+  });
+
+  it("el agente propone una escritura (tipo 'confirmar') → se manda el resumen con la nota de que faltan los botones", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    correrAgente.mockResolvedValue({
+      tipo: "confirmar",
+      accion: { herramienta: "crear_cita", entrada: { cliente_nombre: "María" } },
+      resumen: "Crear cita nueva\njueves 21 de agosto, 10:00 a. m.\nMaría — maria@example.com\nVisita Llanada",
+    });
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    const update = updateBase({
+      update_id: 50,
+      message: {
+        message_id: 1,
+        text: "agendá a María el jueves a las 10",
+        chat: { id: 999, type: "private" },
+        from: { id: 999 },
+      },
+    });
+    await handler(req({ secreto: SECRETO, body: update }), res);
+    await esperarProcesamiento();
+
+    expect(enviarMensaje).toHaveBeenCalledTimes(1);
+    const [chatId, texto] = enviarMensaje.mock.calls[0];
+    expect(chatId).toBe("999");
+    expect(texto).toMatch(/María — maria@example\.com/);
+    // No debe sonar a que ya se hizo: la nota de "todavía no hay botones" tiene que estar.
+    expect(texto).toMatch(/botones/i);
+  });
+
+  it("carga el historial reciente del chat y se lo pasa al agente en orden cronológico", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    // La consulta pide `order("created_at", { ascending: false })`: el más
+    // nuevo primero. Acá simulamos esa fila cruda tal como llega de Postgres.
+    colas.agenda_mensajes = [
+      {
+        data: [
+          { rol: "agente", contenido: "¿Con quién y cuándo?" }, // más reciente
+          { rol: "usuario", contenido: "quiero agendar una cita" }, // más viejo
+        ],
+        error: null,
+      },
+    ];
+    correrAgente.mockResolvedValue({ tipo: "texto", texto: "listo" });
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    const update = updateBase({
+      update_id: 51,
+      message: {
+        message_id: 1,
+        text: "con María, el jueves a las 10",
+        chat: { id: 999, type: "private" },
+        from: { id: 999 },
+      },
+    });
+    await handler(req({ secreto: SECRETO, body: update }), res);
+    await esperarProcesamiento();
+
+    const arg = correrAgente.mock.calls[0][0] as { historial: { rol: string; texto: string }[] };
+    // Orden cronológico (el más viejo primero): se da vuelta lo que trajo la
+    // consulta antes de pasárselo al agente.
+    expect(arg.historial).toEqual([
+      { rol: "usuario", texto: "quiero agendar una cita" },
+      { rol: "agente", texto: "¿Con quién y cuándo?" },
+    ]);
   });
 });
 
