@@ -18,6 +18,7 @@ const guardarIdsRecordatorio = vi.fn();
 const enviarCorreoResend = vi.fn();
 const reprogramarCorreoResend = vi.fn();
 const cancelarCorreoResend = vi.fn();
+const avisarCambio = vi.fn();
 
 vi.mock("../_lib/supabase.js", () => ({
   requireAgenda: (...a: unknown[]) => requireAgenda(...a),
@@ -34,6 +35,14 @@ vi.mock("../_lib/agenda/resend.js", () => ({
   enviarCorreo: (...a: unknown[]) => enviarCorreoResend(...a),
   reprogramarCorreo: (...a: unknown[]) => reprogramarCorreoResend(...a),
   cancelarCorreo: (...a: unknown[]) => cancelarCorreoResend(...a),
+}));
+// avisarCambio (el aviso al equipo, no al cliente) es ajeno a lo que este
+// archivo prueba (C1: recrear vs. reprogramar recordatorios) — mockearlo
+// no esconde nada del bug que este archivo existe para atrapar, y evita
+// que operaciones.ts corra la implementación real de avisos.ts (que
+// revienta contra supabaseAdmin, no exportado en el mock de arriba).
+vi.mock("../_lib/agenda/avisos.js", () => ({
+  avisarCambio: (...a: unknown[]) => avisarCambio(...a),
 }));
 
 async function cargar() {
@@ -91,8 +100,10 @@ beforeEach(() => {
   enviarCorreoResend.mockReset();
   reprogramarCorreoResend.mockReset();
   cancelarCorreoResend.mockReset();
+  avisarCambio.mockReset();
 
   requireAgenda.mockResolvedValue(YO);
+  avisarCambio.mockResolvedValue(undefined);
   listarCitas.mockResolvedValue([]); // sin solape
   guardarIdsRecordatorio.mockResolvedValue(undefined);
   cancelarCorreoResend.mockResolvedValue(undefined);

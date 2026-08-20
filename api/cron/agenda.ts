@@ -14,6 +14,12 @@ import { resumenDiario } from "../_lib/agenda/avisos.js";
 //   0. Mandar el resumen diario de la agenda por Telegram (avisos.ts), a
 //      quien tenga la agenda vinculada. Protegido contra que Vercel repita
 //      la corrida con la tabla agenda_jobs (ver primeraVezHoy más abajo).
+//      Una vez que sale de verdad, se deja constancia en
+//      agenda_jobs.resumen_enviado_at (ver marcarResumenEnviado): una fila
+//      con esa columna en null significa que el día quedó reclamado pero el
+//      envío nunca se confirmó (falló resumenDiario, o falló el propio
+//      registro) — dato consultable en vez de silencio indistinguible de un
+//      día normal.
 //   1. Purgar agenda_mensajes: borrar el historial de conversación del bot
 //      de más de 24 horas. Esa tabla guarda el texto crudo de lo que Alina
 //      y Alejandro le escriben al bot — nombres, teléfonos y correos de
@@ -50,6 +56,11 @@ function claveDiaCR(ahora: Date): string {
 // patrón que ya usa telegram/webhook.ts para el choque de un
 // telegram_chat_id repetido.
 //
+// El insert SOLO escribe `fecha` — nunca `resumen_enviado_at` acá: en este
+// momento el resumen todavía no se mandó, escribir ya esa columna sería
+// mentir. Se completa después, con marcarResumenEnviado, una vez que
+// resumenDiario terminó bien de verdad (ver el handler más abajo).
+//
 // Si el insert prospera, esta es la primera vez que el cron corre hoy: el
 // resumen sale. Si choca (23505), ya salió — se saltea sin loguear nada,
 // porque no es un error, es lo esperado cuando Vercel repite la corrida. Si
@@ -61,6 +72,22 @@ async function primeraVezHoy(fecha: string): Promise<boolean> {
   if ((error as { code?: string }).code === "23505") return false;
   console.error("cron/agenda: no se pudo verificar si el resumen ya salió hoy", error);
   return false;
+}
+
+// Deja constancia de CUÁNDO salió el resumen, sobre la fila que
+// primeraVezHoy ya sembró para hoy. Nunca tira (mismo criterio que
+// primeraVezHoy y purgarMensajesViejos): si el update falla, se loguea y la
+// columna se queda en null — que es un estado legítimo y consultable ("el
+// cron reclamó el día pero el envío nunca se confirmó"), no un bug ni un
+// motivo para tumbar nada más.
+async function marcarResumenEnviado(fecha: string, cuando: Date): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("agenda_jobs")
+    .update({ resumen_enviado_at: cuando.toISOString() })
+    .eq("fecha", fecha);
+  if (error) {
+    console.error("cron/agenda: el resumen salió pero no se pudo registrar resumen_enviado_at", error);
+  }
 }
 
 const RETENCION_MENSAJES_MS = 24 * 60 * 60_000;
@@ -97,8 +124,13 @@ export default async function handler(req: any, res: any) {
   // nunca tira) no puede impedir que el paso 1 de abajo corra. Ver el
   // porqué completo en el encabezado del archivo.
   try {
-    if (await primeraVezHoy(claveDiaCR(ahora))) {
+    const fechaHoy = claveDiaCR(ahora);
+    if (await primeraVezHoy(fechaHoy)) {
       await resumenDiario(ahora);
+      // Recién acá es cierto que el resumen salió — por eso el timestamp
+      // se escribe después de que termina bien, nunca en el insert del
+      // gate de arriba.
+      await marcarResumenEnviado(fechaHoy, new Date());
     }
   } catch (e) {
     console.error("cron/agenda: fallo al mandar el resumen diario", e);

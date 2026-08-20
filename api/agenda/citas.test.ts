@@ -10,6 +10,7 @@ const obtenerCita = vi.fn();
 const registrarReenvio = vi.fn();
 const enviarAhora = vi.fn();
 const aplicarRecordatorios = vi.fn();
+const avisarCambio = vi.fn();
 
 vi.mock("../_lib/supabase.js", () => ({
   requireAgenda: (...a: unknown[]) => requireAgenda(...a),
@@ -27,6 +28,15 @@ vi.mock("../_lib/agenda/email.js", () => ({
 }));
 vi.mock("../_lib/agenda/recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
+}));
+// operaciones.ts (la orquestación real que ejercita este archivo, sin
+// mockear) llama a avisarCambio después de guardar. Sin este mock corre la
+// implementación real, que revienta contra supabaseAdmin (no exportado acá)
+// — el catch-all de avisos.ts lo absorbe, pero es ruido ajeno a lo que este
+// archivo prueba, y deja a estos tests ciegos a una regresión real en
+// avisarCambio.
+vi.mock("../_lib/agenda/avisos.js", () => ({
+  avisarCambio: (...a: unknown[]) => avisarCambio(...a),
 }));
 
 async function cargar() {
@@ -87,9 +97,11 @@ beforeEach(() => {
   registrarReenvio.mockReset();
   enviarAhora.mockReset();
   aplicarRecordatorios.mockReset();
+  avisarCambio.mockReset();
   // Los recordatorios son un mecanismo aparte del correo inmediato: por
   // default se resuelven solos, salvo que un test necesite lo contrario.
   aplicarRecordatorios.mockResolvedValue(undefined);
+  avisarCambio.mockResolvedValue(undefined);
   registrarReenvio.mockResolvedValue(undefined);
 });
 

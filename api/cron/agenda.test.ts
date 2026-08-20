@@ -18,8 +18,11 @@ const updateSpy = vi.fn();
 const eqSpy = vi.fn();
 const ltSpy = vi.fn();
 const insertJobsSpy = vi.fn();
+const updateJobsSpy = vi.fn();
+const eqJobsSpy = vi.fn();
 let respuestaUpdate: { data: unknown[] | null; error: unknown };
 let respuestaInsertJob: { data: unknown; error: unknown };
+let respuestaUpdateJob: { error: unknown };
 // Tabla en memoria para agenda_mensajes: a diferencia de las otras dos
 // (cuya respuesta es fija), acá lo que hay que probar es el efecto real del
 // `.lt("created_at", limite)` — qué filas sobreviven — así que el mock
@@ -41,14 +44,30 @@ vi.mock("../_lib/supabase.js", () => ({
   supabaseAdmin: () => ({
     from: (tabla: string) => {
       if (tabla === "agenda_jobs") {
+        // Dos formas muy distintas se usan sobre esta tabla en el mismo
+        // handler: el insert del gate (primeraVezHoy) y, si el resumen
+        // salió bien, el update de resumen_enviado_at (marcarResumenEnviado).
+        // `modo` recuerda cuál de los dos se llamó para que `.then()` sepa
+        // qué respuesta canned corresponde.
+        let modo: "insert" | "update" | null = null;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cadenaJobs: any = {};
         cadenaJobs.insert = vi.fn((arg: unknown) => {
+          modo = "insert";
           insertJobsSpy(arg);
           return cadenaJobs;
         });
+        cadenaJobs.update = vi.fn((arg: unknown) => {
+          modo = "update";
+          updateJobsSpy(arg);
+          return cadenaJobs;
+        });
+        cadenaJobs.eq = vi.fn((...args: unknown[]) => {
+          eqJobsSpy(...args);
+          return cadenaJobs;
+        });
         cadenaJobs.then = (onFulfilled: unknown, onRejected: unknown) =>
-          Promise.resolve(respuestaInsertJob).then(
+          Promise.resolve(modo === "update" ? respuestaUpdateJob : respuestaInsertJob).then(
             onFulfilled as (v: unknown) => unknown,
             onRejected as (e: unknown) => unknown,
           );
@@ -145,11 +164,14 @@ beforeEach(() => {
   eqSpy.mockReset();
   ltSpy.mockReset();
   insertJobsSpy.mockReset();
+  updateJobsSpy.mockReset();
+  eqJobsSpy.mockReset();
   listarCitas.mockResolvedValue([]);
   respuestaUpdate = { data: [], error: null };
   // Insert exitoso por default: "primera vez hoy", el resumen se llama.
   // Los tests que necesitan el otro camino (ya salió hoy) lo pisan.
   respuestaInsertJob = { data: null, error: null };
+  respuestaUpdateJob = { error: null };
   filasMensajes = [];
   errorPurga = null;
   process.env.CRON_SECRET = "secreto-de-prueba";
@@ -337,6 +359,65 @@ describe("/api/cron/agenda", () => {
 
       expect(insertJobsSpy).toHaveBeenCalledWith({ fecha: "2026-08-18" });
       vi.useRealTimers();
+    });
+  });
+
+  describe("agenda_jobs.resumen_enviado_at (ronda de arreglos)", () => {
+    it("envío exitoso deja resumen_enviado_at con la hora real, sobre la fila de hoy", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T11:00:00.000Z"));
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(updateJobsSpy).toHaveBeenCalledWith({ resumen_enviado_at: "2026-08-19T11:00:00.000Z" });
+      expect(eqJobsSpy).toHaveBeenCalledWith("fecha", "2026-08-19");
+      vi.useRealTimers();
+    });
+
+    it("si resumenDiario tira, la fila del gate existe pero resumen_enviado_at nunca se toca (queda en null)", async () => {
+      resumenDiario.mockRejectedValue(new Error("Telegram caído"));
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(insertJobsSpy).toHaveBeenCalled(); // el gate SÍ reclamó el día
+      expect(updateJobsSpy).not.toHaveBeenCalled(); // pero nunca se confirmó el envío
+      expect(res.statusCode).not.toBe(500);
+      consoleError.mockRestore();
+    });
+
+    it("si el UPDATE de resumen_enviado_at falla, no rompe nada: la reconciliación se corre igual", async () => {
+      respuestaUpdateJob = { error: { message: "boom de postgres" } };
+      const sin24h = cita({ id: "sin-24h", recordatorio_24h_email_id: null });
+      listarCitas.mockResolvedValue([sin24h]);
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(res.statusCode).not.toBe(500);
+      expect(aplicarRecordatorios).toHaveBeenCalledTimes(1);
+      expect(res.body).toEqual({ reconciliadas: 1, completadas: 0 });
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("no salió por segunda vez el mismo día (23505): no se intenta marcar resumen_enviado_at", async () => {
+      respuestaInsertJob = {
+        data: null,
+        error: { code: "23505", message: 'duplicate key value violates unique constraint "agenda_jobs_pkey"' },
+      };
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(resumenDiario).not.toHaveBeenCalled();
+      expect(updateJobsSpy).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(200);
     });
   });
 
