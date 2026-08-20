@@ -179,7 +179,7 @@ export async function actualizarCita(
   cambios: Partial<DatosCita>,
   actor: string,
   origen: Origen,
-): Promise<{ cita: Cita; cambioVisible: boolean; correoModificado: boolean }> {
+): Promise<{ cita: Cita; cambioVisible: boolean; correoModificado: boolean; inicioModificado: boolean }> {
   const antes = await obtenerCita(id);
   if (!antes) throw new ErrorAgenda("no_encontrada", "Esa cita no existe.");
   if (antes.estado === "cancelada") throw new ErrorAgenda("conflicto", "Esa cita ya fue cancelada.");
@@ -238,7 +238,11 @@ export async function actualizarCita(
     actor,
     origen,
   );
-  return { cita: despues, cambioVisible, correoModificado };
+  // `inicioModificado` sale también por acá (no solo hacia el `accion` de la
+  // bitácora, arriba): operaciones.ts lo necesita para el aviso al equipo
+  // (avisos.ts), que distingue "movida" de "editada" con el mismo criterio
+  // que ya usa citas_log — no tiene sentido recalcularlo con otra consulta.
+  return { cita: despues, cambioVisible, correoModificado, inicioModificado };
 }
 
 export async function cancelarCita(

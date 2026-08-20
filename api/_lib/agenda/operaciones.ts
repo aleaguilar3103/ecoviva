@@ -18,6 +18,7 @@ import { crearCita, actualizarCita, cancelarCita, obtenerCita, listarCitas, regi
 import type { Cita, DatosCita, Origen } from "./db.js";
 import { enviarAhora, type ClaseCorreo } from "./email.js";
 import { aplicarRecordatorios } from "./recordatorios.js";
+import { avisarCambio, type AccionCita } from "./avisos.js";
 import { ErrorAgenda } from "./errores.js";
 
 export type ResultadoCorreo = "enviado" | "fallo" | "no_aplica";
@@ -76,6 +77,16 @@ async function avisarAlCliente(
   return resultado;
 }
 
+// El aviso a la otra persona del equipo va DESPUÉS de guardar, igual que el
+// correo al cliente: avisarCambio ya nunca tira (ver avisos.ts), pero el
+// .catch() de acá es una segunda red de seguridad para no dejar una promesa
+// rechazada suelta — mismo criterio que aplicarRecordatorios más arriba.
+function avisarAlEquipo(cita: Cita, accion: AccionCita, actor: string): Promise<void> {
+  return avisarCambio(cita, accion, actor).catch((e) => {
+    console.error("agenda/operaciones: no se pudo avisar al equipo del cambio", e);
+  });
+}
+
 // Crear avisa siempre con "confirmacion".
 export async function crearCitaCompleta(
   datos: DatosCita,
@@ -85,6 +96,7 @@ export async function crearCitaCompleta(
   const choque = await haySolape(datos.inicio);
   const cita = await crearCita(datos, actor, origen);
   const correo = await avisarAlCliente("confirmacion", cita);
+  await avisarAlEquipo(cita, "creada", actor);
   return { cita, choque, correo };
 }
 
@@ -96,7 +108,12 @@ export async function actualizarCitaCompleta(
   origen: Origen,
 ): Promise<{ cita: Cita; choque: boolean; correo: ResultadoCorreo }> {
   const choque = await haySolape(datos.inicio, id);
-  const { cita, cambioVisible, correoModificado } = await actualizarCita(id, datos, actor, origen);
+  const { cita, cambioVisible, correoModificado, inicioModificado } = await actualizarCita(
+    id,
+    datos,
+    actor,
+    origen,
+  );
 
   // Prioridad: si cambió el correo del cliente, la dirección nueva nunca
   // vio nada de esta cita — es su primera noticia, así que es una
@@ -124,6 +141,12 @@ export async function actualizarCitaCompleta(
   } else {
     correo = "no_aplica";
   }
+  // Al equipo se le avisa SIEMPRE que se llama a esta función, aunque el
+  // cambio no sea "visible" para el cliente (p. ej. solo se tocaron notas o
+  // teléfono): esa info sí le importa a la otra persona, que comparte la
+  // misma agenda. Mismo criterio que ya usa citas_log más abajo en db.ts,
+  // que también registra la edición sin condicionarla a cambioVisible.
+  await avisarAlEquipo(cita, inicioModificado ? "movida" : "editada", actor);
   return { cita, choque, correo };
 }
 
@@ -137,6 +160,9 @@ export async function cancelarCitaCompleta(
 ): Promise<{ cita: Cita; correo: ResultadoCorreo }> {
   const { cita, seCancelo } = await cancelarCita(id, actor, origen);
   const correo = seCancelo ? await avisarAlCliente("cancelacion", cita) : "no_aplica";
+  // Mismo idempotente que el correo: si ya estaba cancelada, no se avisa de
+  // nuevo por un doble clic o una carrera entre las dos personas del equipo.
+  if (seCancelo) await avisarAlEquipo(cita, "cancelada", actor);
   return { cita, correo };
 }
 

@@ -8,6 +8,7 @@ const listarCitas = vi.fn();
 const registrarReenvio = vi.fn();
 const enviarAhora = vi.fn();
 const aplicarRecordatorios = vi.fn();
+const avisarCambio = vi.fn();
 
 vi.mock("./db.js", () => ({
   crearCita: (...a: unknown[]) => crearCita(...a),
@@ -21,6 +22,12 @@ vi.mock("./email.js", () => ({ enviarAhora: (...a: unknown[]) => enviarAhora(...
 vi.mock("./recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
 }));
+// Task 6: avisos.ts también se mockea acá — sus propias reglas (a quién le
+// llega, que nunca tira) ya las prueba avisos.test.ts; acá solo importa que
+// operaciones.ts lo invoque con los datos y el momento correctos.
+vi.mock("./avisos.js", () => ({
+  avisarCambio: (...a: unknown[]) => avisarCambio(...a),
+}));
 
 async function cargar() {
   vi.resetModules();
@@ -29,9 +36,10 @@ async function cargar() {
 
 beforeEach(() => {
   [crearCita, actualizarCita, cancelarCita, obtenerCita, listarCitas,
-   registrarReenvio, enviarAhora, aplicarRecordatorios].forEach((m) => m.mockReset());
+   registrarReenvio, enviarAhora, aplicarRecordatorios, avisarCambio].forEach((m) => m.mockReset());
   aplicarRecordatorios.mockResolvedValue(undefined);
   listarCitas.mockResolvedValue([]);
+  avisarCambio.mockResolvedValue(undefined);
 });
 
 const DATOS = {
@@ -50,6 +58,7 @@ describe("crearCitaCompleta", () => {
     expect(crearCita).toHaveBeenCalledWith(DATOS, "yo@x.com", "telegram");
     expect(enviarAhora).toHaveBeenCalledWith("confirmacion", expect.objectContaining({ id: "c1" }));
     expect(aplicarRecordatorios).toHaveBeenCalled();
+    expect(avisarCambio).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), "creada", "yo@x.com");
     expect(r.correo).toBe("enviado");
   });
 
@@ -124,5 +133,79 @@ describe("cancelarCitaCompleta", () => {
     const r = await cancelarCitaCompleta("c1", "yo@x.com", "telegram");
     expect(enviarAhora).not.toHaveBeenCalled();
     expect(r.correo).toBe("no_aplica");
+  });
+
+  it("cancelar de verdad avisa al equipo con 'cancelada'", async () => {
+    cancelarCita.mockResolvedValue({ cita: { id: "c1", ...DATOS }, seCancelo: true });
+    const { cancelarCitaCompleta } = await cargar();
+    await cancelarCitaCompleta("c1", "yo@x.com", "telegram");
+    expect(avisarCambio).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), "cancelada", "yo@x.com");
+  });
+
+  it("no avisa al equipo si ya estaba cancelada (mismo idempotente que el correo)", async () => {
+    cancelarCita.mockResolvedValue({ cita: { id: "c1", ...DATOS }, seCancelo: false });
+    const { cancelarCitaCompleta } = await cargar();
+    await cancelarCitaCompleta("c1", "yo@x.com", "telegram");
+    expect(avisarCambio).not.toHaveBeenCalled();
+  });
+});
+
+// Task 6: el aviso al equipo se dispara desde acá — no desde el endpoint del
+// panel ni desde el webhook del bot — para que salga igual venga el cambio
+// de donde venga. avisarCambio en sí (a quién le llega, que nunca tira) ya
+// lo prueba avisos.test.ts; acá solo importa la orquestación.
+describe("aviso al equipo (Task 6)", () => {
+  it("actualizar con cambio de hora avisa 'movida'", async () => {
+    actualizarCita.mockResolvedValue({
+      cita: { id: "c1", ...DATOS },
+      cambioVisible: true,
+      correoModificado: false,
+      inicioModificado: true,
+    });
+    enviarAhora.mockResolvedValue(undefined);
+    const { actualizarCitaCompleta } = await cargar();
+    await actualizarCitaCompleta("c1", DATOS, "yo@x.com", "telegram");
+    expect(avisarCambio).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), "movida", "yo@x.com");
+  });
+
+  it("actualizar sin cambio de hora (solo lugar u otro campo) avisa 'editada'", async () => {
+    actualizarCita.mockResolvedValue({
+      cita: { id: "c1", ...DATOS },
+      cambioVisible: true,
+      correoModificado: false,
+      inicioModificado: false,
+    });
+    enviarAhora.mockResolvedValue(undefined);
+    const { actualizarCitaCompleta } = await cargar();
+    await actualizarCitaCompleta("c1", DATOS, "yo@x.com", "telegram");
+    expect(avisarCambio).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }), "editada", "yo@x.com");
+  });
+
+  it("avisa al equipo aunque el cambio no sea visible para el cliente (p. ej. solo notas)", async () => {
+    actualizarCita.mockResolvedValue({
+      cita: { id: "c1", ...DATOS },
+      cambioVisible: false,
+      correoModificado: false,
+      inicioModificado: false,
+    });
+    const { actualizarCitaCompleta } = await cargar();
+    const r = await actualizarCitaCompleta("c1", DATOS, "yo@x.com", "telegram");
+    expect(r.correo).toBe("no_aplica"); // al cliente no le llegó nada...
+    expect(avisarCambio).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "c1" }), "editada", "yo@x.com",
+    ); // ...pero al equipo sí.
+  });
+
+  it("un fallo de avisarCambio no tumba la operación (segunda red de seguridad del .catch)", async () => {
+    crearCita.mockResolvedValue({ id: "c1", ...DATOS });
+    enviarAhora.mockResolvedValue(undefined);
+    avisarCambio.mockRejectedValue(new Error("avisos.ts se rompió"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { crearCitaCompleta } = await cargar();
+    const r = await crearCitaCompleta(DATOS, "yo@x.com", "telegram");
+    expect(r.cita.id).toBe("c1");
+    expect(r.correo).toBe("enviado");
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

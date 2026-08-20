@@ -2,14 +2,31 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // listarCitas y aplicarRecordatorios se mockean: este endpoint no decide
 // reglas de recordatorios (eso ya lo prueba recordatorios.test.ts), solo
-// orquesta. supabaseAdmin se mockea con una cadena mínima para el UPDATE de
-// housekeeping, igual que en db.test.ts.
+// orquesta. resumenDiario se mockea por la misma razón (sus propias reglas
+// — a quién le llega, que nunca tira — ya las prueba avisos.test.ts). Acá
+// solo importa la orquestación del cron: que se llame, que un fallo no
+// frene la reconciliación, y que el gate de agenda_jobs lo saltee la
+// segunda vez que corre el mismo día.
+//
+// supabaseAdmin se mockea con una cadena mínima, y `from()` ahora rutea por
+// tabla: "agenda_jobs" para el insert del gate del resumen (Task 6) y
+// cualquier otra ("citas") para el UPDATE de housekeeping, igual que antes.
 const listarCitas = vi.fn();
 const aplicarRecordatorios = vi.fn();
+const resumenDiario = vi.fn();
 const updateSpy = vi.fn();
 const eqSpy = vi.fn();
 const ltSpy = vi.fn();
+const insertJobsSpy = vi.fn();
 let respuestaUpdate: { data: unknown[] | null; error: unknown };
+let respuestaInsertJob: { data: unknown; error: unknown };
+// Tabla en memoria para agenda_mensajes: a diferencia de las otras dos
+// (cuya respuesta es fija), acá lo que hay que probar es el efecto real del
+// `.lt("created_at", limite)` — qué filas sobreviven — así que el mock
+// filtra de verdad, igual que agenda_acciones_pendientes en
+// webhook.test.ts.
+let filasMensajes: { id: number; created_at: string }[];
+let errorPurga: { message: string } | null;
 
 vi.mock("../_lib/agenda/db.js", () => ({
   listarCitas: (...a: unknown[]) => listarCitas(...a),
@@ -17,9 +34,39 @@ vi.mock("../_lib/agenda/db.js", () => ({
 vi.mock("../_lib/agenda/recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
 }));
+vi.mock("../_lib/agenda/avisos.js", () => ({
+  resumenDiario: (...a: unknown[]) => resumenDiario(...a),
+}));
 vi.mock("../_lib/supabase.js", () => ({
   supabaseAdmin: () => ({
-    from: () => {
+    from: (tabla: string) => {
+      if (tabla === "agenda_jobs") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cadenaJobs: any = {};
+        cadenaJobs.insert = vi.fn((arg: unknown) => {
+          insertJobsSpy(arg);
+          return cadenaJobs;
+        });
+        cadenaJobs.then = (onFulfilled: unknown, onRejected: unknown) =>
+          Promise.resolve(respuestaInsertJob).then(
+            onFulfilled as (v: unknown) => unknown,
+            onRejected as (e: unknown) => unknown,
+          );
+        return cadenaJobs;
+      }
+      if (tabla === "agenda_mensajes") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cadenaMsj: any = {};
+        cadenaMsj.delete = vi.fn(() => cadenaMsj);
+        cadenaMsj.lt = vi.fn((_campo: string, valor: string) => {
+          if (errorPurga) return Promise.resolve({ error: errorPurga });
+          filasMensajes = filasMensajes.filter(
+            (f) => new Date(f.created_at).getTime() >= new Date(valor).getTime(),
+          );
+          return Promise.resolve({ error: null });
+        });
+        return cadenaMsj;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cadena: any = {};
       cadena.update = vi.fn((arg: unknown) => {
@@ -92,11 +139,19 @@ beforeEach(() => {
   listarCitas.mockReset();
   aplicarRecordatorios.mockReset();
   aplicarRecordatorios.mockResolvedValue(undefined);
+  resumenDiario.mockReset();
+  resumenDiario.mockResolvedValue(0);
   updateSpy.mockReset();
   eqSpy.mockReset();
   ltSpy.mockReset();
+  insertJobsSpy.mockReset();
   listarCitas.mockResolvedValue([]);
   respuestaUpdate = { data: [], error: null };
+  // Insert exitoso por default: "primera vez hoy", el resumen se llama.
+  // Los tests que necesitan el otro camino (ya salió hoy) lo pisan.
+  respuestaInsertJob = { data: null, error: null };
+  filasMensajes = [];
+  errorPurga = null;
   process.env.CRON_SECRET = "secreto-de-prueba";
 });
 
@@ -199,5 +254,124 @@ describe("/api/cron/agenda", () => {
     const res = resRecorder();
     await handler(req(), res);
     expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
+  });
+
+  describe("resumen diario (Task 6)", () => {
+    it("con el header correcto, se llama a resumenDiario", async () => {
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(resumenDiario).toHaveBeenCalledTimes(1);
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("sin header (401): no se llama a resumenDiario — el gate ni se toca antes de autorizar", async () => {
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req(), res);
+
+      expect(resumenDiario).not.toHaveBeenCalled();
+      expect(insertJobsSpy).not.toHaveBeenCalled();
+    });
+
+    it("si resumenDiario tira, la reconciliación se corre igual y la respuesta no es 500", async () => {
+      resumenDiario.mockRejectedValue(new Error("Telegram caído"));
+      const sin24h = cita({ id: "sin-24h", recordatorio_24h_email_id: null });
+      listarCitas.mockResolvedValue([sin24h]);
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(res.statusCode).not.toBe(500);
+      expect(aplicarRecordatorios).toHaveBeenCalledTimes(1);
+      expect(res.body).toEqual({ reconciliadas: 1, completadas: 0 });
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("corriendo dos veces el mismo día, el resumen sale una sola vez", async () => {
+      const handler = await cargar();
+
+      const res1 = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res1);
+      expect(resumenDiario).toHaveBeenCalledTimes(1);
+
+      // Segunda corrida "del mismo día": el insert en agenda_jobs choca con
+      // la primary key ya sembrada por la corrida anterior (código 23505).
+      respuestaInsertJob = {
+        data: null,
+        error: { code: "23505", message: 'duplicate key value violates unique constraint "agenda_jobs_pkey"' },
+      };
+      const res2 = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res2);
+
+      expect(resumenDiario).toHaveBeenCalledTimes(1); // sigue en 1, no subió a 2
+      expect(res2.statusCode).toBe(200); // el gate saltea el resumen, no rompe la respuesta
+    });
+
+    it("si el gate de agenda_jobs falla por una razón distinta al choque de PK, no manda el resumen (falla cerrado)", async () => {
+      respuestaInsertJob = { data: null, error: { message: "boom de postgres" } };
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(resumenDiario).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(200); // igual no frena la reconciliación
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("usa el día calendario de Costa Rica para la clave del gate, no el de UTC", async () => {
+      // 2026-08-19T04:00:00Z son las 22:00 del 18 de agosto en Costa Rica
+      // (UTC-6 fijo): el "hoy" correcto para agenda_jobs es el 18, no el 19.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T04:00:00.000Z"));
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(insertJobsSpy).toHaveBeenCalledWith({ fecha: "2026-08-18" });
+      vi.useRealTimers();
+    });
+  });
+
+  describe("purga de agenda_mensajes (Task 6)", () => {
+    it("borra las filas de más de 24 horas y conserva las recientes", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T12:00:00.000Z"));
+      filasMensajes = [
+        { id: 1, created_at: "2026-08-18T11:00:00.000Z" }, // 25h antes: vieja
+        { id: 2, created_at: "2026-08-19T11:00:00.000Z" }, // 1h antes: reciente
+      ];
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(filasMensajes.map((f) => f.id)).toEqual([2]);
+      vi.useRealTimers();
+    });
+
+    it("si la purga falla, no rompe nada: la reconciliación se corre igual y la respuesta no es 500", async () => {
+      errorPurga = { message: "boom de postgres" };
+      const sin24h = cita({ id: "sin-24h", recordatorio_24h_email_id: null });
+      listarCitas.mockResolvedValue([sin24h]);
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(res.statusCode).not.toBe(500);
+      expect(aplicarRecordatorios).toHaveBeenCalledTimes(1);
+      expect(res.body).toEqual({ reconciliadas: 1, completadas: 0 });
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
   });
 });

@@ -153,6 +153,10 @@ describe("actualizarCita", () => {
     ];
     const resultado = await actualizarCita("cita-1", { inicio: inicioNuevo }, "admin", "panel");
     expect(resultado.cambioVisible).toBe(true);
+    // Task 6: operaciones.ts usa este campo (no solo el `accion` de la
+    // bitácora, abajo) para elegir "movida" vs "editada" en el aviso al
+    // equipo (avisos.ts).
+    expect(resultado.inicioModificado).toBe(true);
     const payload = updateSpy.mock.calls[0]?.[0];
     expect(payload).toHaveProperty("ics_secuencia", 1);
     // Verificar que la bitácora registra acción "movida" (no "editada")
@@ -170,6 +174,10 @@ describe("actualizarCita", () => {
     ];
     const resultado = await actualizarCita("cita-1", { lugar: lugarNuevo }, "admin", "panel");
     expect(resultado.cambioVisible).toBe(true);
+    // Task 6: lugar sin cambio de inicio → inicioModificado false, aunque
+    // cambioVisible sea true (mismo matiz que ya distingue el `accion` de
+    // la bitácora, abajo).
+    expect(resultado.inicioModificado).toBe(false);
     const payload = updateSpy.mock.calls[0]?.[0];
     expect(payload).toHaveProperty("ics_secuencia", 1);
     // Esta aserción discrimina el ternario: lugar distinto sin cambio de inicio debe ser "editada", no "movida"
