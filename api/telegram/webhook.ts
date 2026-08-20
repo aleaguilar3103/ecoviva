@@ -183,6 +183,15 @@ async function responderSemana(chatId: string): Promise<void> {
 // obtenerla. Usa `from.id`, no `chat.id`: son el mismo valor en un chat
 // privado, pero conceptualmente lo que se guarda es la identidad de la
 // PERSONA, no del chat donde escribió el comando.
+//
+// Ronda de arreglo (hallazgo del coordinador): vincular desde un grupo NUNCA
+// es legítimo, así que la puerta ni siquiera debería existir ahí. Un código
+// escrito en un grupo queda a la vista de todos — es una credencial de 10
+// minutos que da acceso a la agenda completa — y la confirmación con el
+// nombre de la persona revelaría, en ese mismo grupo, que el bot maneja una
+// agenda y de quién es. Por eso la respuesta ante un chat no privado es la
+// misma línea seca que usa `autorizar`: no explica nada, no menciona que
+// existe un comando de vinculación.
 function extraerCodigo(texto: string): string | null {
   const partes = texto.trim().split(/\s+/);
   return partes.length >= 2 ? partes[1] : null;
@@ -191,8 +200,14 @@ function extraerCodigo(texto: string): string | null {
 async function manejarVincular(
   texto: string,
   fromId: number | undefined,
+  chatType: string | undefined,
   chatId: string,
 ): Promise<void> {
+  if (chatType !== "private") {
+    await enviarMensaje(chatId, LINEA_SECA);
+    return;
+  }
+
   const codigo = extraerCodigo(texto);
   if (!fromId || !codigo) {
     await enviarMensaje(chatId, CODIGO_INVALIDO);
@@ -201,39 +216,47 @@ async function manejarVincular(
 
   const db = supabaseAdmin();
 
+  // Update condicionado por el código Y su vigencia, en UNA sola operación
+  // (con `.select()` para recuperar el nombre de la fila que efectivamente
+  // se tocó). Antes esto era un select seguido de un update: entre esas dos
+  // consultas cabía una carrera real — si dos personas mandaban el mismo
+  // código casi al mismo tiempo, las dos lo encontraban vigente en el select
+  // y las dos escribían su propio `chat_id`, y como los ids son distintos la
+  // restricción `unique` no frenaba nada: la segunda escritura pisaba a la
+  // primera, dejando vinculado a quien ganó la carrera y no a quien era
+  // dueño del código. Con las dos condiciones DENTRO del `where` del update,
+  // Postgres garantiza que como mucho una ejecución concurrente encuentra la
+  // fila todavía vigente: la segunda ya no matchea (el código quedó en
+  // null) y `data` le vuelve `null`. Mismo principio que ya usa el resto del
+  // repo para consumir credenciales de un solo uso (p. ej. la rotación de
+  // `feed_token` en feed-token.ts, aunque ahí no hay ventana de carrera
+  // porque no depende de una condición previa).
   const { data, error } = await db
     .from("app_users")
-    .select("user_id, full_name")
+    .update({ telegram_chat_id: String(fromId), telegram_codigo: null, telegram_codigo_expira: null })
     .eq("telegram_codigo", codigo)
     .gt("telegram_codigo_expira", new Date().toISOString())
+    .select("email, full_name")
     .maybeSingle();
 
   if (error) {
-    console.error("telegram/webhook: fallo al buscar el código de vinculación", error);
+    // telegram_chat_id es unique: si este Telegram ya estaba vinculado a
+    // OTRA cuenta, el update choca contra esa restricción. Es un caso real
+    // que puede pasar en el uso normal, no un error de sistema — y sigue
+    // existiendo con el update atómico, es un caso distinto al de arriba.
+    if (error.code === "23505") {
+      await enviarMensaje(chatId, TELEGRAM_YA_VINCULADO);
+      return;
+    }
+    console.error("telegram/webhook: fallo al vincular", error);
     await enviarMensaje(chatId, ERROR_GENERICO);
     return;
   }
   if (!data) {
+    // El código no existe, ya venció, o alguien se lo llevó primero en la
+    // carrera descrita arriba: en los tres casos, Postgres no tocó ninguna
+    // fila y acá no hay forma (ni falta) de distinguirlos.
     await enviarMensaje(chatId, CODIGO_INVALIDO);
-    return;
-  }
-
-  // Un solo uso: el código se limpia en el mismo update que lo consume.
-  const { error: errorUpdate } = await db
-    .from("app_users")
-    .update({ telegram_chat_id: String(fromId), telegram_codigo: null, telegram_codigo_expira: null })
-    .eq("user_id", data.user_id);
-
-  if (errorUpdate) {
-    // telegram_chat_id es unique: si este Telegram ya estaba vinculado a
-    // OTRA cuenta, el update choca contra esa restricción. Es un caso real
-    // que puede pasar en el uso normal, no un error de sistema.
-    if (errorUpdate.code === "23505") {
-      await enviarMensaje(chatId, TELEGRAM_YA_VINCULADO);
-      return;
-    }
-    console.error("telegram/webhook: fallo al guardar el vínculo de Telegram", errorUpdate);
-    await enviarMensaje(chatId, ERROR_GENERICO);
     return;
   }
 
@@ -257,7 +280,7 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
     const texto = msg.text.trim();
 
     if (texto.startsWith("/vincular")) {
-      await manejarVincular(texto, fromId, chatId);
+      await manejarVincular(texto, fromId, chatType, chatId);
       return;
     }
 

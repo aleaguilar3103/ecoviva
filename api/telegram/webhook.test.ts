@@ -225,12 +225,12 @@ describe("POST /api/telegram/webhook — las cuatro puertas", () => {
 });
 
 describe("POST /api/telegram/webhook — /vincular", () => {
-  it("8) código válido y vigente → guarda telegram_chat_id y limpia el código", async () => {
+  it("8) código válido y vigente, en privado → guarda telegram_chat_id y limpia el código", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
-    colas.app_users = [
-      { data: { user_id: "uid-alina", full_name: "Alina" }, error: null }, // select por código
-      { data: null, error: null }, // update
-    ];
+    // Ronda de arreglo: ahora es UNA sola operación (update condicionado +
+    // select), no select-y-después-update, así que una sola entrada en la
+    // cola alcanza.
+    colas.app_users = [{ data: { email: "alina@ecoviva.test", full_name: "Alina" }, error: null }];
     const { default: handler } = await cargar();
     const res = resRecorder();
     const update = updateBase({
@@ -254,9 +254,45 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     expect(texto).toMatch(/Alina/);
   });
 
-  it("9) código vencido (sin fila que matchee) → no guarda nada, avisa que no sirve", async () => {
+  // Ronda de arreglo (hallazgo del coordinador): vincular desde un grupo no
+  // es legítimo en ningún caso — el código quedaría a la vista de todo el
+  // grupo y la confirmación revelaría el nombre de la persona vinculada.
+  // Este es el test 1 que pidió el coordinador.
+  it("código válido pero mandado desde un GRUPO → no se vincula nada, línea seca", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
-    colas.app_users = [{ data: null, error: null }]; // el filtro gt(expira, now) no encontró fila
+    // Ni siquiera debería tocar app_users: el chequeo de chat privado corta
+    // antes de llegar al update. No dejamos ninguna entrada en la cola —
+    // si la implementación igual consultara, el mock reventaría al no
+    // encontrar respuesta preparada... en cambio devuelve el default
+    // { data: null, error: null }, así que la aserción real es sobre
+    // updateSpy y el texto exacto de la respuesta.
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    const update = updateBase({
+      message: {
+        message_id: 1,
+        text: "/vincular 123456",
+        chat: { id: -1002222, type: "group" },
+        from: { id: 999 },
+      },
+    });
+    await handler(req({ secreto: SECRETO, body: update }), res);
+    await esperarProcesamiento();
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(enviarMensaje).toHaveBeenCalledTimes(1);
+    expect(enviarMensaje).toHaveBeenCalledWith("-1002222", "No tenés acceso.");
+  });
+
+  // Test 2 del coordinador: en privado sigue funcionando — es el test 8 de
+  // arriba, sin cambios de intención.
+
+  // Test 3 del coordinador: el update condicionado no encuentra fila (código
+  // que no existe, que ya venció, o que alguien más se llevó primero en la
+  // carrera) → mensaje de código inválido, nada se vincula.
+  it("9) el update condicionado devuelve null (código vencido, inexistente o ya consumido) → avisa que no sirve", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: null, error: null }]; // el where (código + vigencia) no matcheó ninguna fila
     const { default: handler } = await cargar();
     const res = resRecorder();
     const update = updateBase({
@@ -270,7 +306,11 @@ describe("POST /api/telegram/webhook — /vincular", () => {
     await handler(req({ secreto: SECRETO, body: update }), res);
     await esperarProcesamiento();
 
-    expect(updateSpy).not.toHaveBeenCalled();
+    // El update SÍ se invoca (es la misma operación atómica que intenta el
+    // caso feliz) — lo que garantiza "no guarda nada" es el WHERE de
+    // Postgres, no que la app se abstenga de llamarlo. Lo que importa acá es
+    // que nunca se manda un mensaje de éxito.
+    expect(enviarMensaje).toHaveBeenCalledTimes(1);
     expect(enviarMensaje).toHaveBeenCalledWith(
       "999",
       "Ese código no sirve o ya venció. Generá uno nuevo desde el panel.",
@@ -301,8 +341,9 @@ describe("POST /api/telegram/webhook — /vincular", () => {
 
   it("código que ya vinculado a otra cuenta (choque de unique) → mensaje claro, no error crudo", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
+    // Ahora es una sola operación: el update condicionado en sí devuelve el
+    // error de unique_violation (antes eran dos pasos, select + update).
     colas.app_users = [
-      { data: { user_id: "uid-otra", full_name: "Otra Persona" }, error: null },
       {
         data: null,
         error: { code: "23505", message: 'duplicate key value violates unique constraint "app_users_telegram_chat_id_key"' },
