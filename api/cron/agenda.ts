@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "../_lib/supabase.js";
-import { listarCitas } from "../_lib/agenda/db.js";
+import { listarCitas, registrarCompletadas } from "../_lib/agenda/db.js";
 import { aplicarRecordatorios } from "../_lib/agenda/recordatorios.js";
 import { resumenDiario } from "../_lib/agenda/avisos.js";
 
@@ -20,17 +20,14 @@ import { resumenDiario } from "../_lib/agenda/avisos.js";
 //      que el día quedó reclamado pero el envío nunca se confirmó (falló
 //      resumenDiario, no había a quién mandarle, o falló el propio registro)
 //      — dato consultable en vez de silencio indistinguible de un día normal.
-//   1. Purgar agenda_mensajes: borrar el historial de conversación del bot
-//      de más de 24 horas. Esa tabla guarda el texto crudo de lo que Alina
-//      y Alejandro le escriben al bot — nombres, teléfonos y correos de
-//      clientes de paso — para darle contexto de corto plazo al agente
-//      (telegram/webhook.ts solo usa la última hora). Pasado un día nadie
-//      la vuelve a leer: no hay motivo para retener esos datos de clientes
-//      más tiempo del que hace falta.
+//   1. Purgar las tres tablas efímeras del bot (ver "Retenciones" abajo).
 //   2. Reconciliar: citas de las próximas 48h a las que les falte algún
 //      recordatorio programado. Cubre los fallos transitorios de Resend y las
 //      citas agendadas a más de 30 días, que recién ahora entran en ventana.
-//   3. Marcar como completada lo que ya pasó, para que la vista no se llene.
+//   3. Marcar como completada lo que ya pasó, para que la vista no se llene,
+//      y dejarlo registrado en citas_log (M-7): es el único cambio de estado
+//      automático del sistema, y era el único invisible en la bitácora que
+//      existe para responder "yo no moví eso".
 //
 // Los pasos 0 y 1 son cada uno comodidad/limpieza, no pueden frenar el paso
 // 2: cada uno corre envuelto en su PROPIO try/catch (uno no debe tumbar al
@@ -38,6 +35,32 @@ import { resumenDiario } from "../_lib/agenda/avisos.js";
 // cualquier aviso posterior a un guardado (ver operaciones.ts). La
 // reconciliación es lo que hace que a los clientes les lleguen los
 // recordatorios — eso sí importa que no se salte.
+//
+// ── Retenciones (M-2) ──
+//
+// La purga de agenda_mensajes se justificó por privacidad: esa tabla guarda
+// texto crudo con nombres, teléfonos y correos de clientes de paso. El mismo
+// criterio le cabe entero a agenda_acciones_pendientes, que guarda ESOS MISMOS
+// datos (cliente_nombre, cliente_email, cliente_telefono y las notas internas,
+// dentro del `accion` jsonb) y a la que nadie limpiaba: sus filas vencidas
+// quedaban para siempre, inutilizables pero ahí. La política se había aplicado
+// a una tabla y no a su hermana.
+//
+//   - agenda_mensajes            → 24 h. El agente solo lee la última hora
+//     (cargarHistorial en telegram/webhook.ts). Pasado un día nadie la vuelve
+//     a leer.
+//   - agenda_acciones_pendientes → 24 h. Mismo dato, mismo criterio. De hecho
+//     la fila queda funcionalmente muerta a los 10 minutos (`expira_at`, ver
+//     acciones.ts): las 24 h son holgura para poder mirarla si hay que
+//     depurar algo el mismo día, no una necesidad.
+//   - telegram_updates           → 7 días. Acá no hay datos de clientes: solo
+//     el `update_id` que sostiene la deduplicación. Telegram descarta los
+//     updates que no pudo entregar a las 24 h, así que 7 días es margen de
+//     sobra para que un reintento tardío siga encontrando su fila. Lo que se
+//     resuelve es el crecimiento sin techo, no la privacidad.
+//
+// Cada purga va envuelta APARTE: una tabla que falla no puede dejar sin
+// limpiar a las otras dos ni frenar la reconciliación.
 
 const TZ = "America/Costa_Rica";
 
@@ -90,16 +113,23 @@ async function marcarResumenEnviado(fecha: string, cuando: Date): Promise<void> 
   }
 }
 
-const RETENCION_MENSAJES_MS = 24 * 60 * 60_000;
+const DIA_MS = 24 * 60 * 60_000;
 
-// Borra de agenda_mensajes lo más viejo que 24 horas. No es limpieza de
-// disco: esa tabla guarda texto crudo con datos de clientes (ver el
-// encabezado del archivo) y no tiene ninguna razón funcional para vivir más
-// que eso — telegram/webhook.ts (cargarHistorial) solo lee la última hora.
-async function purgarMensajesViejos(ahora: Date): Promise<void> {
-  const limite = new Date(ahora.getTime() - RETENCION_MENSAJES_MS).toISOString();
-  const { error } = await supabaseAdmin().from("agenda_mensajes").delete().lt("created_at", limite);
-  if (error) console.error("cron/agenda: no se pudo purgar agenda_mensajes", error);
+// Las tres tablas efímeras del bot y cuánto vive cada fila. El porqué de cada
+// número está en "Retenciones", en el encabezado del archivo.
+const PURGAS: { tabla: string; retencionMs: number }[] = [
+  { tabla: "agenda_mensajes", retencionMs: DIA_MS },
+  { tabla: "agenda_acciones_pendientes", retencionMs: DIA_MS },
+  { tabla: "telegram_updates", retencionMs: 7 * DIA_MS },
+];
+
+// Borra de una tabla lo más viejo que su retención. No es limpieza de disco:
+// dos de las tres guardan texto crudo con datos de clientes y no tienen
+// ninguna razón funcional para vivir más que eso.
+async function purgarTabla(tabla: string, retencionMs: number, ahora: Date): Promise<void> {
+  const limite = new Date(ahora.getTime() - retencionMs).toISOString();
+  const { error } = await supabaseAdmin().from(tabla).delete().lt("created_at", limite);
+  if (error) console.error(`cron/agenda: no se pudo purgar ${tabla}`, error);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,14 +172,17 @@ export default async function handler(req: any, res: any) {
     console.error("cron/agenda: fallo al mandar el resumen diario", e);
   }
 
-  // ── 1. Purga de agenda_mensajes ──
-  // Envuelta aparte, en su propio try/catch: independiente del resumen de
-  // arriba (uno no debe tumbar al otro) y, sobre todo, no puede frenar la
-  // reconciliación de abajo.
-  try {
-    await purgarMensajesViejos(ahora);
-  } catch (e) {
-    console.error("cron/agenda: fallo al purgar agenda_mensajes", e);
+  // ── 1. Purgas ──
+  // Cada tabla va envuelta APARTE, en su propio try/catch: son independientes
+  // del resumen de arriba (uno no debe tumbar al otro), independientes entre
+  // sí (una tabla caída no puede dejar sin limpiar a las otras) y, sobre todo,
+  // ninguna puede frenar la reconciliación de abajo.
+  for (const { tabla, retencionMs } of PURGAS) {
+    try {
+      await purgarTabla(tabla, retencionMs, ahora);
+    } catch (e) {
+      console.error(`cron/agenda: fallo al purgar ${tabla}`, e);
+    }
   }
 
   try {
@@ -174,12 +207,15 @@ export default async function handler(req: any, res: any) {
     }
 
     // ── 3. Housekeeping ──
+    // Se trae también `inicio` (no solo `id`) porque es lo que va al `detalle`
+    // de la bitácora: sin eso, la entrada de citas_log no dice de qué cita
+    // pasada se trataba sin ir a buscarla aparte.
     const { data: completadas, error } = await supabaseAdmin()
       .from("citas")
       .update({ estado: "completada" })
       .eq("estado", "agendada")
       .lt("inicio", ahora.toISOString())
-      .select("id");
+      .select("id, inicio");
 
     if (error) {
       console.error("cron/agenda: no se pudo cerrar las citas pasadas", error);
@@ -197,9 +233,15 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // M-7: el único cambio de estado automático del sistema también deja
+    // rastro. `registrarCompletadas` nunca tira (ver db.ts): la cita ya quedó
+    // cerrada y un fallo de la bitácora no puede cambiar la respuesta.
+    const cerradas = (completadas ?? []) as { id: string; inicio: string }[];
+    await registrarCompletadas(cerradas);
+
     return res.status(200).json({
       reconciliadas: pendientes.length,
-      completadas: completadas?.length ?? 0,
+      completadas: cerradas.length,
     });
   } catch (e) {
     console.error("cron/agenda: error inesperado", e);

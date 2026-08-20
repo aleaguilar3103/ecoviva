@@ -72,7 +72,7 @@ export async function obtenerCita(id: string): Promise<Cita | null> {
 
 async function registrar(
   citaId: string,
-  accion: "creada" | "movida" | "editada" | "cancelada" | "reenviada",
+  accion: "creada" | "movida" | "editada" | "cancelada" | "reenviada" | "completada",
   detalle: unknown,
   actor: string,
   origen: Origen,
@@ -282,6 +282,38 @@ export async function cancelarCita(
 // mismo de que alguien lo disparó es lo que importa.
 export async function registrarReenvio(citaId: string, actor: string, origen: Origen): Promise<void> {
   await registrar(citaId, "reenviada", null, actor, origen);
+}
+
+// M-7: el housekeeping del cron (api/cron/agenda.ts) cierra las citas que ya
+// pasaron con un `update estado='completada'`, y ese cambio no dejaba ningún
+// rastro. Es el único cambio de estado automático del sistema — el que nadie
+// hizo a mano — y era justo el invisible en la bitácora que existe para
+// responder "yo no moví eso". La migración 0008 ya preveía `origen='cron'`; la
+// 0012 agrega la acción.
+//
+// Va en UN solo insert y no reusando `registrar` en un bucle: el cron puede
+// cerrar varias citas de una pasada y no hay ninguna razón para pagar una
+// consulta por cada una. Actor "cron" porque no hay persona detrás — es
+// literalmente la respuesta a "¿quién cerró esto?".
+//
+// Nunca tira, mismo criterio que `registrar`: la cita ya quedó cerrada y eso
+// es lo que importa; un fallo de la bitácora se loguea y no tumba el cron.
+export async function registrarCompletadas(
+  citas: { id: string; inicio: string }[],
+): Promise<void> {
+  if (!citas.length) return;
+  const { error } = await db()
+    .from("citas_log")
+    .insert(
+      citas.map((c) => ({
+        cita_id: c.id,
+        accion: "completada",
+        detalle: { inicio: c.inicio },
+        actor: "cron",
+        origen: "cron" as Origen,
+      })),
+    );
+  if (error) console.error("agenda/db: no se pudo registrar el cierre automático en citas_log", error);
 }
 
 export async function guardarIdsRecordatorio(

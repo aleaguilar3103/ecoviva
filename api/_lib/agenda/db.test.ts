@@ -369,3 +369,46 @@ describe("registrarReenvio (I3)", () => {
     );
   });
 });
+
+// ── M-7: el housekeeping del cron deja rastro en la bitácora ──
+//
+// El `update estado='completada'` del cron iba directo contra la tabla, sin
+// pasar por citas_log — pese a que la migración 0008 ya preveía `origen='cron'`
+// en el check. Es el único cambio de estado automático del sistema, y era
+// invisible en la bitácora que existe justamente para responder "yo no moví
+// eso".
+describe("registrarCompletadas (M-7)", () => {
+  it("registra 'completada' con origen cron, en un solo insert, sin tocar la tabla citas", async () => {
+    const { registrarCompletadas } = await cargar();
+    colaFrom = [{ data: null, error: null }];
+    await registrarCompletadas([
+      { id: "cita-1", inicio: "2026-08-01T16:00:00+00:00" },
+      { id: "cita-2", inicio: "2026-08-02T16:00:00+00:00" },
+    ]);
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(from).toHaveBeenCalledWith("citas_log");
+    // Un solo insert con las dos filas, no dos consultas.
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    expect(insertSpy).toHaveBeenCalledWith([
+      expect.objectContaining({ cita_id: "cita-1", accion: "completada", origen: "cron" }),
+      expect.objectContaining({ cita_id: "cita-2", accion: "completada", origen: "cron" }),
+    ]);
+  });
+
+  it("sin citas no consulta nada", async () => {
+    const { registrarCompletadas } = await cargar();
+    await registrarCompletadas([]);
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+
+  it("nunca tira: un fallo de la bitácora se loguea y ya (la cita ya quedó cerrada)", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { registrarCompletadas } = await cargar();
+    colaFrom = [{ data: null, error: { message: "boom de postgres" } }];
+    await expect(
+      registrarCompletadas([{ id: "cita-1", inicio: "2026-08-01T16:00:00+00:00" }]),
+    ).resolves.toBeUndefined();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+});

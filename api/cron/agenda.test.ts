@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // tabla: "agenda_jobs" para el insert del gate del resumen (Task 6) y
 // cualquier otra ("citas") para el UPDATE de housekeeping, igual que antes.
 const listarCitas = vi.fn();
+const registrarCompletadas = vi.fn();
 const aplicarRecordatorios = vi.fn();
 const resumenDiario = vi.fn();
 const updateSpy = vi.fn();
@@ -23,16 +24,21 @@ const eqJobsSpy = vi.fn();
 let respuestaUpdate: { data: unknown[] | null; error: unknown };
 let respuestaInsertJob: { data: unknown; error: unknown };
 let respuestaUpdateJob: { error: unknown };
-// Tabla en memoria para agenda_mensajes: a diferencia de las otras dos
+// Tablas en memoria para las TRES purgas (M-2): a diferencia de las otras
 // (cuya respuesta es fija), acá lo que hay que probar es el efecto real del
-// `.lt("created_at", limite)` — qué filas sobreviven — así que el mock
-// filtra de verdad, igual que agenda_acciones_pendientes en
-// webhook.test.ts.
-let filasMensajes: { id: number; created_at: string }[];
-let errorPurga: { message: string } | null;
+// `.lt("created_at", limite)` — qué filas sobreviven y con qué corte — así que
+// el mock filtra de verdad, igual que agenda_acciones_pendientes en
+// webhook.test.ts. Si una tabla no estuviera acá, su `.delete()` reventaría,
+// el try/catch del cron se lo comería y el test daría verde sin haber purgado
+// nada: verde falso.
+const TABLAS_PURGABLES = ["agenda_mensajes", "agenda_acciones_pendientes", "telegram_updates"];
+let filasPurga: Record<string, { id: number; created_at: string }[]>;
+let erroresPurga: Record<string, { message: string } | null>;
+const ltPurgaSpy = vi.fn();
 
 vi.mock("../_lib/agenda/db.js", () => ({
   listarCitas: (...a: unknown[]) => listarCitas(...a),
+  registrarCompletadas: (...a: unknown[]) => registrarCompletadas(...a),
 }));
 vi.mock("../_lib/agenda/recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
@@ -73,18 +79,20 @@ vi.mock("../_lib/supabase.js", () => ({
           );
         return cadenaJobs;
       }
-      if (tabla === "agenda_mensajes") {
+      if (TABLAS_PURGABLES.includes(tabla)) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const cadenaMsj: any = {};
-        cadenaMsj.delete = vi.fn(() => cadenaMsj);
-        cadenaMsj.lt = vi.fn((_campo: string, valor: string) => {
-          if (errorPurga) return Promise.resolve({ error: errorPurga });
-          filasMensajes = filasMensajes.filter(
+        const cadenaPurga: any = {};
+        cadenaPurga.delete = vi.fn(() => cadenaPurga);
+        cadenaPurga.lt = vi.fn((campo: string, valor: string) => {
+          ltPurgaSpy(tabla, campo, valor);
+          const error = erroresPurga[tabla];
+          if (error) return Promise.resolve({ error });
+          filasPurga[tabla] = (filasPurga[tabla] ?? []).filter(
             (f) => new Date(f.created_at).getTime() >= new Date(valor).getTime(),
           );
           return Promise.resolve({ error: null });
         });
-        return cadenaMsj;
+        return cadenaPurga;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cadena: any = {};
@@ -156,6 +164,8 @@ function cita(overrides: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   listarCitas.mockReset();
+  registrarCompletadas.mockReset();
+  registrarCompletadas.mockResolvedValue(undefined);
   aplicarRecordatorios.mockReset();
   aplicarRecordatorios.mockResolvedValue(undefined);
   resumenDiario.mockReset();
@@ -172,8 +182,9 @@ beforeEach(() => {
   // Los tests que necesitan el otro camino (ya salió hoy) lo pisan.
   respuestaInsertJob = { data: null, error: null };
   respuestaUpdateJob = { error: null };
-  filasMensajes = [];
-  errorPurga = null;
+  ltPurgaSpy.mockReset();
+  filasPurga = {};
+  erroresPurga = {};
   process.env.CRON_SECRET = "secreto-de-prueba";
 });
 
@@ -455,11 +466,87 @@ describe("/api/cron/agenda", () => {
     });
   });
 
+  // ── M-2: las tres tablas efímeras se purgan, no solo una ──
+  //
+  // agenda_acciones_pendientes guarda EXACTAMENTE los mismos datos de clientes
+  // que agenda_mensajes (cliente_nombre, cliente_email, cliente_telefono y las
+  // notas internas, dentro del `accion` jsonb) y nadie la limpiaba: sus filas
+  // vencidas quedaban para siempre. telegram_updates crecía sin techo por la
+  // misma razón. La política de privacidad se había aplicado a una tabla y no
+  // a su hermana.
+  describe("purga de las tres tablas efímeras (M-2)", () => {
+    it("purga agenda_acciones_pendientes a las 24 h: guarda los mismos datos de clientes", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T12:00:00.000Z"));
+      filasPurga.agenda_acciones_pendientes = [
+        { id: 1, created_at: "2026-08-18T11:00:00.000Z" }, // 25h antes
+        { id: 2, created_at: "2026-08-19T11:00:00.000Z" }, // 1h antes
+      ];
+
+      const handler = await cargar();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), resRecorder());
+
+      expect(filasPurga.agenda_acciones_pendientes.map((f) => f.id)).toEqual([2]);
+      expect(ltPurgaSpy).toHaveBeenCalledWith(
+        "agenda_acciones_pendientes",
+        "created_at",
+        "2026-08-18T12:00:00.000Z",
+      );
+      vi.useRealTimers();
+    });
+
+    it("purga telegram_updates a los 7 días (margen de sobra sobre las 24 h que Telegram reintenta)", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T12:00:00.000Z"));
+      filasPurga.telegram_updates = [
+        { id: 1, created_at: "2026-08-11T12:00:00.000Z" }, // 8 días antes
+        { id: 2, created_at: "2026-08-17T12:00:00.000Z" }, // 2 días antes
+      ];
+
+      const handler = await cargar();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), resRecorder());
+
+      expect(filasPurga.telegram_updates.map((f) => f.id)).toEqual([2]);
+      expect(ltPurgaSpy).toHaveBeenCalledWith(
+        "telegram_updates",
+        "created_at",
+        "2026-08-12T12:00:00.000Z",
+      );
+      vi.useRealTimers();
+    });
+
+    it("una purga que falla no impide las otras dos ni la reconciliación", async () => {
+      erroresPurga.agenda_mensajes = { message: "boom de postgres" };
+      filasPurga.agenda_acciones_pendientes = [{ id: 1, created_at: "2020-01-01T00:00:00.000Z" }];
+      filasPurga.telegram_updates = [{ id: 1, created_at: "2020-01-01T00:00:00.000Z" }];
+      const sin24h = cita({ id: "sin-24h", recordatorio_24h_email_id: null });
+      listarCitas.mockResolvedValue([sin24h]);
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+      expect(filasPurga.agenda_acciones_pendientes).toEqual([]);
+      expect(filasPurga.telegram_updates).toEqual([]);
+      expect(aplicarRecordatorios).toHaveBeenCalledTimes(1);
+      expect(res.statusCode).not.toBe(500);
+      consoleError.mockRestore();
+    });
+
+    it("las tres tablas se purgan en la misma corrida", async () => {
+      const handler = await cargar();
+      await handler(req({ authorization: "Bearer secreto-de-prueba" }), resRecorder());
+      const tablas = ltPurgaSpy.mock.calls.map((c) => c[0]);
+      expect(tablas).toEqual(TABLAS_PURGABLES);
+    });
+  });
+
   describe("purga de agenda_mensajes (Task 6)", () => {
     it("borra las filas de más de 24 horas y conserva las recientes", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-08-19T12:00:00.000Z"));
-      filasMensajes = [
+      filasPurga.agenda_mensajes = [
         { id: 1, created_at: "2026-08-18T11:00:00.000Z" }, // 25h antes: vieja
         { id: 2, created_at: "2026-08-19T11:00:00.000Z" }, // 1h antes: reciente
       ];
@@ -468,12 +555,12 @@ describe("/api/cron/agenda", () => {
       const res = resRecorder();
       await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
 
-      expect(filasMensajes.map((f) => f.id)).toEqual([2]);
+      expect(filasPurga.agenda_mensajes.map((f) => f.id)).toEqual([2]);
       vi.useRealTimers();
     });
 
     it("si la purga falla, no rompe nada: la reconciliación se corre igual y la respuesta no es 500", async () => {
-      errorPurga = { message: "boom de postgres" };
+      erroresPurga.agenda_mensajes = { message: "boom de postgres" };
       const sin24h = cita({ id: "sin-24h", recordatorio_24h_email_id: null });
       listarCitas.mockResolvedValue([sin24h]);
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -488,5 +575,40 @@ describe("/api/cron/agenda", () => {
       expect(consoleError).toHaveBeenCalled();
       consoleError.mockRestore();
     });
+  });
+});
+
+// ── M-7: el cierre automático deja rastro ──
+describe("/api/cron/agenda — bitácora del housekeeping (M-7)", () => {
+  it("las citas que el cron cierra se registran en citas_log", async () => {
+    respuestaUpdate = {
+      data: [
+        { id: "cita-vieja-1", inicio: "2026-08-01T16:00:00+00:00" },
+        { id: "cita-vieja-2", inicio: "2026-08-02T16:00:00+00:00" },
+      ],
+      error: null,
+    };
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.completadas).toBe(2);
+    expect(registrarCompletadas).toHaveBeenCalledWith([
+      { id: "cita-vieja-1", inicio: "2026-08-01T16:00:00+00:00" },
+      { id: "cita-vieja-2", inicio: "2026-08-02T16:00:00+00:00" },
+    ]);
+  });
+
+  it("si no se cerró ninguna cita, no se registra ninguna fila", async () => {
+    // El corte por lista vacía vive en `registrarCompletadas` (db.ts) y está
+    // fijado en db.test.ts ("sin citas no consulta nada"): acá solo importa
+    // que el cron no le invente entradas a la bitácora.
+    respuestaUpdate = { data: [], error: null };
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req({ authorization: "Bearer secreto-de-prueba" }), res);
+    expect(registrarCompletadas).toHaveBeenCalledWith([]);
+    expect(res.body.completadas).toBe(0);
   });
 });
