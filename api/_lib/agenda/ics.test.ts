@@ -92,6 +92,24 @@ describe("construirIcs", () => {
     expect(ics).toContain('ORGANIZER;CN="EcoViva; Desarrollos":mailto:noreply@send.bralto.io');
   });
 
+  // N1: escaparParametro (M-e) implementa bien el quoted-string del RFC
+  // 5545 para CN=, pero no toca los caracteres de control. Un salto de
+  // línea en el nombre del asistente rompe fuera del quoted-string y mete
+  // una propiedad ICS falsa en el archivo — la misma clase de .ics roto que
+  // escaparParametro vino a evitar, entrando por otra puerta.
+  it("un salto de línea en CN= no inyecta una propiedad ICS falsa", () => {
+    const ics = construirIcs({
+      ...BASE,
+      asistenteNombre: "Ana\r\nSUMMARY:INYECTADO",
+    });
+    const lineas = ics.split("\r\n");
+    expect(lineas.filter((l) => l.startsWith("SUMMARY:"))).toHaveLength(1);
+    // El texto "INYECTADO" puede seguir viviendo dentro del valor de CN=
+    // (entre comillas, como texto plano) — lo que no puede pasar es que
+    // arranque una línea propia, que es lo que lo vuelve una propiedad ICS.
+    expect(lineas.some((l) => l.startsWith("SUMMARY:INYECTADO"))).toBe(false);
+  });
+
   it("al crear y reagendar usa METHOD:REQUEST con el mismo UID", () => {
     const creada = construirIcs(BASE);
     const movida = construirIcs({

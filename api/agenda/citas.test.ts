@@ -624,6 +624,22 @@ describe("/api/agenda/citas", () => {
       expect(enviarAhora).not.toHaveBeenCalled();
     });
 
+    // N2: I2 bloqueó cancelar y editar una cita "completada" porque mandar
+    // ese correo es mentirle al cliente sobre una visita que ya hizo. I3
+    // abrió el reenvío sin ese mismo chequeo: un clic sobre una cita
+    // completada mandaba "Tu cita quedó agendada" con un .ics de fecha
+    // pasada. El reenvío solo tiene sentido mientras la cita sigue
+    // "agendada" — ni cancelada ni completada.
+    it("(N2) reenviar sobre una cita 'completada' responde 409, no manda el correo", async () => {
+      requireAgenda.mockResolvedValue(YO);
+      obtenerCita.mockResolvedValue({ ...CITA_BASE, estado: "completada" });
+      const handler = await cargar();
+      const res = resRecorder();
+      await handler(req("POST", { id: "cita-1", reenviar: true }), res);
+      expect(res.statusCode).toBe(409);
+      expect(enviarAhora).not.toHaveBeenCalled();
+    });
+
     it("reenviar sin id responde 400", async () => {
       requireAgenda.mockResolvedValue(YO);
       const handler = await cargar();

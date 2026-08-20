@@ -63,8 +63,17 @@ function fechaLarga(iso: string): string {
 // mandaba "Tu cita fue cancelada" por una visita que el cliente ya hizo.
 // `estado === "completada"` es lo normal (el cron ya la cerró); el chequeo
 // por hora cubre la ventana entre que la cita pasó y que el cron corre.
-function esPasadaOCompletada(c: CitaRow): boolean {
-  return c.estado === "completada" || new Date(c.inicio).getTime() < Date.now();
+//
+// N3: la comparación es contra la hora de FIN (inicio + duración), no la de
+// inicio. Con la hora de inicio, una visita de 60 minutos que arranca a las
+// 10:00 quedaba marcada "Pasada" —y sin Editar ni Cancelar— desde las
+// 10:01, cuando la cita todavía está en curso. Mover o cancelar una cita
+// que acaba de empezar es legítimo y común (el cliente avisa que se
+// atrasó, o que no llega); el servidor ya lo permite mientras el cron no la
+// haya marcado "completada".
+export function esPasadaOCompletada(c: CitaRow): boolean {
+  const fin = new Date(c.inicio).getTime() + c.duracion_min * 60_000;
+  return c.estado === "completada" || fin < Date.now();
 }
 
 const VACIA: NuevaCita = {
@@ -447,20 +456,22 @@ export default function AgendaManager() {
                       )}
                     </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => reenviar(c)}
-                        disabled={reenviandoId === c.id}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        {reenviandoId === c.id ? "Reenviando…" : "Reenviar correo"}
-                      </button>
-                      {/* I2: una cita pasada o completada no se edita ni se
-                          cancela — no hay nada que reagendar en una visita
-                          que ya ocurrió, y "cancelar" ahí le mandaría al
-                          cliente un correo falso de cancelación. */}
+                      {/* N2: I2 escondió Editar/Cancelar sobre una cita
+                          pasada o completada porque no hay nada que
+                          reagendar ni cancelar en una visita que ya ocurrió.
+                          "Reenviar correo" es la misma clase de operación —
+                          manda "Tu cita quedó agendada" con un .ics de fecha
+                          pasada— así que va bajo el mismo guard. */}
                       {!pasada && (
                         <>
+                          <button
+                            type="button"
+                            onClick={() => reenviar(c)}
+                            disabled={reenviandoId === c.id}
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            {reenviandoId === c.id ? "Reenviando…" : "Reenviar correo"}
+                          </button>
                           <button
                             type="button"
                             onClick={() => editar(c)}

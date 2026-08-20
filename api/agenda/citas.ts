@@ -144,8 +144,17 @@ export default async function handler(req: any, res: any) {
 
       const cita = await obtenerCita(id);
       if (!cita) return res.status(404).json({ error: "Esa cita no existe." });
-      if (cita.estado === "cancelada") {
-        return res.status(409).json({ error: "Esa cita ya fue cancelada: no hay nada que confirmar." });
+      // N2: el reenvío solo tiene sentido mientras la cita sigue "agendada".
+      // Sobre una "cancelada" no hay nada que confirmar; sobre una
+      // "completada" mandaría "Tu cita quedó agendada" con un .ics de fecha
+      // pasada por una visita que el cliente ya hizo — el mismo correo falso
+      // que I2 bloqueó en cancelar/editar, entrando por esta puerta.
+      if (cita.estado !== "agendada") {
+        const motivo =
+          cita.estado === "cancelada"
+            ? "Esa cita ya fue cancelada: no hay nada que confirmar."
+            : "Esa cita ya se realizó: no hay nada que confirmar.";
+        return res.status(409).json({ error: motivo });
       }
 
       let correo: "enviado" | "fallo" = "enviado";

@@ -48,8 +48,17 @@ function escapar(v: string): string {
 //
 // El RFC no define ninguna forma de escapar una comilla doble DENTRO de un
 // quoted-string, así que la única salida segura es quitarlas del valor.
+//
+// N1: tampoco hay forma válida de meter un salto de línea (ni ningún otro
+// carácter de control) en un param-value, esté o no entre comillas — un
+// \r o \n ahí cierra la línea física del .ics y arranca una propiedad
+// nueva. Sin colapsarlos antes, un nombre con salto de línea inyecta una
+// propiedad ICS falsa (p. ej. "Ana\r\nSUMMARY:INYECTADO"). Se colapsan a un
+// espacio, igual que haría cualquier cliente de correo con un "asunto" que
+// trajera un salto de línea.
 function escaparParametro(v: string): string {
-  const sinComillas = v.replace(/"/g, "");
+  const sinControl = v.replace(/[\r\n\t\x00-\x1f\x7f]/g, " ");
+  const sinComillas = sinControl.replace(/"/g, "");
   return /[,;:]/.test(sinComillas) ? `"${sinComillas}"` : sinComillas;
 }
 
