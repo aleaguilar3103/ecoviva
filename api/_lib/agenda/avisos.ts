@@ -23,6 +23,7 @@
 // cliente, no.
 
 import { supabaseAdmin } from "../supabase.js";
+import { filtrarAccesoAgenda } from "./permisos.js";
 import { enviarMensaje } from "./telegram.js";
 import { listarCitas } from "./db.js";
 import type { Cita } from "./db.js";
@@ -54,16 +55,21 @@ interface FilaAppUser {
 // `agenda = true` pero sin `telegram_chat_id` (todavía no corrió /vincular)
 // se descarta acá — no hay a dónde mandarle nada, y no es un error.
 //
+// Quién "comparte la agenda" NO se decide acá: lo decide `filtrarAccesoAgenda`
+// (agenda/permisos.ts), la única definición de esa regla, que consumen también
+// el panel, el bot y el feed. Esta es la única de las cuatro puertas que
+// EMPUJA datos hacia afuera en vez de esperar a que alguien los pida, así que
+// es la que más caro paga una divergencia: ver C-1 en permisos.ts.
+//
 // Nunca tira: si la consulta falla, se loguea y se devuelve una lista vacía.
 // Un aviso que no sale es una molestia, no un motivo para romper la
 // operación que lo disparó (ver el porqué completo en el encabezado del
 // archivo).
 async function destinatarios(): Promise<Destinatario[]> {
   try {
-    const { data, error } = await supabaseAdmin()
-      .from("app_users")
-      .select("email, full_name, telegram_chat_id")
-      .eq("agenda", true);
+    const { data, error } = await filtrarAccesoAgenda(
+      supabaseAdmin().from("app_users").select("email, full_name, telegram_chat_id"),
+    );
 
     if (error) {
       console.error("agenda/avisos: no se pudo listar a quién avisar", error);

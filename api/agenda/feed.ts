@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../_lib/supabase.js";
 import { listarCitas } from "../_lib/agenda/db.js";
 import { construirIcs } from "../_lib/agenda/ics.js";
+import { COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda, type FilaAccesoAgenda } from "../_lib/agenda/permisos.js";
 import type { Cita } from "../_lib/agenda/db.js";
 
 // /api/agenda/feed?token=<uuid> — calendario de suscripción para el celular.
@@ -71,9 +72,13 @@ export default async function handler(req: any, res: any) {
   try {
     const { data: usuario, error } = await supabaseAdmin()
       .from("app_users")
-      .select("agenda, status")
+      .select(COLUMNAS_ACCESO_AGENDA)
       .eq("feed_token", token)
-      .maybeSingle();
+      // El tipo va explícito porque `COLUMNAS_ACCESO_AGENDA` se deriva de la
+      // definición compartida (permisos.ts) y no es un literal: postgrest-js
+      // solo sabe inferir la forma de la fila cuando el select es una cadena
+      // literal escrita a mano, que es justo lo que acá no queremos.
+      .maybeSingle<FilaAccesoAgenda>();
 
     // Fail closed: un error de consulta se trata igual que "no existe". Pero
     // fallar cerrado hacia afuera no es excusa para quedarse ciego hacia
@@ -83,11 +88,17 @@ export default async function handler(req: any, res: any) {
       console.error("agenda/feed: fallo al consultar app_users por token", error);
     }
 
-    // Mismo 404 para token inexistente, cuenta sin la bandera `agenda`,
-    // cuenta deshabilitada y fallo de consulta: son casos distintos para
-    // nosotros (arriba quedó el rastro que los distingue), pero deben ser
-    // indistinguibles para quien esté probando tokens desde afuera.
-    if (error || !usuario || usuario.agenda !== true || usuario.status !== "active") {
+    // Mismo 404 para token inexistente, cuenta sin acceso a la agenda (sin la
+    // bandera, degradada a vendedor o deshabilitada) y fallo de consulta: son
+    // casos distintos para nosotros (arriba quedó el rastro que los
+    // distingue), pero deben ser indistinguibles para quien esté probando
+    // tokens desde afuera.
+    //
+    // Qué cuenta como "tiene acceso" sale de `tieneAccesoAgenda`
+    // (api/_lib/agenda/permisos.ts), la única definición de esa regla. Esta
+    // puerta era la que se olvidaba de `role` (C-2): el celular refresca la
+    // suscripción solo, así que una degradación a vendedor no cortaba nada.
+    if (error || !tieneAccesoAgenda(usuario)) {
       return res.status(404).send("No encontrado");
     }
 

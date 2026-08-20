@@ -1295,6 +1295,21 @@ describe("autorizar()", () => {
     expect(await autorizar(999, "private")).toBeNull();
   });
 
+  // ── C-1/C-2: la misma regla que el feed y los avisos ──
+  // Las tres puertas consumen `tieneAccesoAgenda` (api/_lib/agenda/permisos.ts).
+  // Estos dos casos son los mismos que fijan feed.test.ts y avisos.test.ts.
+  it("rechaza a quien tiene agenda=true pero status='disabled'", async () => {
+    colas.app_users = [{ data: { ...FILA_AUTORIZADA, status: "disabled" }, error: null }];
+    const { autorizar } = await cargar();
+    expect(await autorizar(999, "private")).toBeNull();
+  });
+
+  it("rechaza a quien tiene agenda=true pero role='vendedor'", async () => {
+    colas.app_users = [{ data: { ...FILA_AUTORIZADA, role: "vendedor" }, error: null }];
+    const { autorizar } = await cargar();
+    expect(await autorizar(999, "private")).toBeNull();
+  });
+
   it("devuelve los datos cuando la fila está activa, admin y con agenda", async () => {
     colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
     const { autorizar } = await cargar();

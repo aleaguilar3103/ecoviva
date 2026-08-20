@@ -4,6 +4,7 @@ import { enviarMensaje, escribiendo, editarMensaje, responderCallback, quitarBot
 import { listarCitas, type Cita } from "../_lib/agenda/db.js";
 import { correrAgente, type Mensaje } from "../_lib/agenda/agente.js";
 import { guardarAccion, consumirAccion, ejecutarAccion } from "../_lib/agenda/acciones.js";
+import { COLUMNAS_ACCESO_AGENDA, tieneAccesoAgenda, type FilaAccesoAgenda } from "../_lib/agenda/permisos.js";
 
 // /api/telegram/webhook — recibe los updates de Telegram para el bot de la
 // agenda privada de Alina y Alejandro.
@@ -30,6 +31,10 @@ import { guardarAccion, consumirAccion, ejecutarAccion } from "../_lib/agenda/ac
 // Quién puede hablarle al bot. Se valida el USUARIO (from.id), no el chat, y
 // se exige chat privado: así, si alguien mete el bot a un grupo, los del
 // grupo no heredan el acceso de quien lo agregó.
+//
+// Qué cuenta como "tiene acceso a la agenda" no se decide acá: sale de
+// `tieneAccesoAgenda` (api/_lib/agenda/permisos.ts), la única definición de esa
+// regla, que consumen también el panel, el feed y los avisos.
 export interface Autorizado {
   email: string;
   userId: string;
@@ -44,17 +49,16 @@ export async function autorizar(
 
   const { data, error } = await supabaseAdmin()
     .from("app_users")
-    .select("email, user_id, role, status, agenda")
+    .select(`email, user_id, ${COLUMNAS_ACCESO_AGENDA}`)
     .eq("telegram_chat_id", String(fromId))
-    .maybeSingle();
+    // Tipo explícito: ver el mismo comentario en api/agenda/feed.ts.
+    .maybeSingle<{ email: string; user_id: string } & FilaAccesoAgenda>();
 
   if (error) {
     console.error("telegram/webhook: fallo al autorizar", error);
     return null; // falla cerrado
   }
-  if (!data || data.status !== "active" || data.role !== "admin" || data.agenda !== true) {
-    return null;
-  }
+  if (!tieneAccesoAgenda(data)) return null;
   return { email: data.email, userId: data.user_id, chatId: String(fromId) };
 }
 
