@@ -30,6 +30,9 @@ export default function AdminApp() {
   // Confundirlos deja a un admin real varado en la pantalla de "sin acceso"
   // sin más salida que cerrar sesión.
   const [acceso, setAcceso] = useState<"cargando" | "admin" | "denegado" | "error">("cargando");
+  // Bandera de la agenda privada: viaja en la misma respuesta de getMe(), así
+  // que no amerita una segunda llamada. Por defecto false hasta que se resuelva.
+  const [tieneAgenda, setTieneAgenda] = useState(false);
   // Se incrementa para volver a disparar el efecto de abajo sin duplicar la
   // lógica de consulta: "Reintentar" solo necesita cambiar esta dependencia.
   const [intento, setIntento] = useState(0);
@@ -42,7 +45,11 @@ export default function AdminApp() {
     let vivo = true;
     setAcceso("cargando");
     getMe()
-      .then((yo) => vivo && setAcceso(yo.role === "admin" ? "admin" : "denegado"))
+      .then((yo) => {
+        if (!vivo) return;
+        setTieneAgenda(yo.agenda === true);
+        setAcceso(yo.role === "admin" ? "admin" : "denegado");
+      })
       .catch((e) => {
         console.error("AdminApp: no se pudo verificar el rol", e);
         if (vivo) setAcceso("error");
@@ -142,5 +149,5 @@ export default function AdminApp() {
     );
   }
 
-  return <AdminDashboard session={session} />;
+  return <AdminDashboard session={session} tieneAgenda={tieneAgenda} />;
 }

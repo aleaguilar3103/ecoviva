@@ -143,8 +143,8 @@ export function resetTestConversation(sessionId: string): Promise<{ ok: true }> 
 // ── Identidad ──
 export type AppRole = "admin" | "vendedor";
 
-export function getMe(): Promise<{ email: string; role: AppRole }> {
-  return request<{ email: string; role: AppRole }>("/api/me");
+export function getMe(): Promise<{ email: string; role: AppRole; agenda: boolean }> {
+  return request<{ email: string; role: AppRole; agenda: boolean }>("/api/me");
 }
 
 // ── Usuarios ──
@@ -219,4 +219,74 @@ export async function getGuiaHtml(): Promise<string> {
     throw new Error(`No se pudo cargar la guía (${res.status}).`);
   }
   return res.text();
+}
+
+// ── Agenda ──
+export interface CitaRow {
+  id: string;
+  cliente_nombre: string;
+  cliente_email: string;
+  cliente_telefono: string | null;
+  inicio: string;
+  duracion_min: number;
+  lugar: string;
+  lote_id: string | null;
+  notas: string | null;
+  estado: "agendada" | "cancelada" | "completada";
+  creada_por: string;
+}
+
+export interface NuevaCita {
+  cliente_nombre: string;
+  cliente_email: string;
+  cliente_telefono?: string | null;
+  inicio: string;
+  lugar: string;
+  lote_id?: string | null;
+  notas?: string | null;
+}
+
+export function getCitas(desde: Date, hasta: Date): Promise<{ citas: CitaRow[] }> {
+  const q = `?desde=${desde.toISOString()}&hasta=${hasta.toISOString()}`;
+  return request<{ citas: CitaRow[] }>(`/api/agenda/citas${q}`);
+}
+
+// Al crear, el correo sale siempre ("enviado" o "fallo"). Al editar,
+// "no_aplica" significa que no cambió nada visible para el cliente (ni hora,
+// ni lugar, ni el correo destinatario) y por eso no se le mandó nada — no es
+// un fallo. Al cancelar, "no_aplica" significa que la cita ya estaba
+// cancelada de antes (doble clic, o dos personas cancelándola a la vez): no
+// se manda un segundo correo de cancelación.
+export function crearCita(datos: NuevaCita): Promise<{ cita: CitaRow; choque: boolean; correo: "enviado" | "fallo" }> {
+  return request(`/api/agenda/citas`, { method: "POST", body: JSON.stringify(datos) });
+}
+
+export function actualizarCita(
+  id: string,
+  datos: NuevaCita,
+): Promise<{ cita: CitaRow; choque: boolean; correo: "enviado" | "fallo" | "no_aplica" }> {
+  return request(`/api/agenda/citas`, { method: "PATCH", body: JSON.stringify({ id, ...datos }) });
+}
+
+export function cancelarCita(id: string): Promise<{ cita: CitaRow; correo: "enviado" | "fallo" | "no_aplica" }> {
+  return request(`/api/agenda/citas`, { method: "DELETE", body: JSON.stringify({ id }) });
+}
+
+// I3: reenvía el correo de confirmación de una cita existente, sin tocar la
+// fila ni la secuencia. Existe para cuando el correo falla tras guardar
+// (p. ej. una caída pasajera de Resend) y no había ninguna otra forma de que
+// el cliente recibiera la invitación.
+export function reenviarCorreo(id: string): Promise<{ cita: CitaRow; correo: "enviado" | "fallo" }> {
+  return request(`/api/agenda/citas`, { method: "POST", body: JSON.stringify({ id, reenviar: true }) });
+}
+
+// URL de suscripción del calendario (.ics): el token en esa URL es la
+// credencial — quien la tenga ve la agenda completa, con teléfono y notas.
+// Por eso se puede rotar: la URL vieja deja de servir de inmediato.
+export function getFeedUrl(): Promise<{ url: string }> {
+  return request<{ url: string }>("/api/agenda/feed-token");
+}
+
+export function rotarFeedToken(): Promise<{ url: string }> {
+  return request<{ url: string }>("/api/agenda/feed-token", { method: "POST" });
 }

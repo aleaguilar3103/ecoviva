@@ -5,15 +5,25 @@ import LotsManager from "./LotsManager";
 import BotPromptManager from "./BotPromptManager";
 import BotTester from "./BotTester";
 import UsersManager from "./UsersManager";
+import AgendaManager from "./AgendaManager";
 import BrandMark from "./BrandMark";
 
-type Tab = "lotes" | "bot" | "probar" | "usuarios";
+type Tab = "lotes" | "bot" | "probar" | "usuarios" | "agenda";
 
-export default function AdminDashboard({ session }: { session: Session }) {
+export default function AdminDashboard({
+  session,
+  tieneAgenda,
+}: {
+  session: Session;
+  tieneAgenda: boolean;
+}) {
   const [tab, setTab] = useState<Tab>("lotes");
 
+  // La pestaña se esconde para quien no tiene la bandera, pero eso es comodidad
+  // visual, no seguridad: /api/agenda/citas revalida el permiso en el servidor.
   const tabs: { id: Tab; label: string }[] = [
     { id: "lotes", label: "Lotes" },
+    ...(tieneAgenda ? [{ id: "agenda" as Tab, label: "Agenda" }] : []),
     { id: "bot", label: "Bot & Prompt" },
     { id: "probar", label: "Probar bot" },
     { id: "usuarios", label: "Usuarios" },
@@ -84,6 +94,7 @@ export default function AdminDashboard({ session }: { session: Session }) {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {tab === "lotes" && <LotsManager />}
+        {tab === "agenda" && tieneAgenda && <AgendaManager />}
         {tab === "bot" && <BotPromptManager />}
         {tab === "probar" && <BotTester />}
         {tab === "usuarios" && <UsersManager currentUserId={session.user.id} />}
