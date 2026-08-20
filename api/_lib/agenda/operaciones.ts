@@ -18,6 +18,7 @@ import { crearCita, actualizarCita, cancelarCita, obtenerCita, listarCitas, regi
 import type { Cita, DatosCita, Origen } from "./db.js";
 import { enviarAhora, type ClaseCorreo } from "./email.js";
 import { aplicarRecordatorios } from "./recordatorios.js";
+import { ErrorAgenda } from "./errores.js";
 
 export type ResultadoCorreo = "enviado" | "fallo" | "no_aplica";
 
@@ -151,7 +152,7 @@ export async function reenviarConfirmacion(
   origen: Origen,
 ): Promise<{ cita: Cita; correo: ResultadoCorreo }> {
   const cita = await obtenerCita(id);
-  if (!cita) throw new Error("Esa cita no existe.");
+  if (!cita) throw new ErrorAgenda("no_encontrada", "Esa cita no existe.");
   // N2: el reenvío solo tiene sentido mientras la cita sigue "agendada".
   // Sobre una "cancelada" no hay nada que confirmar; sobre una
   // "completada" mandaría "Tu cita quedó agendada" con un .ics de fecha
@@ -162,7 +163,7 @@ export async function reenviarConfirmacion(
       cita.estado === "cancelada"
         ? "Esa cita ya fue cancelada: no hay nada que confirmar."
         : "Esa cita ya se realizó: no hay nada que confirmar.";
-    throw new Error(motivo);
+    throw new ErrorAgenda("conflicto", motivo);
   }
 
   let correo: "enviado" | "fallo" = "enviado";

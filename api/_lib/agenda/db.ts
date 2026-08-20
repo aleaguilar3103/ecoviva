@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../supabase.js";
 import { randomUUID } from "node:crypto";
+import { ErrorAgenda } from "./errores.js";
 
 export type Origen = "panel" | "telegram" | "cron";
 export type EstadoCita = "agendada" | "cancelada" | "completada";
@@ -180,14 +181,14 @@ export async function actualizarCita(
   origen: Origen,
 ): Promise<{ cita: Cita; cambioVisible: boolean; correoModificado: boolean }> {
   const antes = await obtenerCita(id);
-  if (!antes) throw new Error("Esa cita no existe.");
-  if (antes.estado === "cancelada") throw new Error("Esa cita ya fue cancelada.");
+  if (!antes) throw new ErrorAgenda("no_encontrada", "Esa cita no existe.");
+  if (antes.estado === "cancelada") throw new ErrorAgenda("conflicto", "Esa cita ya fue cancelada.");
   // I2: el cron marca "completada" las citas pasadas. Sin este chequeo, el
   // panel (rango -7d..+90d, sin filtrar por estado) deja el formulario de
   // edición abierto sobre una visita que ya ocurrió. Mensaje distinto al de
   // arriba a propósito: son dos causas distintas y citas.ts los mapea cada
   // uno a su propio 409.
-  if (antes.estado === "completada") throw new Error("Esa cita ya se realizó: no se puede editar.");
+  if (antes.estado === "completada") throw new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede editar.");
 
   // Un cambio es "visible" solo si afecta lo que el cliente ve en su invitación de
   // calendario: la hora o el lugar. Editar notas, teléfono o lote no debería
@@ -246,7 +247,7 @@ export async function cancelarCita(
   origen: Origen,
 ): Promise<{ cita: Cita; seCancelo: boolean }> {
   const antes = await obtenerCita(id);
-  if (!antes) throw new Error("Esa cita no existe.");
+  if (!antes) throw new ErrorAgenda("no_encontrada", "Esa cita no existe.");
   // Idempotente: cancelar dos veces no es un error, pero `seCancelo: false`
   // le dice al llamador que esta vez no pasó nada — no vuelve a avisarle al
   // cliente por un doble clic o una carrera entre dos personas del equipo.
@@ -256,7 +257,7 @@ export async function cancelarCita(
   // inocuo, es mandarle "Tu cita fue cancelada" al cliente por una visita
   // que ya hizo. Mensaje distinto al de "ya fue cancelada" para que
   // citas.ts pueda distinguir los dos casos.
-  if (antes.estado === "completada") throw new Error("Esa cita ya se realizó: no se puede cancelar.");
+  if (antes.estado === "completada") throw new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede cancelar.");
 
   const { data, error } = await db()
     .from("citas")

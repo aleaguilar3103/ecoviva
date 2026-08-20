@@ -7,6 +7,7 @@ import {
   cancelarCitaCompleta,
   reenviarConfirmacion,
 } from "../_lib/agenda/operaciones.js";
+import { ErrorAgenda } from "../_lib/agenda/errores.js";
 
 // /api/agenda/citas — CRUD de la agenda privada. Solo admin con bandera agenda.
 //
@@ -135,13 +136,25 @@ export default async function handler(req: any, res: any) {
     console.error("agenda/citas error", e);
     const mensaje = e instanceof Error ? e.message : "Error inesperado";
 
-    // db.ts y operaciones.ts lanzan Error con texto propio en vez de códigos
-    // estructurados (está cerrado y revisado, no se toca para esto), así que
-    // la única forma limpia de distinguir estos casos del resto es comparar
-    // el mensaje exacto. "La cita no existe" no es un error del servidor
-    // (404); "ya fue cancelada", "ya se realizó" (I2: no se puede tocar una
-    // cita que el cron ya cerró) y las dos variantes del reenvío (I3/N2) son
-    // conflictos de estado (409); todo lo demás sigue en 500.
+    // Camino tipado: db.ts y operaciones.ts lanzan ErrorAgenda con un código
+    // ("no_encontrada" | "conflicto") para estos seis casos de siempre — "la
+    // cita no existe" no es un error del servidor (404); "ya fue cancelada",
+    // "ya se realizó" (I2: no se puede tocar una cita que el cron ya cerró)
+    // y las dos variantes del reenvío (I3/N2) son conflictos de estado
+    // (409). Es la misma señal que va a leer el bot de Telegram (Task 5):
+    // un solo lugar decide el código, ningún consumidor vuelve a comparar
+    // el texto del mensaje a mano.
+    if (e instanceof ErrorAgenda) {
+      return res.status(e.codigo === "no_encontrada" ? 404 : 409).json({ error: e.message });
+    }
+
+    // Camino legado — se mantiene a propósito, sin fecha de borrado fijada
+    // acá: varios tests de citas.test.ts simulan el error de db.ts
+    // rechazando con un Error común (no un ErrorAgenda), y ese archivo es
+    // la compuerta que esta tarea no puede tocar. Mientras esos tests sigan
+    // así, este bloque es lo único que los sostiene en 404/409 en vez de
+    // caer en 500; se puede borrar el día que se actualicen para rechazar
+    // con ErrorAgenda como hace el código real.
     if (mensaje === "Esa cita no existe.") return res.status(404).json({ error: mensaje });
     if (mensaje === "Esa cita ya fue cancelada.") return res.status(409).json({ error: mensaje });
     if (mensaje === "Esa cita ya se realizó: no se puede editar.") return res.status(409).json({ error: mensaje });

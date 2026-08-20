@@ -95,6 +95,26 @@ describe("actualizarCitaCompleta", () => {
       expect.anything(), expect.anything(), expect.objectContaining({ recrear: true }),
     );
   });
+
+  // Arreglo 1 (ronda de revisión de Task 1): este es el caso crítico que
+  // faltaba. Todos los tests de arriba con `cambioVisible: true` también
+  // tienen `correoModificado: true`, así que ninguno distingue
+  // `recrear = cambioVisible || correoModificado` de una degradación a
+  // `recrear = correoModificado` — que es exactamente el bug que C1 arregló
+  // (reagendar dejaba los recordatorios con el contenido viejo, y el
+  // cliente recibía "mañana a las [hora vieja]"). Este test aísla
+  // `cambioVisible: true` con `correoModificado: false`.
+  it("mover solo la hora (correo sin cambios) también pide recrear los recordatorios", async () => {
+    actualizarCita.mockResolvedValue({
+      cita: { id: "c1", ...DATOS }, cambioVisible: true, correoModificado: false,
+    });
+    enviarAhora.mockResolvedValue(undefined);
+    const { actualizarCitaCompleta } = await cargar();
+    await actualizarCitaCompleta("c1", DATOS, "yo@x.com", "telegram");
+    expect(aplicarRecordatorios).toHaveBeenCalledWith(
+      expect.anything(), expect.anything(), expect.objectContaining({ recrear: true }),
+    );
+  });
 });
 
 describe("cancelarCitaCompleta", () => {
