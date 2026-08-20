@@ -172,6 +172,29 @@ vi.mock("../_lib/agenda/operaciones.js", () => ({
   cancelarCitaCompleta: (...a: unknown[]) => cancelarCitaCompleta(...a),
 }));
 
+// acciones.js corre REAL (el test del doble toque depende de eso: la
+// atomicidad de consumirAccion tiene que ejercitarse contra su código, no
+// contra un mock que la dé por sentada). Este `vi.mock` delega TODO al módulo
+// real y solo permite pisar `ejecutarAccion` cuando un test lo pide.
+//
+// N-3: existe para poder ejercitar el cierre estructural de `postConsumo`.
+// Hoy no queda NINGÚN camino real que tire después de un consumo — están todos
+// envueltos, que es el punto — así que sin esto el `if (postConsumo) return`
+// se puede borrar sin que ningún test se ponga rojo. La línea
+// `const texto = await ejecutarAccion(...)` es la única posterior al consumo
+// que no tiene try/catch propio: se apoya en que `ejecutarAccion` nunca tira.
+// Eso es cierto hoy y es exactamente la clase de suposición que `postConsumo`
+// existe para cubrir cuando deje de serlo.
+const ejecutarAccionRota = { fn: null as null | (() => Promise<string>) };
+vi.mock("../_lib/agenda/acciones.js", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../_lib/agenda/acciones.js")>();
+  return {
+    ...real,
+    ejecutarAccion: (...a: Parameters<typeof real.ejecutarAccion>) =>
+      ejecutarAccionRota.fn ? ejecutarAccionRota.fn() : real.ejecutarAccion(...a),
+  };
+});
+
 // agente.js: el agente conversacional en sí ya tiene su propia batería de
 // tests (agenda/agente.test.ts). Acá solo importa el ENCHUFE: que el webhook
 // lo llame con lo correcto y traduzca su resultado a Telegram.
@@ -322,6 +345,7 @@ beforeEach(() => {
   colas = {};
   filasAcciones = [];
   proximoIdAccion = 1;
+  ejecutarAccionRota.fn = null;
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRETO;
 });
 
@@ -1322,53 +1346,95 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
   // responde 400 "message is not modified", y eso caía al catch general con
   // "Se me complicó, probá de nuevo." — invitando a repetir lo que la otra
   // rama ya hizo.
+  // N-4: cada caso afirma además lo que TIENE que seguir pasando (`positivo`).
+  // Sin eso, los cuatro casos "sin fila" solo afirmaban el negativo — y revertir
+  // el `sinTumbar` del toast dejaba los botones VIVOS sobre una acción muerta,
+  // que es justo la invitación a tocar de nuevo que la regla central existe
+  // para evitar, con los tests igual en verde. Verificado por mutación: sin el
+  // `sinTumbar` del toast, `quitarBotones` no se llega a llamar y estos casos
+  // se ponen rojos.
   const CONSUMOS_QUE_NO_INVITAN_A_REINTENTAR: {
     nombre: string;
     data: string;
     conFila: boolean;
     romper: () => void;
+    positivo: () => void;
   }[] = [
     {
       nombre: "no: sin fila y quitarBotones tira (400 'message is not modified')",
       data: "no:accion-1",
       conFila: false,
       romper: () => quitarBotones.mockRejectedValue(new Error("400 message is not modified")),
+      positivo: () => {
+        // Los botones se quitan igual: una acción muerta no puede quedar con
+        // un teclado vivo invitando a tocarla de nuevo.
+        expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+      },
     },
     {
       nombre: "ok: sin fila y quitarBotones tira (el caso exacto de la revisión)",
       data: "ok:accion-1",
       conFila: false,
       romper: () => quitarBotones.mockRejectedValue(new Error("400 message is not modified")),
+      positivo: () => {
+        // Los botones se quitan igual: una acción muerta no puede quedar con
+        // un teclado vivo invitando a tocarla de nuevo.
+        expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+      },
     },
     {
       nombre: "no: sin fila y responderCallback tira (el toast tampoco puede tumbar nada)",
       data: "no:accion-1",
       conFila: false,
       romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+      positivo: () => {
+        // Los botones se quitan igual: una acción muerta no puede quedar con
+        // un teclado vivo invitando a tocarla de nuevo.
+        expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+      },
     },
     {
       nombre: "ok: sin fila y responderCallback tira",
       data: "ok:accion-1",
       conFila: false,
       romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+      positivo: () => {
+        // Los botones se quitan igual: una acción muerta no puede quedar con
+        // un teclado vivo invitando a tocarla de nuevo.
+        expect(quitarBotones).toHaveBeenCalledWith("999", 5);
+      },
     },
     {
       nombre: "no: CON fila y el editarMensaje de 'Cancelado.' tira",
       data: "no:accion-1",
       conFila: true,
       romper: () => editarMensaje.mockRejectedValue(new Error("hipo de red")),
+      positivo: () => {
+        // La cancelación pasó de verdad: si no se pudo editar el mensaje, se
+        // avisa por uno nuevo. Lo que no se pierde es la noticia.
+        expect(enviarMensaje).toHaveBeenCalledWith("999", "Cancelado.");
+      },
     },
     {
       nombre: "no: CON fila y responderCallback tira",
       data: "no:accion-1",
       conFila: true,
       romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+      positivo: () => {
+        expect(editarMensaje).toHaveBeenCalledWith("999", 5, "Cancelado.");
+      },
     },
     {
       nombre: "ok: CON fila y responderCallback tira ANTES de ejecutar",
       data: "ok:accion-1",
       conFila: true,
       romper: () => responderCallback.mockRejectedValue(new Error("400 query is too old")),
+      positivo: () => {
+        // El toast es cosmético: su fallo no puede dejar sin ejecutar una
+        // acción que la persona ya confirmó y cuya fila ya se consumió.
+        expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+        expect(editarMensaje).toHaveBeenCalledWith("999", 5, expect.stringMatching(/Cita cancelada/));
+      },
     },
   ];
 
@@ -1398,9 +1464,46 @@ describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cance
 
       expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
       expect(consoleErrorSpy).toHaveBeenCalled();
+      caso.positivo();
       consoleErrorSpy.mockRestore();
     });
   }
+
+  // ── N-3: el cierre estructural, probado aparte de los `sinTumbar` ──
+  //
+  // Los `sinTumbar` cubren los fallos que HOY sabemos que pueden pasar.
+  // `postConsumo` cubre los que todavía no existen: una línea nueva, agregada
+  // después de un consumo, que nadie se acordó de envolver. Este test simula
+  // exactamente eso haciendo tirar a `ejecutarAccion`, que es la única llamada
+  // posterior al consumo sin try/catch propio. Verificado por mutación: sin
+  // `if (postConsumo) return` en el catch general, se pone rojo.
+  it("si algo tira DESPUÉS del consumo y nadie lo envolvió, sigue sin invitar a reintentar", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    ejecutarAccionRota.fn = () =>
+      Promise.reject(new Error("regresión futura: una línea nueva que tira, sin envolver"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 973 }) }), res);
+    await esperarProcesamiento();
+
+    // Estamos de verdad en el estado "post-consumo": la fila ya no está, así
+    // que un segundo toque tampoco ejecutaría nada.
+    expect(filasAcciones).toHaveLength(0);
+    // Y el catch general se calla en vez de invitar a repetir algo que no
+    // sabemos si pasó. El silencio es la única respuesta honesta acá.
+    expect(enviarMensaje).not.toHaveBeenCalledWith("999", "Se me complicó, probá de nuevo.");
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
 
   it("ok: CON fila y responderCallback caído → la acción se ejecuta igual y el resultado se escribe", async () => {
     // El toast es cosmético: que falle no puede dejar sin ejecutar una acción
