@@ -124,3 +124,51 @@ describe("armarCorreo", () => {
     expect(subject).toMatch(/— Martes/);
   });
 });
+
+// ── M-8: el texto libre que va al HTML se escapa ──
+//
+// `cliente_nombre` y `lugar` vienen de lo que la persona tipea en el panel o
+// de lo que el modelo produce desde un mensaje de Telegram. No es una fuga de
+// datos internos (la garantía de datosParaCorreo se sostiene igual), pero un
+// `<` o unas comillas en un nombre de lugar —"Lomas <Etapa 2>"— rompen el
+// correo del cliente en silencio: el navegador se come el resto como si fuera
+// una etiqueta. El .ics ya escapaba su propio texto (ics.ts); el HTML no.
+describe("armarCorreo — escape del texto libre en el HTML", () => {
+  const CITA_CON_SIGNOS: Cita = {
+    ...CITA,
+    cliente_nombre: '<b>María</b> "La Jefa" & Cía',
+    lugar: "Lomas <Etapa 2> & \"anexo\"",
+  };
+  const d = datosParaCorreo(CITA_CON_SIGNOS);
+
+  for (const clase of CLASES_CORREO) {
+    it(`${clase}: ni el nombre ni el lugar entran crudos al HTML`, () => {
+      const { html } = armarCorreo(clase, d);
+      // Ninguna de las dos cadenas puede aparecer tal cual: si aparece, entró
+      // sin escapar y el `<` abre una etiqueta que se come el resto.
+      expect(html).not.toContain("<b>María</b>");
+      expect(html).not.toContain("<Etapa 2>");
+      // Y el `<` de esos campos tiene que estar como entidad.
+      if (html.includes("Etapa 2")) expect(html).toContain("&lt;Etapa 2&gt;");
+    });
+  }
+
+  it("confirmacion: el nombre y el lugar se ven, escapados, no desaparecen", () => {
+    const { html } = armarCorreo("confirmacion", d);
+    expect(html).toContain("&lt;b&gt;María&lt;/b&gt;");
+    expect(html).toContain("&lt;Etapa 2&gt;");
+    expect(html).toContain("&amp;");
+  });
+
+  it("recordatorio1h: el lugar va a mitad de oración y también se escapa", () => {
+    const { html } = armarCorreo("recordatorio1h", d);
+    expect(html).not.toContain("<Etapa 2>");
+    expect(html).toContain("&lt;Etapa 2&gt;");
+  });
+
+  it("un nombre y un lugar normales no se ven alterados", () => {
+    const { html } = armarCorreo("confirmacion", datosParaCorreo(CITA));
+    expect(html).toContain("María");
+    expect(html).toContain("Visita Lomas de la Llanada");
+  });
+});

@@ -44,6 +44,25 @@ export function datosParaCorreo(cita: Cita): DatosCorreo {
 
 const TZ = "America/Costa_Rica";
 
+// M-8: `cliente_nombre` y `lugar` son texto libre — sale de lo que la persona
+// tipea en el panel o de lo que el modelo produce desde un mensaje de
+// Telegram— y entraban crudos al HTML del correo. No es una fuga de datos
+// internos (eso lo sostiene DatosCorreo, arriba), pero un `<` o unas comillas
+// en un nombre de lugar —"Lomas <Etapa 2>"— rompen el correo del cliente en
+// silencio: el cliente de correo se come el resto como si fuera una etiqueta.
+// El .ics ya escapaba lo suyo (ics.ts, con las reglas de RFC 5545); esto es su
+// equivalente para HTML. Todo lo demás que entra a estas plantillas
+// (fechas y horas de Intl, la URL de Google armada con URLSearchParams) ya
+// viene de generadores que no producen estos caracteres.
+function escaparHtml(txt: string): string {
+  return txt
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // M-a: Intl.DateTimeFormat en es-CR devuelve el día de la semana en
 // minúscula ("martes, 1 de septiembre de 2026"), como corresponde en
 // español. `capitalizar` sube la primera letra para los usos como TÍTULO
@@ -105,7 +124,7 @@ function bloqueDatos(d: DatosCorreo): string {
   <tr><td style="padding:16px 20px">
     <p style="margin:0 0 4px;font-size:16px;color:#0f172a"><strong>${fechaLarga(d.inicio)}</strong></p>
     <p style="margin:0 0 12px;font-size:16px;color:#0f172a">${hora(d.inicio)}</p>
-    <p style="margin:0;font-size:14px;color:#475569">${d.lugar}</p>
+    <p style="margin:0;font-size:14px;color:#475569">${escaparHtml(d.lugar)}</p>
   </td></tr></table>`;
 }
 
@@ -148,7 +167,7 @@ export function armarCorreo(
   clase: ClaseCorreo,
   d: DatosCorreo,
 ): { subject: string; html: string; attachments: Adjunto[] } {
-  const nombre = d.cliente_nombre.split(" ")[0];
+  const nombre = escaparHtml(d.cliente_nombre.split(" ")[0]);
 
   switch (clase) {
     case "confirmacion":
@@ -208,7 +227,7 @@ export function armarCorreo(
         html: envoltura(
           "Tu cita es en una hora",
           `
-          <p style="font-size:15px;color:#334155">Hola ${nombre}, nos vemos a las ${hora(d.inicio)} en ${d.lugar}.</p>`,
+          <p style="font-size:15px;color:#334155">Hola ${nombre}, nos vemos a las ${hora(d.inicio)} en ${escaparHtml(d.lugar)}.</p>`,
         ),
         attachments: [],
       };
