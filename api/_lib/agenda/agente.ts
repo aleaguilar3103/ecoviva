@@ -219,6 +219,7 @@ function promptSistema(ahora: Date): string {
       "encontrar su id. Nunca inventes un id.",
     "Respondé corto, como un mensaje de Telegram entre compañeros de trabajo. Sin encabezados ni listas " +
       "con viñetas, salvo que haya varias citas que enumerar.",
+    "Respondé siempre en español de Costa Rica, con voseo, sin importar en qué idioma te escriban.",
     "Nunca digas que ya hiciste algo: crear, mover, editar o cancelar una cita es algo que VOS PROPONÉS, " +
       "y todavía tiene que confirmarlo una persona antes de que pase de verdad.",
   ].join("\n\n");
@@ -231,14 +232,34 @@ function campoTexto(entrada: Record<string, unknown>, clave: string): string | u
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
+// Costa Rica no tiene horario de verano: el offset es siempre -06:00 fijo, así
+// que medianoche en Costa Rica es siempre las 06:00 UTC del mismo día
+// calendario. Es la MISMA idea que `inicioDeHoyCR` en api/telegram/webhook.ts
+// (no se importa desde acá a propósito: un módulo de dominio no debería
+// depender de una ruta de API), solo que para una fecha cualquiera que venga
+// del modelo, no solo "hoy". Si `txt` ya trae hora (y offset u hora en UTC con
+// "Z"), se respeta tal cual con el parser nativo — el ajuste es solo para
+// fechas "peladas" (AAAA-MM-DD), porque `new Date("2026-08-21")` sin este
+// ajuste las lee como medianoche UTC, seis horas antes de lo que es medianoche
+// acá, y eso corre el rango de búsqueda entero.
+function interpretarFecha(txt: string): Date | null {
+  const soloFecha = /^\d{4}-\d{2}-\d{2}$/;
+  if (soloFecha.test(txt)) {
+    const [anio, mes, dia] = txt.split("-").map(Number);
+    return new Date(Date.UTC(anio, mes - 1, dia, 6, 0, 0, 0));
+  }
+  const fecha = new Date(txt);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
 async function ejecutarBuscarCitas(
   entrada: Record<string, unknown>,
 ): Promise<{ texto: string; esError: boolean }> {
   const desdeTxt = campoTexto(entrada, "desde");
   const hastaTxt = campoTexto(entrada, "hasta");
-  const desde = desdeTxt ? new Date(desdeTxt) : null;
-  const hasta = hastaTxt ? new Date(hastaTxt) : null;
-  if (!desde || !hasta || Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) {
+  const desde = desdeTxt ? interpretarFecha(desdeTxt) : null;
+  const hasta = hastaTxt ? interpretarFecha(hastaTxt) : null;
+  if (!desde || !hasta) {
     return {
       esError: true,
       texto:

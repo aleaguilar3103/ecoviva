@@ -125,6 +125,24 @@ describe("correrAgente", () => {
     expect(create.mock.calls.length).toBeLessThanOrEqual(6);
   });
 
+  it("buscar_citas con fechas sin hora las interpreta como medianoche de Costa Rica, no UTC", async () => {
+    listarCitas.mockResolvedValue([]);
+    create
+      .mockResolvedValueOnce(pideHerramienta("buscar_citas", { desde: "2026-08-21", hasta: "2026-08-22" }))
+      .mockResolvedValueOnce(respondeTexto("ok"));
+    const { correrAgente } = await cargar();
+    await correrAgente({ mensaje: "qué tengo el jueves", historial: [], ahora: AHORA });
+
+    expect(listarCitas).toHaveBeenCalledTimes(1);
+    const arg = listarCitas.mock.calls[0][0] as { desde: Date; hasta: Date };
+    // Medianoche en Costa Rica (UTC-6, sin horario de verano) es 06:00 UTC del
+    // mismo día calendario. Con new Date("2026-08-21") pelado, JS lo lee como
+    // 00:00 UTC — seis horas antes de lo debido — y una cita a las 7 p. m. de
+    // Costa Rica el jueves queda fuera del rango.
+    expect(arg.desde.toISOString()).toBe("2026-08-21T06:00:00.000Z");
+    expect(arg.hasta.toISOString()).toBe("2026-08-22T06:00:00.000Z");
+  });
+
   it("si pide dos escrituras a la vez, toma una sola y lo dice", async () => {
     create.mockResolvedValueOnce({
       stop_reason: "tool_use",
