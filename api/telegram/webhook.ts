@@ -1,8 +1,9 @@
 import { waitUntil } from "@vercel/functions";
 import { supabaseAdmin } from "../_lib/supabase.js";
-import { enviarMensaje, escribiendo } from "../_lib/agenda/telegram.js";
+import { enviarMensaje, escribiendo, editarMensaje, responderCallback } from "../_lib/agenda/telegram.js";
 import { listarCitas, type Cita } from "../_lib/agenda/db.js";
 import { correrAgente, type Mensaje } from "../_lib/agenda/agente.js";
+import { guardarAccion, consumirAccion, ejecutarAccion } from "../_lib/agenda/acciones.js";
 
 // /api/telegram/webhook — recibe los updates de Telegram para el bot de la
 // agenda privada de Alina y Alejandro.
@@ -11,14 +12,18 @@ import { correrAgente, type Mensaje } from "../_lib/agenda/agente.js";
 // son deterministas y no vale la pena pagar una llamada a Claude por ellos.
 // Cualquier otro texto se lo pasa al agente conversacional (agenda/agente.ts).
 // El agente puede proponer una escritura (crear, mover, editar o cancelar una
-// cita): en esta tarea el turno corta y se muestra el resumen como texto
-// plano — los botones para confirmarla son la Task 5.
+// cita): el turno corta, se guarda la acción pendiente (agenda/acciones.ts) y
+// se manda el resumen con botones "Confirmar"/"Cancelar". El toque de esos
+// botones llega como un update distinto — un `callback_query`, no un
+// `message` — que se procesa más abajo en `procesarCallback`.
 //
 // Cuatro puertas, en orden, cortando en la primera que falla:
 //   1. Método (solo POST).
 //   2. Secreto de Telegram (cabecera x-telegram-bot-api-secret-token).
 //   3. Deduplicación por update_id (Telegram reintenta si tardamos).
-//   4. Autorización por from.id (el USUARIO, no el chat).
+//   4. Autorización por from.id (el USUARIO, no el chat) — se aplica IGUAL a
+//      un mensaje de texto que a un toque de botón: un botón no es una
+//      excepción a la autorización.
 
 // ── Autorización ──
 //
@@ -54,14 +59,27 @@ export async function autorizar(
 }
 
 // ── Tipos mínimos del Update de Telegram que usamos acá ──
-// (edited_message, callback_query, etc. no se manejan en esta tarea: se
-// ignoran en silencio, no hacen tirar el procesamiento.)
+// (edited_message y otros tipos de update no se manejan: se ignoran en
+// silencio, no hacen tirar el procesamiento. `callback_query` sí se maneja
+// — es el toque de un botón "Confirmar"/"Cancelar" — ver procesarCallback.)
 interface TelegramUpdate {
   update_id?: number;
   message?: {
     text?: string;
     chat?: { id: number; type: string };
     from?: { id: number };
+  };
+  callback_query?: {
+    id: string;
+    data?: string;
+    from?: { id: number };
+    // El mensaje original (el que tenía los botones): puede faltar si
+    // Telegram ya no lo tiene disponible (mensaje viejo o borrado) — se
+    // trata igual que un callback_data con una forma que no reconocemos.
+    message?: {
+      message_id: number;
+      chat: { id: number; type: string };
+    };
   };
 }
 
@@ -71,11 +89,7 @@ const CODIGO_INVALIDO = "Ese código no sirve o ya venció. Generá uno nuevo de
 const TELEGRAM_YA_VINCULADO =
   "Ese Telegram ya está vinculado a otra cuenta. Desvinculalo primero desde el panel.";
 const ERROR_GENERICO = "Se me complicó, probá de nuevo.";
-// Los botones de confirmación son la Task 5. Hasta entonces, una escritura
-// propuesta por el agente se muestra como texto con esta nota, para que a
-// nadie le quede la impresión de que ya se agendó, movió o canceló algo.
-const NOTA_CONFIRMACION_PENDIENTE =
-  "Todavía no tengo botones para esto acá (llegan pronto). Si de verdad querés que lo haga, avisame por otro medio.";
+const CONFIRMACION_VENCIDA = "Esa confirmación ya no vale — venció o ya la usaste.";
 const MENSAJE_START =
   "Soy el bot de la agenda de EcoViva. Escribime /hoy o /semana para ver las citas. " +
   "Si en algún momento necesitás vincular otro Telegram, generá un código nuevo desde el panel y mandame /vincular <código>.";
@@ -318,11 +332,84 @@ async function guardarMensaje(chatId: string, rol: Mensaje["rol"], contenido: st
   if (error) console.error("telegram/webhook: no se pudo guardar el mensaje en el historial", error);
 }
 
+// ── callback_query: el toque de un botón "Confirmar"/"Cancelar" ──
+//
+// callback_data siempre llega como "ok:<id>" o "no:<id>" (ver telegram.ts):
+// la acción completa nunca viaja en el botón, vive en
+// agenda_acciones_pendientes. Cualquier otra forma se ignora.
+const RE_CALLBACK = /^(ok|no):(.+)$/;
+
+// No debe tirar NUNCA, por la misma razón que procesarUpdate: un error acá
+// se ve, desde Telegram, como un botón que no hace nada.
+async function procesarCallback(cb: NonNullable<TelegramUpdate["callback_query"]>): Promise<void> {
+  let chatId: string | undefined;
+  try {
+    // Un botón NO es una excepción a la autorización: cualquiera que
+    // consiga el identificador de un mensaje podría intentar tocarlo. Se
+    // valida exactamente igual que un mensaje de texto (from.id + chat
+    // privado). Si no está autorizado, silencio total: ni se ejecuta nada
+    // ni se le confirma a quien tocó que el bot notó algo.
+    const autorizado = await autorizar(cb.from?.id, cb.message?.chat?.type);
+    if (!autorizado) return;
+
+    chatId = autorizado.chatId;
+    const messageId = cb.message?.message_id;
+    const match = RE_CALLBACK.exec(cb.data ?? "");
+    if (!match || messageId === undefined) return; // no es un botón nuestro: se ignora
+
+    // Cuanto antes: sin este aviso a Telegram, a la persona le queda el
+    // botón "cargando" dando vueltas mientras se ejecuta la acción (que
+    // puede tardar — manda un correo).
+    await responderCallback(cb.id);
+
+    const [, tipo, id] = match;
+
+    if (tipo === "no") {
+      // Se consume igual que un "ok", aunque no se ejecute nada: si no se
+      // consumiera acá, la acción quedaría viva y un "ok" posterior sobre
+      // el mismo id la ejecutaría igual, como si nunca se hubiera cancelado.
+      await consumirAccion(id, chatId);
+      await editarMensaje(chatId, messageId, "Cancelado.");
+      return;
+    }
+
+    // tipo === "ok". ESTE consumo es la única defensa real contra la doble
+    // ejecución (el porqué completo está en acciones.ts): si devuelve null,
+    // ya no hay nada que ejecutar — venció, no era de esta persona, o
+    // alguien (quizás el mismo dedo, dos toques) ya se la llevó. Si
+    // devuelve la acción, acá es la ÚNICA vez que se ejecuta: no queda
+    // forma de que un segundo "ok" sobre el mismo id vuelva a pasar por acá.
+    const accion = await consumirAccion(id, chatId);
+    if (!accion) {
+      await editarMensaje(chatId, messageId, CONFIRMACION_VENCIDA);
+      return;
+    }
+
+    const texto = await ejecutarAccion(accion, autorizado.email);
+    // Se EDITA el mensaje original, nunca se manda uno nuevo: al editarlo
+    // los botones desaparecen y el chat queda con el registro de lo que se
+    // hizo, en vez de un botón muerto que invita a tocarlo otra vez.
+    await editarMensaje(chatId, messageId, texto);
+  } catch (e) {
+    console.error("telegram/webhook: error inesperado al procesar el callback", e);
+    try {
+      if (chatId) await enviarMensaje(chatId, ERROR_GENERICO);
+    } catch (e2) {
+      console.error("telegram/webhook: no se pudo avisar del error a la persona (callback)", e2);
+    }
+  }
+}
+
 // ── Procesamiento de un update ya deduplicado ──
 // No debe tirar NUNCA: un error silencioso acá se ve, desde Telegram, como
 // un bot que ignora a la gente. Se envuelve entero en try/catch, se loguea
 // con console.error y se intenta avisarle a la persona.
 async function procesarUpdate(update: TelegramUpdate): Promise<void> {
+  if (update.callback_query) {
+    await procesarCallback(update.callback_query);
+    return;
+  }
+
   const msg = update.message;
   try {
     if (!msg || typeof msg.text !== "string" || !msg.chat) return; // nada que responder acá
@@ -361,8 +448,8 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
     }
 
     // Cualquier otro texto: lo entiende el agente conversacional. Si propone
-    // una escritura, el turno corta y acá se muestra el resumen como texto
-    // (sin botones todavía — eso es la Task 5).
+    // una escritura, el turno corta: se guarda la acción pendiente y el
+    // resumen se manda con botones para confirmarla o cancelarla.
     await escribiendo(chatId);
     const historial = await cargarHistorial(chatId);
     const resultado = await correrAgente({ mensaje: texto, historial, ahora: new Date() });
@@ -373,7 +460,17 @@ async function procesarUpdate(update: TelegramUpdate): Promise<void> {
       await enviarMensaje(chatId, resultado.texto);
     } else {
       await guardarMensaje(chatId, "agente", resultado.resumen);
-      await enviarMensaje(chatId, `${resultado.resumen}\n\n${NOTA_CONFIRMACION_PENDIENTE}`);
+      // callback_data tope en 64 bytes: acá va solo "ok:<id>"/"no:<id>", la
+      // acción completa vive en agenda_acciones_pendientes (ver acciones.ts).
+      const id = await guardarAccion(chatId, resultado.accion);
+      await enviarMensaje(chatId, resultado.resumen, {
+        botones: [
+          [
+            { texto: "✅ Confirmar", data: `ok:${id}` },
+            { texto: "✖️ Cancelar", data: `no:${id}` },
+          ],
+        ],
+      });
     }
   } catch (e) {
     console.error("telegram/webhook: error inesperado al procesar el update", e);

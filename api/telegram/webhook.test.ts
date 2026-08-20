@@ -38,7 +38,90 @@ function crearCadena(resolver: () => unknown) {
   return cadena;
 }
 
+// agenda_acciones_pendientes necesita estado REAL (no una cola de
+// respuestas fijas): acciones.ts (Task 5) NO se mockea acá — se deja correr
+// tal cual, porque la propiedad que hay que probar (consumirAccion es
+// atómico, un solo uso) vive en su código real, no en un mock que la de por
+// sentada. Por eso esta tabla es un array en memoria y su cadena resuelve
+// insert/delete de verdad, igual que hace acciones.test.ts.
+//
+// El resolver corre DE FORMA SÍNCRONA (aunque se envuelva en una Promise):
+// es lo que permite que el test del doble toque (más abajo) discrimine una
+// implementación atómica de una que no lo es. Ver el comentario largo en
+// acciones.test.ts para el porqué completo.
+interface FilaAccion {
+  id: string;
+  chat_id: string;
+  accion: unknown;
+  expira_at: string;
+}
+let filasAcciones: FilaAccion[] = [];
+let proximoIdAccion = 1;
+
+function cadenaAccionesPendientes() {
+  let modo: "insert" | "delete" | "select" | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let payload: any = null;
+  const filtros: { campo: keyof FilaAccion; op: "eq" | "gt"; valor: unknown }[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = {};
+  c.insert = (arg: unknown) => {
+    modo = "insert";
+    payload = arg;
+    return c;
+  };
+  c.delete = () => {
+    modo = "delete";
+    return c;
+  };
+  c.select = () => {
+    if (!modo) modo = "select";
+    return c;
+  };
+  c.eq = (campo: keyof FilaAccion, valor: unknown) => {
+    filtros.push({ campo, op: "eq", valor });
+    return c;
+  };
+  c.gt = (campo: keyof FilaAccion, valor: unknown) => {
+    filtros.push({ campo, op: "gt", valor });
+    return c;
+  };
+  const coincide = (f: FilaAccion) =>
+    filtros.every((flt) => {
+      if (flt.op === "eq") return f[flt.campo] === flt.valor;
+      return new Date(f[flt.campo] as string).getTime() > new Date(flt.valor as string).getTime();
+    });
+  const resolver = () => {
+    if (modo === "insert") {
+      const fila: FilaAccion = {
+        id: `accion-${proximoIdAccion++}`,
+        chat_id: payload.chat_id,
+        accion: payload.accion,
+        expira_at: payload.expira_at,
+      };
+      filasAcciones.push(fila);
+      return { data: { id: fila.id }, error: null };
+    }
+    if (modo === "delete") {
+      const idx = filasAcciones.findIndex(coincide);
+      if (idx === -1) return { data: null, error: null };
+      const [fila] = filasAcciones.splice(idx, 1);
+      return { data: fila, error: null };
+    }
+    return { data: null, error: null };
+  };
+  c.single = () => Promise.resolve(resolver());
+  c.maybeSingle = () => Promise.resolve(resolver());
+  c.then = (onFulfilled: unknown, onRejected: unknown) =>
+    Promise.resolve(resolver()).then(
+      onFulfilled as (v: unknown) => unknown,
+      onRejected as (e: unknown) => unknown,
+    );
+  return c;
+}
+
 const from = vi.fn((tabla: string) => {
+  if (tabla === "agenda_acciones_pendientes") return cadenaAccionesPendientes();
   const respuesta = (colas[tabla] ?? []).shift();
   return crearCadena(() => respuesta ?? { data: null, error: null });
 });
@@ -50,15 +133,35 @@ vi.mock("../_lib/supabase.js", () => ({
 // telegram.js: nunca se manda un mensaje real. Se mockea entero.
 const enviarMensaje = vi.fn();
 const escribiendo = vi.fn();
+const editarMensaje = vi.fn();
+const responderCallback = vi.fn();
 vi.mock("../_lib/agenda/telegram.js", () => ({
   enviarMensaje: (...a: unknown[]) => enviarMensaje(...a),
   escribiendo: (...a: unknown[]) => escribiendo(...a),
+  editarMensaje: (...a: unknown[]) => editarMensaje(...a),
+  responderCallback: (...a: unknown[]) => responderCallback(...a),
 }));
 
-// db.js: listarCitas se mockea, igual que en cron/agenda.test.ts.
+// db.js: listarCitas se mockea, igual que en cron/agenda.test.ts. obtenerCita
+// se agrega para que acciones.ts (real, sin mockear) pueda resolverlo si
+// algún día un test de acá ejercita mover_cita/editar_cita.
 const listarCitas = vi.fn();
+const obtenerCita = vi.fn();
 vi.mock("../_lib/agenda/db.js", () => ({
   listarCitas: (...a: unknown[]) => listarCitas(...a),
+  obtenerCita: (...a: unknown[]) => obtenerCita(...a),
+}));
+
+// operaciones.js: se mockea para poder aserir "se llamó una sola vez" sin
+// tener que levantar toda la infraestructura de correo/recordatorios detrás
+// — esa parte ya la cubre operaciones.test.ts.
+const crearCitaCompleta = vi.fn();
+const actualizarCitaCompleta = vi.fn();
+const cancelarCitaCompleta = vi.fn();
+vi.mock("../_lib/agenda/operaciones.js", () => ({
+  crearCitaCompleta: (...a: unknown[]) => crearCitaCompleta(...a),
+  actualizarCitaCompleta: (...a: unknown[]) => actualizarCitaCompleta(...a),
+  cancelarCitaCompleta: (...a: unknown[]) => cancelarCitaCompleta(...a),
 }));
 
 // agente.js: el agente conversacional en sí ya tiene su propia batería de
@@ -114,6 +217,14 @@ async function esperarProcesamiento() {
   }
 }
 
+// Mismo propósito que la de arriba, pero para tests que llaman al handler
+// más de una vez en la misma prueba (p. ej. "no:" y después "ok:" sobre el
+// mismo id): espera la ÚLTIMA promesa capturada, no siempre la primera.
+async function esperarUltimoProcesamiento() {
+  const llamadas = waitUntilMock.mock.calls;
+  if (llamadas.length) await llamadas[llamadas.length - 1][0];
+}
+
 const SECRETO = "secreto-de-prueba-123";
 
 function updateBase(overrides: Record<string, unknown> = {}) {
@@ -129,6 +240,21 @@ function updateBase(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// Update de un toque de botón: callback_query en vez de message. data llega
+// como "ok:<id>" o "no:<id>" (ver telegram.ts).
+function callbackUpdate(overrides: Record<string, unknown> = {}) {
+  return {
+    update_id: 900,
+    callback_query: {
+      id: "cbq-1",
+      data: "ok:accion-1",
+      from: { id: 999 },
+      message: { message_id: 5, chat: { id: 999, type: "private" } },
+    },
+    ...overrides,
+  };
+}
+
 const FILA_AUTORIZADA = {
   email: "alinaramirezgamboa@gmail.com",
   user_id: "uid-alina",
@@ -137,9 +263,33 @@ const FILA_AUTORIZADA = {
   agenda: true,
 };
 
+// Fila completa tal como la devuelve operaciones.ts, para los tests de
+// callback_query (mismos 16 campos que citas.test.ts usa para CITA_BASE).
+const CITA_PARA_ACCIONES = {
+  id: "cita-1",
+  cliente_nombre: "María Rodríguez",
+  cliente_email: "maria@example.com",
+  cliente_telefono: "8888-7777",
+  inicio: "2026-09-01T16:00:00+00:00",
+  duracion_min: 60,
+  lugar: "Visita Lomas de la Llanada",
+  lote_id: null,
+  notas: null,
+  estado: "agendada" as const,
+  ics_uid: "cita-1@ecovivadesarrollos.com",
+  ics_secuencia: 0,
+  recordatorio_24h_email_id: null,
+  recordatorio_1h_email_id: null,
+  creada_por: "alinaramirezgamboa@gmail.com",
+  created_at: "2026-08-01T00:00:00+00:00",
+  updated_at: "2026-08-01T00:00:00+00:00",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   colas = {};
+  filasAcciones = [];
+  proximoIdAccion = 1;
   process.env.TELEGRAM_WEBHOOK_SECRET = SECRETO;
 });
 
@@ -555,7 +705,7 @@ describe("POST /api/telegram/webhook — comandos de un usuario autorizado", () 
     });
   });
 
-  it("el agente propone una escritura (tipo 'confirmar') → se manda el resumen con la nota de que faltan los botones", async () => {
+  it("el agente propone una escritura (tipo 'confirmar') → guarda la acción pendiente y manda el resumen con botones Confirmar/Cancelar", async () => {
     colas.telegram_updates = [{ data: null, error: null }];
     colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
     correrAgente.mockResolvedValue({
@@ -577,12 +727,25 @@ describe("POST /api/telegram/webhook — comandos de un usuario autorizado", () 
     await handler(req({ secreto: SECRETO, body: update }), res);
     await esperarProcesamiento();
 
+    // La acción queda guardada, lista para que consumirAccion la encuentre
+    // cuando llegue el callback_query del toque.
+    expect(filasAcciones).toHaveLength(1);
+    expect(filasAcciones[0].chat_id).toBe("999");
+    expect(filasAcciones[0].accion).toEqual({ herramienta: "crear_cita", entrada: { cliente_nombre: "María" } });
+
     expect(enviarMensaje).toHaveBeenCalledTimes(1);
-    const [chatId, texto] = enviarMensaje.mock.calls[0];
+    const [chatId, texto, opts] = enviarMensaje.mock.calls[0];
     expect(chatId).toBe("999");
     expect(texto).toMatch(/María — maria@example\.com/);
-    // No debe sonar a que ya se hizo: la nota de "todavía no hay botones" tiene que estar.
-    expect(texto).toMatch(/botones/i);
+    // callback_data nunca lleva la acción completa, solo "ok:<id>"/"no:<id>"
+    // (la acción vive en la tabla): ver el porqué en acciones.ts.
+    const id = filasAcciones[0].id;
+    expect(opts.botones).toEqual([
+      [
+        { texto: "✅ Confirmar", data: `ok:${id}` },
+        { texto: "✖️ Cancelar", data: `no:${id}` },
+      ],
+    ]);
   });
 
   it("carga el historial reciente del chat y se lo pasa al agente en orden cronológico", async () => {
@@ -621,6 +784,206 @@ describe("POST /api/telegram/webhook — comandos de un usuario autorizado", () 
       { rol: "usuario", texto: "quiero agendar una cita" },
       { rol: "agente", texto: "¿Con quién y cuándo?" },
     ]);
+  });
+});
+
+describe("POST /api/telegram/webhook — callback_query (botones Confirmar/Cancelar)", () => {
+  it("callback_query de un usuario NO autorizado no ejecuta nada", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: null, error: null }]; // sin fila en app_users
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 901 }) }), res);
+    await esperarProcesamiento();
+
+    expect(cancelarCitaCompleta).not.toHaveBeenCalled();
+    expect(crearCitaCompleta).not.toHaveBeenCalled();
+    expect(actualizarCitaCompleta).not.toHaveBeenCalled();
+    expect(editarMensaje).not.toHaveBeenCalled();
+    expect(enviarMensaje).not.toHaveBeenCalled();
+    // La acción sigue viva: un usuario no autorizado no puede ni consumirla.
+    expect(filasAcciones).toHaveLength(1);
+  });
+
+  it("ok:<id> válido → se llama la operación correspondiente y se edita el mensaje original", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(req({ secreto: SECRETO, body: callbackUpdate({ update_id: 910 }) }), res);
+    await esperarProcesamiento();
+
+    expect(responderCallback).toHaveBeenCalledWith("cbq-1");
+    expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+    expect(cancelarCitaCompleta).toHaveBeenCalledWith("cita-1", "alinaramirezgamboa@gmail.com", "telegram");
+
+    // Se EDITA el mensaje original (mismo chat, mismo message_id) — no se
+    // manda uno nuevo: así los botones desaparecen y el chat queda con el
+    // registro de lo que se hizo.
+    expect(editarMensaje).toHaveBeenCalledTimes(1);
+    const [chatIdArg, messageIdArg, textoArg] = editarMensaje.mock.calls[0];
+    expect(chatIdArg).toBe("999");
+    expect(messageIdArg).toBe(5);
+    expect(textoArg).toMatch(/Cita cancelada/);
+    expect(enviarMensaje).not.toHaveBeenCalled();
+
+    // Y la acción quedó consumida: ya no está en la tabla.
+    expect(filasAcciones).toHaveLength(0);
+  });
+
+  // El más importante de los tests de esta tarea: si el consumo no fuera
+  // atómico, un doble toque al mismo botón (dos update_id DISTINTOS, porque
+  // así es como Telegram entrega dos toques reales) ejecutaría la operación
+  // dos veces — y con ella, un segundo correo de cancelación al cliente.
+  // Las dos llamadas al handler se disparan SIN esperar la primera (Promise.all
+  // en vez de dos await secuenciales) para simular de verdad dos requests
+  // concurrentes, no dos requests que casualmente nunca se solapan.
+  it("el MISMO ok:<id> dos veces (dos toques) → la operación se llama una sola vez; la segunda avisa que ya no vale", async () => {
+    colas.telegram_updates = [{ data: null, error: null }, { data: null, error: null }];
+    colas.app_users = [
+      { data: FILA_AUTORIZADA, error: null },
+      { data: FILA_AUTORIZADA, error: null },
+    ];
+    filasAcciones.push({
+      id: "accion-1",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+    cancelarCitaCompleta.mockResolvedValue({ cita: CITA_PARA_ACCIONES, correo: "enviado" });
+
+    const { default: handler } = await cargar();
+    const res1 = resRecorder();
+    const res2 = resRecorder();
+    const update1 = callbackUpdate({
+      update_id: 920,
+      callback_query: {
+        id: "cbq-a",
+        data: "ok:accion-1",
+        from: { id: 999 },
+        message: { message_id: 5, chat: { id: 999, type: "private" } },
+      },
+    });
+    const update2 = callbackUpdate({
+      update_id: 921, // distinto update_id: es justo el caso que la deduplicación NO frena
+      callback_query: {
+        id: "cbq-b",
+        data: "ok:accion-1",
+        from: { id: 999 },
+        message: { message_id: 5, chat: { id: 999, type: "private" } },
+      },
+    });
+
+    const p1 = handler(req({ secreto: SECRETO, body: update1 }), res1);
+    const p2 = handler(req({ secreto: SECRETO, body: update2 }), res2);
+    await Promise.all([p1, p2]);
+    await Promise.all(waitUntilMock.mock.calls.map(([p]) => p));
+
+    // La defensa real: la operación de dominio se ejecuta UNA sola vez.
+    expect(cancelarCitaCompleta).toHaveBeenCalledTimes(1);
+
+    // Los dos toques reciben una respuesta (los dos mensajes se editan),
+    // pero solo uno cuenta la cancelación real; el otro avisa que ya no vale.
+    expect(editarMensaje).toHaveBeenCalledTimes(2);
+    const textos = editarMensaje.mock.calls.map((c) => c[2] as string);
+    expect(textos.some((t) => /Cita cancelada/.test(t))).toBe(true);
+    expect(textos.some((t) => /venció o ya la usaste/i.test(t))).toBe(true);
+  });
+
+  it("no:<id> → no se llama ninguna operación, y la acción queda consumida (un ok posterior ya no hace nada)", async () => {
+    colas.telegram_updates = [{ data: null, error: null }, { data: null, error: null }];
+    colas.app_users = [
+      { data: FILA_AUTORIZADA, error: null },
+      { data: FILA_AUTORIZADA, error: null },
+    ];
+    filasAcciones.push({
+      id: "accion-2",
+      chat_id: "999",
+      accion: { herramienta: "cancelar_cita", entrada: { id: "cita-1" } },
+      expira_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+
+    const { default: handler } = await cargar();
+
+    const res1 = resRecorder();
+    await handler(
+      req({
+        secreto: SECRETO,
+        body: callbackUpdate({
+          update_id: 930,
+          callback_query: {
+            id: "cbq-no",
+            data: "no:accion-2",
+            from: { id: 999 },
+            message: { message_id: 7, chat: { id: 999, type: "private" } },
+          },
+        }),
+      }),
+      res1,
+    );
+    await esperarUltimoProcesamiento();
+
+    expect(cancelarCitaCompleta).not.toHaveBeenCalled();
+    expect(crearCitaCompleta).not.toHaveBeenCalled();
+    expect(actualizarCitaCompleta).not.toHaveBeenCalled();
+    expect(editarMensaje).toHaveBeenCalledWith("999", 7, "Cancelado.");
+    expect(filasAcciones).toHaveLength(0); // consumida, aunque no se ejecutó nada
+
+    // Un "ok" posterior sobre el MISMO id ya no encuentra nada que confirmar.
+    const res2 = resRecorder();
+    await handler(
+      req({
+        secreto: SECRETO,
+        body: callbackUpdate({
+          update_id: 931,
+          callback_query: {
+            id: "cbq-ok-tarde",
+            data: "ok:accion-2",
+            from: { id: 999 },
+            message: { message_id: 7, chat: { id: 999, type: "private" } },
+          },
+        }),
+      }),
+      res2,
+    );
+    await esperarUltimoProcesamiento();
+
+    expect(cancelarCitaCompleta).not.toHaveBeenCalled();
+    expect(editarMensaje).toHaveBeenLastCalledWith("999", 7, "Esa confirmación ya no vale — venció o ya la usaste.");
+  });
+
+  it("callback_data en un formato que no reconocemos se ignora (no ejecuta nada, no revienta)", async () => {
+    colas.telegram_updates = [{ data: null, error: null }];
+    colas.app_users = [{ data: FILA_AUTORIZADA, error: null }];
+    const { default: handler } = await cargar();
+    const res = resRecorder();
+    await handler(
+      req({
+        secreto: SECRETO,
+        body: callbackUpdate({ update_id: 940, callback_query: { id: "cbq-raro", data: "algo-random", from: { id: 999 }, message: { message_id: 9, chat: { id: 999, type: "private" } } } }),
+      }),
+      res,
+    );
+    await esperarProcesamiento();
+
+    expect(cancelarCitaCompleta).not.toHaveBeenCalled();
+    expect(crearCitaCompleta).not.toHaveBeenCalled();
+    expect(actualizarCitaCompleta).not.toHaveBeenCalled();
+    expect(editarMensaje).not.toHaveBeenCalled();
   });
 });
 
