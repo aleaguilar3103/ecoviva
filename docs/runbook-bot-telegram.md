@@ -10,7 +10,7 @@ No hay que repetir nada de esto:
 
 - El bot ya existe en Telegram: `@EcovivacrBot`.
 - `TELEGRAM_BOT_TOKEN` ya está guardado en `.env.local` (local, no en Vercel todavía — eso es el Paso 4).
-- Las tablas de base de datos ya están creadas en producción: `citas`, `citas_log`, `agenda_acciones_pendientes`, `agenda_jobs`, `telegram_updates` y `agenda_mensajes` ya existen. **Queda UNA migración pendiente por correr** (`0012`, de la última ronda de arreglos): se aplica en el Paso 5, antes del deploy.
+- Las tablas de base de datos ya están creadas en producción: `citas`, `citas_log`, `agenda_acciones_pendientes`, `agenda_jobs`, `telegram_updates` y `agenda_mensajes` ya existen. La migración `0012` (de la última ronda de arreglos) **ya fue aplicada a producción** el 2026-08-20; el Paso 5.1 la verifica en vez de aplicarla. Si la verificación falla, ahí mismo está el SQL para correrla.
 - El código ya tiene: autorización por usuario (no por chat), vinculación con código de un solo uso, el agente conversacional con sus 5 herramientas, confirmación por botones, deduplicación de updates, comandos `/hoy` y `/semana`, aviso instantáneo cuando uno agenda algo y le llega a la otra persona, y el resumen diario por cron.
 
 Lo que falta es todo lo de abajo: endurecer el bot en BotFather, generar el secreto del webhook, cargar variables en Vercel, desplegar, registrar el webhook, vincular las dos cuentas, y probar.
@@ -106,7 +106,7 @@ No sigas al Paso 5 hasta que las seis estén cargadas y hayas confirmado que `AN
 
 ## Paso 5 — Aplicar la migración 0012 y desplegar
 
-**5.1 — La migración.** Entrá al panel de Supabase → **SQL Editor** y corré el contenido de `supabase/migrations/0012_citas_log_completada.sql`. Son dos líneas: amplían el check de `citas_log.accion` para que acepte `'completada'`, que es la acción con la que el cron registra las citas que cierra solo.
+**5.1 — Verificar la migración.** Esta ya se aplicó (2026-08-20), así que esto es una comprobación, no un paso de trabajo. Si por lo que sea no estuviera, corré el contenido de `supabase/migrations/0012_citas_log_completada.sql` en el panel de Supabase → **SQL Editor** (es idempotente: se puede correr de nuevo sin romper nada). Son dos líneas: amplían el check de `citas_log.accion` para que acepte `'completada'`, que es la acción con la que el cron registra las citas que cierra solo.
 
 ```sql
 alter table public.citas_log drop constraint if exists citas_log_accion_check;

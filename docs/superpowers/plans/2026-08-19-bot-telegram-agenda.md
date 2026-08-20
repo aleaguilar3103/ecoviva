@@ -317,7 +317,7 @@ export async function escribiendo(chatId: string): Promise<void> {
 Crear `api/agenda/telegram-link.test.ts` con estos casos:
 
 1. Sin permiso de agenda → 401, y no se toca la base.
-2. `GET` genera un código de **8 dígitos** y lo guarda con expiración futura.
+2. ~~`GET` genera un código~~ **[Corregido durante la ejecución]** El `GET` es de SOLO LECTURA y la generación vive en el `POST`. Se cambió a propósito: el panel llama al `GET` al montar la pestaña Agenda, así que un `GET` que generara acuñaría una credencial viva de 10 minutos cada vez que alguien abre la pestaña, sin que nadie la pida. El `POST` genera el código de **8 dígitos** y lo guarda con expiración futura.
 3. `GET` cuando la cuenta ya tiene `telegram_chat_id` → responde `vinculado: true`.
 4. `DELETE` limpia `telegram_chat_id`, `telegram_codigo` y `telegram_codigo_expira`.
 
