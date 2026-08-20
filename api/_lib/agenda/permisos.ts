@@ -2,28 +2,43 @@
 //
 // ── LA ÚNICA DEFINICIÓN de "esta persona tiene acceso a la agenda" ──
 //
-// Esta regla se aplica en CUATRO puertas distintas, cada una con su propia
-// forma de encontrar la fila de app_users:
+// Esta regla se aplica en CINCO lugares distintos, cada uno con su propia forma
+// de encontrar la fila de app_users:
 //
 //   1. El panel      — `requireAgenda` (api/_lib/supabase.ts), por user_id del JWT.
 //   2. El bot        — `autorizar` (api/telegram/webhook.ts), por telegram_chat_id.
 //   3. El feed .ics  — api/agenda/feed.ts, por feed_token.
 //   4. Los avisos    — `destinatarios` (api/_lib/agenda/avisos.ts), a todos a la vez.
+//   5. /api/me       — api/me.ts, que es lo que el panel usa para decidir si le
+//                      pinta a la persona la pestaña Agenda.
 //
-// Antes la regla estaba ESCRITA cuatro veces, y las cuatro divergieron: el bot
-// exigía las tres condiciones, el feed se olvidaba de `role`, y los avisos
-// solo miraban `agenda`. La consecuencia real (hallazgos C-1 y C-2 de la
-// revisión final) es que deshabilitar a alguien desde el panel la sacaba del
-// panel, del bot y del feed, pero le seguía mandando a su Telegram personal
-// cada aviso de cita y la agenda diaria completa —con nombres, teléfonos y
-// notas internas de clientes— sin ninguna forma de cortarlo desde el producto.
+// Antes la regla estaba ESCRITA en los cinco, y divergieron: el bot exigía las
+// tres condiciones, el feed se olvidaba de `role`, los avisos solo miraban
+// `agenda`, y /api/me le contestaba `agenda: true` a un vendedor con la bandera
+// puesta. La consecuencia real (hallazgos C-1 y C-2 de la revisión final) es
+// que deshabilitar a alguien desde el panel la sacaba del panel, del bot y del
+// feed, pero le seguía mandando a su Telegram personal cada aviso de cita y la
+// agenda diaria completa —con nombres, teléfonos y notas internas de clientes—
+// sin ninguna forma de cortarlo desde el producto.
 //
 // El defecto no fue que alguien escribiera mal un filtro: fue que existieran
-// cuatro lugares donde escribirlo. Por eso la regla vive ACÁ y en ningún otro
+// cinco lugares donde escribirlo. Por eso la regla vive ACÁ y en ningún otro
 // lado. Si mañana hay que agregarle una condición (o sacarle una), se toca
-// `ACCESO_AGENDA` y las cuatro puertas la heredan solas — `tieneAccesoAgenda`,
+// `ACCESO_AGENDA` y las cinco puertas la heredan solas — `tieneAccesoAgenda`,
 // `filtrarAccesoAgenda` y `COLUMNAS_ACCESO_AGENDA` se derivan del objeto, no
 // repiten sus campos a mano.
+//
+// Dos precisiones, para que este comentario no prometa más de lo que el código
+// cumple:
+//
+//   - `requireAgenda` y `/api/me` la evalúan en dos mitades: `status` y `role`
+//     ya los resolvió `requireUser`, y para los BASE_ADMINS lo hace por encima
+//     de lo que diga la fila (eso es el break-glass, y es a propósito). Contra
+//     la fila real se evalúa la bandera. Está comentado en los dos.
+//   - `requireAgenda` además corta temprano si el rol no es admin, ANTES de
+//     consultar. Es un atajo para ahorrarse una consulta, no una segunda copia
+//     de la regla: el predicado de acá abajo corre igual después y da la misma
+//     respuesta, así que los dos no pueden divergir.
 //
 // Vive en api/_lib/agenda/ y no en api/_lib/supabase.ts porque es una regla de
 // ESTE dominio (quién comparte la agenda de Alina y Alejandro), no del control

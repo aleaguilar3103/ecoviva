@@ -51,6 +51,7 @@ function resRecorder() {
 const YO = { email: "alina@ecoviva.test", role: "admin" as const, userId: "uid-alina" };
 
 beforeEach(() => {
+  from.mockClear();
   requireUser.mockReset();
   respuesta = { data: null, error: null };
 });
@@ -92,6 +93,41 @@ describe("/api/me", () => {
     expect(errSpy).toHaveBeenCalled();
 
     errSpy.mockRestore();
+  });
+
+  // ── N-1: la bandera no se deriva a mano acá ──
+  //
+  // `agenda` sale de la definición compartida (api/_lib/agenda/permisos.ts), la
+  // misma que usan el panel, el bot, el feed y los avisos. Antes se derivaba a
+  // mano —`data?.agenda === true`— y eso le contestaba `agenda: true` a un
+  // vendedor con la bandera puesta: el panel le pintaba la pestaña Agenda y
+  // cada endpoint de adentro le devolvía 401. Un permiso que se ve pero no
+  // funciona es peor que uno que no se ve.
+  it("un vendedor con agenda=true en su fila recibe agenda:false", async () => {
+    requireUser.mockResolvedValue({ ...YO, role: "vendedor" });
+    respuesta = { data: { agenda: true }, error: null };
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req(), res);
+    expect(res.body).toEqual({ email: YO.email, role: "vendedor", agenda: false });
+  });
+
+  it("un admin con agenda=false recibe agenda:false", async () => {
+    requireUser.mockResolvedValue(YO);
+    respuesta = { data: { agenda: false }, error: null };
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req(), res);
+    expect(res.body).toEqual({ email: YO.email, role: "admin", agenda: false });
+  });
+
+  it("el token de servicio (sin userId) recibe agenda:false sin consultar la base", async () => {
+    requireUser.mockResolvedValue({ email: "service", role: "admin", userId: null });
+    const handler = await cargar();
+    const res = resRecorder();
+    await handler(req(), res);
+    expect(res.body).toEqual({ email: "service", role: "admin", agenda: false });
+    expect(from).not.toHaveBeenCalled();
   });
 
   it("pone Cache-Control: no-store", async () => {
