@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ErrorAgenda } from "../_lib/agenda/errores.js";
 
 const requireAgenda = vi.fn();
 const listarCitas = vi.fn();
@@ -27,6 +28,32 @@ vi.mock("../_lib/agenda/email.js", () => ({
 vi.mock("../_lib/agenda/recordatorios.js", () => ({
   aplicarRecordatorios: (...a: unknown[]) => aplicarRecordatorios(...a),
 }));
+// errores.js no tiene nada que mockear funcionalmente (ErrorAgenda es una
+// clase sin dependencias externas) — pero hay que envolverla en vi.mock
+// igual, por una razón de identidad, no de comportamiento: cargar() llama a
+// vi.resetModules() antes de cada import dinámico de citas.ts, y un módulo
+// real no mockeado se vuelve a evaluar DESDE CERO en cada ciclo. Sin esto,
+// cada cargar() le daría a citas.ts una copia NUEVA de la clase ErrorAgenda,
+// distinta de la que usan los `new ErrorAgenda(...)` de este archivo, y su
+// `instanceof ErrorAgenda` fallaría entre dos copias de "la misma" clase
+// (se comprobó a mano: dos imports de errores.js separados por un
+// resetModules() dan clases con === false entre sí). vi.hoisted() define
+// esta clase doble UNA SOLA VEZ, antes de que exista ningún resetModules, y
+// el mock siempre reexporta esa misma referencia — la misma identidad que
+// va a ver cualquier copia de citas.ts que se cargue después.
+const { ErrorAgenda: ErrorAgendaDoble } = vi.hoisted(() => {
+  class ErrorAgenda extends Error {
+    constructor(
+      public readonly codigo: "no_encontrada" | "conflicto",
+      mensaje: string,
+    ) {
+      super(mensaje);
+      this.name = "ErrorAgenda";
+    }
+  }
+  return { ErrorAgenda };
+});
+vi.mock("../_lib/agenda/errores.js", () => ({ ErrorAgenda: ErrorAgendaDoble }));
 
 async function cargar() {
   vi.resetModules();
@@ -316,7 +343,7 @@ describe("/api/agenda/citas", () => {
   it("PATCH sobre una cita que no existe responde 404, no 500", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
-    actualizarCita.mockRejectedValue(new Error("Esa cita no existe."));
+    actualizarCita.mockRejectedValue(new ErrorAgenda("no_encontrada", "Esa cita no existe."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(
@@ -335,7 +362,7 @@ describe("/api/agenda/citas", () => {
   it("PATCH sobre una cita ya cancelada responde 409, no 500", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
-    actualizarCita.mockRejectedValue(new Error("Esa cita ya fue cancelada."));
+    actualizarCita.mockRejectedValue(new ErrorAgenda("conflicto", "Esa cita ya fue cancelada."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(
@@ -354,7 +381,7 @@ describe("/api/agenda/citas", () => {
   it("(I2) PATCH sobre una cita ya 'completada' responde 409, no 500 — el cron ya la cerró", async () => {
     requireAgenda.mockResolvedValue(YO);
     listarCitas.mockResolvedValue([]);
-    actualizarCita.mockRejectedValue(new Error("Esa cita ya se realizó: no se puede editar."));
+    actualizarCita.mockRejectedValue(new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede editar."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(
@@ -416,7 +443,7 @@ describe("/api/agenda/citas", () => {
 
   it("DELETE sobre una cita que no existe responde 404, no 500", async () => {
     requireAgenda.mockResolvedValue(YO);
-    cancelarCita.mockRejectedValue(new Error("Esa cita no existe."));
+    cancelarCita.mockRejectedValue(new ErrorAgenda("no_encontrada", "Esa cita no existe."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("DELETE", { id: "no-existe" }), res);
@@ -425,7 +452,7 @@ describe("/api/agenda/citas", () => {
 
   it("(I2) DELETE sobre una cita ya 'completada' responde 409, no 500 — cancelarla sería avisarle al cliente por una visita que ya hizo", async () => {
     requireAgenda.mockResolvedValue(YO);
-    cancelarCita.mockRejectedValue(new Error("Esa cita ya se realizó: no se puede cancelar."));
+    cancelarCita.mockRejectedValue(new ErrorAgenda("conflicto", "Esa cita ya se realizó: no se puede cancelar."));
     const handler = await cargar();
     const res = resRecorder();
     await handler(req("DELETE", { id: "cita-1" }), res);
