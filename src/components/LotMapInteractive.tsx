@@ -26,6 +26,19 @@ interface TooltipState {
 // geometría del topógrafo (comprobado: no existe transformación afín que lleve las coordenadas
 // CRTM05 de los planos a estos polígonos). La geometría legal es la del PDF de cada lote.
 const LOT_POLYGONS: Record<string, string> = {
+  // ── Lotes pequeños "frente a calle" (1–8 y 12). No existen 9, 10 ni 11. ──
+  // Extraídos del reexport de agosto 2026 de mapa-cc.svg, que trae el mapa completo desplazado
+  // (+51.34, +54.03) y con el artboard ampliado. Aquí van ya devueltos al sistema de coordenadas
+  // original (viewBox 0 0 1756.15 1848.47) restando ese offset, para no tocar nada de lo anterior.
+  1: "778.06,43.27 741.06,44.57 703.46,181.57 792.26,218.77 801.66,43.77",
+  2: "801.66,43.77 792.26,218.77 848.66,242.17 858.16,246.17 861.46,44.77",
+  3: "914.06,184.17 923.56,162.47 934.56,136.37 945.16,106.77 953.16,83.57 964.16,46.67 950.46,46.37 861.46,44.77 860.96,83.67 858.16,246.17 882.66,256.17 893.16,233.47 903.76,210.37",
+  4: "973.56,90.37 965.26,113.97 954.96,143.97 943.26,170.87 938.36,182.27 938.26,182.47 987.76,187.87 1043.06,55.37 985.96,48.87",
+  5: "1043.06,55.37 987.86,187.87 1033.56,193.07 1089.56,60.67",
+  6: "1094.06,162.77 1107.76,130.37 1132.06,73.77 1135.46,65.67 1135.06,65.67 1113.06,63.37 1089.66,60.67 1033.56,193.07 1079.16,198.17 1087.06,179.27",
+  7: "1180.86,70.97 1135.56,65.67 1132.06,73.77 1094.06,162.77 1079.16,198.17 1124.76,203.37 1173.66,87.57",
+  8: "1124.76,203.37 1126.06,203.57 1167.16,208.17 1169.86,208.47 1226.36,76.37 1180.86,70.97",
+  12: "1729.96,117.17 1712.66,115.47 1619.56,114.07 1598.66,257.97 1692.26,279.87 1696.66,248.37 1696.66,248.17 1704.06,235.87 1736.26,191.57 1745.46,163.57 1732.66,128.87 1729.86,117.17",
   13: "1557.26,351.54 1547.01,389.86 1488.95,370.51 1475.55,552.46 1511.28,544.6 1533.66,537.83 1546.96,545 1539.77,558.24 1516.6,565.09 1488.62,571.8 1642.63,631.94 1645.67,626.63 1647.95,542.39 1654.78,531.01 1677.93,507.86 1705.25,475.99 1719.67,463.85 1737.12,441.84 1741.29,418.69 1657.05,379.23",
   14: "1290.89,437.3 1242.7,527.99 1347.43,608.29 1350.78,604.94 1365.96,592.8 1389.48,578.38 1435.4,563.58 1473.34,552.95 1474.71,552.65 1488.12,370.52 1350.34,323.33 1339.08,347.37",
   15: "1131.84,785.18 1154.99,825.78 1174.72,860.69 1193.69,892.56 1202.04,905.46 1209.33,911.43 1213.42,893.32 1224.04,858.41 1238.08,817.81 1249.47,785.18 1260.85,757.86 1280.58,712.32 1296.14,681.59 1306.39,661.48 1313.22,648.58 1328.01,627.71 1347.07,608.65 1242.38,528.38 1093.28,714.94 1113.25,747.61",
@@ -62,6 +75,17 @@ const LOT_POLYGONS: Record<string, string> = {
 
 // Label positions from original SVG text transforms
 const LOT_LABELS: Record<string, [number, number]> = {
+  // Los frente a calle son franjas angostas: el número va en el centroide del polígono, no en la
+  // posición cruda del texto del SVG (que es el borde izquierdo de la línea base y se saldría).
+  1: [759.98, 127.99],
+  2: [829.02, 140.24],
+  3: [897.69, 129.16],
+  4: [990.31, 116.99],
+  5: [1038.59, 124.05],
+  6: [1084.42, 129.37],
+  7: [1129.95, 134.63],
+  8: [1175.5, 139.68],
+  12: [1668.15, 188.93],
   13: [1575.86, 482.41],
   14: [1385, 453.95],
   15: [1203.73, 691.16],
@@ -92,6 +116,51 @@ const LOT_LABELS: Record<string, [number, number]> = {
   39: [962.4, 306.4],
   40: [1135.43, 357.25],
 };
+
+// Los frente a calle miden ~48 unidades de ancho contra las ~250 de un lote de 5.000 m²: con el
+// grosor de trazo y el tamaño de número de los grandes quedarían tapados por su propio borde.
+const SMALL_LOTS = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "12"]);
+
+// Centroide de área del polígono (fórmula del centroide de un polígono simple). Sirve para anclar
+// el marcador de selección: en un lote de 675 m² el relleno resaltado es demasiado chico para
+// encontrarlo a simple vista cuando la selección viene de la lista y no de un clic en el mapa.
+function polygonCentroid(points: string): [number, number] {
+  const n = points.trim().split(/\s+/).map((p) => p.split(",").map(Number) as [number, number]);
+  let area = 0, cx = 0, cy = 0;
+  for (let i = 0; i < n.length; i++) {
+    const [x1, y1] = n[i];
+    const [x2, y2] = n[(i + 1) % n.length];
+    const cross = x1 * y2 - x2 * y1;
+    area += cross;
+    cx += (x1 + x2) * cross;
+    cy += (y1 + y2) * cross;
+  }
+  area /= 2;
+  if (!area) {
+    const avg = n.reduce((a, [x, y]) => [a[0] + x, a[1] + y] as [number, number], [0, 0]);
+    return [avg[0] / n.length, avg[1] / n.length];
+  }
+  return [cx / (6 * area), cy / (6 * area)];
+}
+
+const LOT_CENTROIDS: Record<string, [number, number]> = Object.fromEntries(
+  Object.entries(LOT_POLYGONS).map(([id, pts]) => [id, polygonCentroid(pts)])
+);
+
+// Radio del marcador: el vértice más lejano del centroide, con holgura y topes. Un radio fijo se
+// perdería dentro de un lote de 5.000 m² y ahogaría a uno de 675.
+const LOT_MARKER_R: Record<string, number> = Object.fromEntries(
+  Object.entries(LOT_POLYGONS).map(([id, pts]) => {
+    const [cx, cy] = LOT_CENTROIDS[id];
+    const far = Math.max(
+      ...pts.trim().split(/\s+/).map((p) => {
+        const [x, y] = p.split(",").map(Number);
+        return Math.hypot(x - cx, y - cy);
+      })
+    );
+    return [id, Math.min(150, Math.max(52, far + 16))];
+  })
+);
 
 // cls-6 path from original SVG (the street shape) — placed first so it renders under lots
 const STREET_PATH =
@@ -163,9 +232,11 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
 
   return (
     <div ref={containerRef} className="relative w-full select-none">
+      {/* viewBox con margen lateral extra sobre el ancho original de 1756.15: el lote 12 está
+          pegado al borde derecho y su anillo de selección se cortaba contra el borde. */}
       <svg
         ref={svgRef}
-        viewBox="0 -277 1756.15 2402"
+        viewBox="-25 -277 1830 2402"
         className="w-full h-auto block rounded-xl"
         style={{ backgroundColor: "#0a0f0b" }}
         xmlns="http://www.w3.org/2000/svg"
@@ -174,9 +245,30 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
           <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
             <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(116,206,82,0.05)" strokeWidth="1"/>
           </pattern>
-          {/* Path for CARRETERA PRINCIPAL text */}
-          <path id="path-carretera" d="M 540 88 L 1720 100"/>
+          {/* Recorrido del rótulo CARRETERA PRINCIPAL. Antes era una recta por y≈88-100, que era
+              terreno vacío; los frente a calle ocupan ahora esa franja, así que el texto pasa a
+              seguir el eje del asfalto (verificado: los 201 puntos del trazo caen dentro de la
+              calle y ninguno toca un lote). */}
+          <path id="path-carretera" d="M 800 22 L 970 26 L 1328 67 L 1548 92 L 1745 96"/>
         </defs>
+
+        <style>{`
+          /* Se anima 'transform: scale', no el atributo r: las propiedades geométricas SVG en CSS
+             no llegan a todos los navegadores, scale sí. El origen del grupo ya está en el
+             centroide, así que escala desde su propio centro. */
+          @keyframes eco-ping {
+            0%   { transform: scale(1);   opacity: 0.75; }
+            100% { transform: scale(1.9); opacity: 0;    }
+          }
+          .eco-ping {
+            /* Sin esto el origen sería el centro del viewBox y el anillo saldría disparado:
+               en SVG el transform-box por defecto no es la caja del propio elemento. */
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: eco-ping 1.7s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+          }
+          @media (prefers-reduced-motion: reduce) { .eco-ping { display: none; } }
+        `}</style>
 
         {/* Background grid */}
         <rect x="0" y="0" width="1756.15" height="1848.47" fill="url(#grid)" />
@@ -207,13 +299,14 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
           const isSelected = selectedLot?.id === id;
           const isHovered = hoveredId === id;
           const isClickable = lot.status === "available";
+          const small = SMALL_LOTS.has(id);
           return (
             <polygon
               key={id}
               points={points}
               fill={getStatusFill(lot.status, isSelected, isHovered)}
               stroke={getStatusStroke(lot.status, isSelected)}
-              strokeWidth={isSelected ? 8 : 3}
+              strokeWidth={small ? (isSelected ? 4 : 1.6) : isSelected ? 8 : 3}
               strokeLinejoin="round"
               style={{ cursor: isClickable ? "pointer" : "default", transition: "fill 0.15s" }}
               onMouseEnter={() => handleMouseEnter(id)}
@@ -223,6 +316,35 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
             />
           );
         })}
+
+        {/* ── MARCADOR DE SELECCIÓN ──
+            El resaltado del relleno alcanza para un lote de 5.000 m², pero no para uno de 675:
+            cuando la selección llega desde la lista de la derecha, sin este anillo la persona no
+            sabe a qué parte del mapa mirar. Va sobre los lotes y debajo de los números. */}
+        {selectedLot && LOT_CENTROIDS[selectedLot.id] && (
+          <g
+            transform={`translate(${LOT_CENTROIDS[selectedLot.id][0]}, ${LOT_CENTROIDS[selectedLot.id][1]})`}
+            style={{ pointerEvents: "none" }}
+          >
+            {/* Anillo fijo: es el que garantiza que SIEMPRE haya una marca visible, porque el
+                pulso pasa buena parte del ciclo casi transparente. */}
+            <circle
+              r={LOT_MARKER_R[selectedLot.id]}
+              fill="none"
+              stroke="#74CE52"
+              strokeWidth="4"
+              strokeDasharray="14 10"
+              opacity="0.9"
+            />
+            <circle
+              className="eco-ping"
+              r={LOT_MARKER_R[selectedLot.id]}
+              fill="none"
+              stroke="#74CE52"
+              strokeWidth="6"
+            />
+          </g>
+        )}
 
         {/* ── ETIQUETAS DE LOTE ── */}
         {Object.keys(LOT_POLYGONS).map((id) => {
@@ -237,7 +359,7 @@ export default function LotMapInteractive({ lots, selectedLot, onLotSelect }: Lo
               x="0"
               y="0"
               textAnchor="middle"
-              fontSize="26"
+              fontSize={SMALL_LOTS.has(id) ? 19 : 26}
               fontWeight={isSelected ? "700" : "600"}
               fontFamily="'Inter', system-ui, sans-serif"
               fill={isSelected ? "#74CE52" : "rgba(255,255,255,0.85)"}
