@@ -9,9 +9,10 @@ import BotPromptManager from "./BotPromptManager";
 import BotTester from "./BotTester";
 import UsersManager from "./UsersManager";
 import AgendaManager from "./agenda/AgendaManager";
+import RedesManager from "./redes/RedesManager";
 import BrandMark from "./BrandMark";
 
-type Tab = "lotes" | "bot" | "probar" | "usuarios" | "agenda";
+type Tab = "lotes" | "bot" | "probar" | "usuarios" | "agenda" | "redes";
 
 export default function AdminDashboard({
   session,
@@ -37,6 +38,7 @@ export default function AdminDashboard({
   const tabs: { id: Tab; label: string }[] = [
     { id: "lotes", label: "Lotes" },
     ...(tieneAgenda ? [{ id: "agenda" as Tab, label: "Agenda" }] : []),
+    { id: "redes", label: "Redes" },
     { id: "bot", label: "Bot & Prompt" },
     { id: "probar", label: "Probar bot" },
     { id: "usuarios", label: "Usuarios" },
@@ -177,6 +179,7 @@ export default function AdminDashboard({
             path="agenda"
             element={tieneAgenda ? <AgendaManager /> : <Navigate to="/admin/lotes" replace />}
           />
+          <Route path="redes" element={<RedesManager />} />
           <Route path="bot" element={<BotPromptManager />} />
           <Route path="probar" element={<BotTester />} />
           <Route path="usuarios" element={<UsersManager currentUserId={session.user.id} />} />

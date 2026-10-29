@@ -312,3 +312,41 @@ export function generarCodigoTelegram(): Promise<{ codigo: string; expira: strin
 export function desvincularTelegram(): Promise<{ ok: boolean }> {
   return request("/api/agenda/telegram-link", { method: "DELETE" });
 }
+
+// ── Redes (calendario de contenido y publicación automática en Instagram) ──
+export type EstadoPostRedes = "programado" | "pausado" | "publicando" | "publicado" | "error";
+
+export interface PostRedes {
+  id: string;
+  slug: string;
+  titulo: string;
+  proyecto: string;
+  plataformas: string[];
+  caption: string;
+  imagenes: string[];
+  programado_para: string;
+  estado: EstadoPostRedes;
+  intentos: number;
+  error: string | null;
+  ig_permalink: string | null;
+  publicado_en: string | null;
+  updated_at: string;
+}
+
+export function getPostsRedes(desde?: Date, hasta?: Date): Promise<{ posts: PostRedes[]; instagram: boolean }> {
+  const q = new URLSearchParams();
+  if (desde) q.set("desde", desde.toISOString());
+  if (hasta) q.set("hasta", hasta.toISOString());
+  return request(`/api/admin/redes${q.size ? `?${q}` : ""}`);
+}
+
+export function actualizarPostRedes(
+  id: string,
+  cambios: Partial<Pick<PostRedes, "caption" | "titulo" | "programado_para">> & { estado?: "programado" | "pausado" },
+): Promise<{ post: PostRedes }> {
+  return request(`/api/admin/redes`, { method: "PATCH", body: JSON.stringify({ id, ...cambios }) });
+}
+
+export function publicarPostRedesYa(id: string): Promise<{ post: PostRedes; resultado: { resultado: string; error?: string } }> {
+  return request(`/api/admin/redes`, { method: "POST", body: JSON.stringify({ id, accion: "publicar_ya" }) });
+}
