@@ -5,9 +5,7 @@
   ],
   "functions": {
     "api/telegram/webhook.ts": { "maxDuration": 60 },
-    "api/cron/agenda.ts":      { "maxDuration": 60 },
-    "api/cron/redes.ts":       { "maxDuration": 60 },
-    "api/admin/redes.ts":      { "maxDuration": 60 }
+    "api/cron/agenda.ts":      { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/cron/agenda", "schedule": "0 11 * * *" },
