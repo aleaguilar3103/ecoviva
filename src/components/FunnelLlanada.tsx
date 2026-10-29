@@ -14,21 +14,21 @@ import {
 // ─── Assets ───────────────────────────────────────────────────────────────────
 
 const LOGO =
-  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d339e3092e1873e357.png";
+  "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-color-horizontal";
 
 const IMG = {
-  lomas1: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e6b0a70ae03223880.jpg",
-  lomas2: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e52ad3bc301da4b5c.jpg",
-  strip1: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e350cfe580a318cce.jpg",
-  strip2: "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e146bc5fcfedf1406.jpg",
-  cta:    "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e81e6bc935b6b211c.jpg",
+  lomas1: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/lomas-1",
+  lomas2: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/lomas-2",
+  strip1: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/franja-1",
+  strip2: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/franja-2",
+  cta:    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/cta",
 };
 
 const CAROUSEL_IMGS = [
-  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e6b0a70ae03223880.jpg",
-  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e52ad3bc301da4b5c.jpg",
-  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e350cfe580a318cce.jpg",
-  "https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c5813e146bc5fcfedf1406.jpg",
+  "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/lomas-1",
+  "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/lomas-2",
+  "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/franja-1",
+  "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/franja-2",
 ];
 
 // ─── Benefit items ─────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ export default function FunnelLlanada() {
       <div className="relative overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c58bd9e24981254b18a539.jpg)` }}
+          style={{ backgroundImage: `url(https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/funnel/llanada-fondo)` }}
         />
         {/* Dark overlay + bottom fade so it blends seamlessly with next section */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/80 to-[#080e08]" />

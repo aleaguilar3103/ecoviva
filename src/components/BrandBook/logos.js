@@ -3,15 +3,15 @@
 
 export const LOGOS = {
   blancoHorizontal:
-    'https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d3bbd71922fc0c18af.png',
+    'https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-blanco-horizontal',
   grisHorizontal:
-    'https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d3fe4d0d2527d5329a.png',
+    'https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-gris-horizontal',
   colorHorizontal:
-    'https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d339e3092e1873e357.png',
+    'https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-color-horizontal',
   colorVertical:
-    'https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d35108033476d8d97a.png',
+    'https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-color-vertical',
   blancoVertical:
-    'https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d3bbd719a10c0c18b0.png',
+    'https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-blanco-vertical',
   grisVertical:
-    'https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d339e30902d473e358.png',
+    'https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-gris-vertical',
 };

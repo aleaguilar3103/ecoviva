@@ -145,15 +145,15 @@ export default function LomasLlanadaDetail() {
   const handleContactClick = () => window.open("https://api.whatsapp.com/send?phone=50684142111", "_blank");
 
   const galleryImages = [
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95eb392bad08976b19.png",
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95f62bb7268496bdf7.png",
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95a87beb359e18dcf7.jpeg",
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95c1fa0c7535d7678f.jpeg",
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95d4fb90fa691c3dfb.jpeg",
-    "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce9529dcf5340895c73a.png",
+    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/galeria-1",
+    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/galeria-2",
+    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/galeria-3",
+    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/galeria-4",
+    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/galeria-5",
+    "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/galeria-6",
   ];
 
-  const showcaseVideo = "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977def1c1fa0c8c75dae07d.mp4";
+  const showcaseVideo = "https://res.cloudinary.com/dm4vljcnv/video/upload/q_auto,vc_auto,w_1280,c_limit/ecoviva/llanada/video-recorrido.mp4";
 
   const scrollGallery = (dir: "left" | "right") => {
     scrollContainerRef.current?.scrollBy({ left: dir === "left" ? -320 : 320, behavior: "smooth" });
@@ -254,7 +254,7 @@ export default function LomasLlanadaDetail() {
                   {t("lomasLlanadaDetail.scheduleVisit")}
                 </button>
                 <button
-                  onClick={() => window.open("https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6992aab1a9efde116d93226d.pdf", "_blank")}
+                  onClick={() => window.open("/documentos/lomas-de-la-llanada-informacion.pdf", "_blank")}
                   className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:bg-white/10"
                   style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.9)", border: "1px solid rgba(255,255,255,0.2)" }}
                 >
@@ -554,7 +554,7 @@ export default function LomasLlanadaDetail() {
                     ))}
                   </div>
                   <a
-                    href="https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69a38db5167da40c2a8967b1.pdf"
+                    href="/documentos/lomas-de-la-llanada-lotes-frente-a-calle.pdf"
                     target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:scale-[1.02]"
                     style={{ backgroundColor: "#74CE52" }}
@@ -565,7 +565,7 @@ export default function LomasLlanadaDetail() {
                 </div>
                 <div className="lg:w-80 flex-shrink-0">
                   <img
-                    src="https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69a39268753f157bbe49458c.png"
+                    src="https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/llanada/mapa-lotes-frente-a-calle"
                     alt="Small lots map"
                     className="w-full object-contain rounded-xl"
                     style={{ border: "1px solid rgba(255,255,255,0.08)" }}

@@ -80,7 +80,7 @@ export default function Header({
             {/* Logo */}
             <div className="cursor-pointer flex-shrink-0" onClick={goHome}>
               <img
-                src="https://storage.googleapis.com/msgsndr/sQ4u1rK8p10tXr2LW5Cv/media/69000469edac70e1d55bc3f3.png"
+                src="https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-principal"
                 alt="Eco Viva Desarrollos"
                 className="h-11 w-auto"
               />

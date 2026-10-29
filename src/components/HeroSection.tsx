@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 const slides = [
   {
     id: "both-projects",
-    image: "https://storage.googleapis.com/msgsndr/sQ4u1rK8p10tXr2LW5Cv/media/69000dd3edac70812a5cac20.webp",
+    image: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/inicio/hero-1",
     titleKey: "hero.title",
     subtitleKey: "hero.subtitle",
     descriptionKey: "hero.description",
@@ -18,7 +18,7 @@ const slides = [
   },
   {
     id: "rio-celeste",
-    image: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6982f5f42dd98576bbee6e8b.jpg",
+    image: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/inicio/hero-2",
     titleKey: "projects.rioCeleste.title",
     subtitleKey: "projects.rioCeleste.location",
     descriptionKey: "projects.rioCeleste.description",
@@ -28,7 +28,7 @@ const slides = [
   },
   {
     id: "lomas-llanada",
-    image: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6982f51e0708e42ab38c2735.jpg",
+    image: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/inicio/hero-3",
     titleKey: "projects.llanadaViews.title",
     subtitleKey: "projects.llanadaViews.location",
     descriptionKey: "projects.llanadaViews.description",
@@ -38,7 +38,7 @@ const slides = [
   },
   {
     id: "financing",
-    image: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6982f6cc0708e42b488c5dc9.jpg",
+    image: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_1920,c_limit/ecoviva/inicio/hero-4",
     titleKey: "financing.title",
     subtitleKey: "financing.subtitle",
     descriptionKey: "financing.highlight",

@@ -50,7 +50,7 @@ interface ProjectMeta {
 }
 
 const LOGO =
-  "https://storage.googleapis.com/msgsndr/sQ4u1rK8p10tXr2LW5Cv/media/69000469edac70e1d55bc3f3.png";
+  "https://res.cloudinary.com/dm4vljcnv/image/upload/f_png,w_800,c_limit/ecoviva/marca/logo-principal.png";
 
 const PROJECTS: Record<string, ProjectMeta> = {
   rio_celeste: {
@@ -66,10 +66,10 @@ const PROJECTS: Record<string, ProjectMeta> = {
     },
     mapUrl: "https://maps.app.goo.gl/aey2N8zucrgz3tLK9",
     page: { es: "/rio-celeste-oasis-detalle", en: "/en/rio-celeste-oasis-detalle" },
-    hero: "https://storage.googleapis.com/msgsndr/hdVpvshZP3RGJQbxx8GA/media/68f1fe534c291a1efd53d7a3.jpeg",
+    hero: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_jpg,q_auto,w_1600,c_limit/ecoviva/rio-celeste/portada-3.jpg",
     gallery: [
-      "https://storage.googleapis.com/msgsndr/hdVpvshZP3RGJQbxx8GA/media/68f1fe534c291af16553d7a1.jpeg",
-      "https://storage.googleapis.com/msgsndr/hdVpvshZP3RGJQbxx8GA/media/68f1ffe2175e59ba63672f87.jpeg",
+      "https://res.cloudinary.com/dm4vljcnv/image/upload/f_jpg,q_auto,w_1600,c_limit/ecoviva/rio-celeste/portada-4.jpg",
+      "https://res.cloudinary.com/dm4vljcnv/image/upload/f_jpg,q_auto,w_1600,c_limit/ecoviva/rio-celeste/portada-1.jpg",
     ],
     highlights: {
       es: [
@@ -99,10 +99,10 @@ const PROJECTS: Record<string, ProjectMeta> = {
     },
     mapUrl: "https://maps.app.goo.gl/Dfpd3j9mDmkqg9KMA",
     page: { es: "/lomas-de-la-llanada-detalle", en: "/en/lomas-de-la-llanada-detalle" },
-    hero: "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95c1fa0c7535d7678f.jpeg",
+    hero: "https://res.cloudinary.com/dm4vljcnv/image/upload/f_jpg,q_auto,w_1600,c_limit/ecoviva/llanada/galeria-4.jpg",
     gallery: [
-      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95d4fb90fa691c3dfb.jpeg",
-      "https://storage.googleapis.com/msgsndr/uLX0pzqaYQx8jI6PxNTT/media/6977ce95a87beb359e18dcf7.jpeg",
+      "https://res.cloudinary.com/dm4vljcnv/image/upload/f_jpg,q_auto,w_1600,c_limit/ecoviva/llanada/galeria-5.jpg",
+      "https://res.cloudinary.com/dm4vljcnv/image/upload/f_jpg,q_auto,w_1600,c_limit/ecoviva/llanada/galeria-3.jpg",
     ],
     highlights: {
       es: [

@@ -2,7 +2,7 @@ export default function MaintenancePage() {
   return (
     <div className="min-h-screen bg-[#080e08] text-white flex flex-col items-center justify-center px-6 text-center">
       <img
-        src="https://assets.cdn.filesafe.space/uLX0pzqaYQx8jI6PxNTT/media/69c305d339e3092e1873e357.png"
+        src="https://res.cloudinary.com/dm4vljcnv/image/upload/f_auto,q_auto,w_800,c_limit/ecoviva/marca/logo-color-horizontal"
         alt="Eco Viva Desarrollos"
         className="h-12 w-auto mb-10 opacity-80"
       />
