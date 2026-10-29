@@ -1,17 +1,53 @@
 import { supabaseAdmin, requireAdmin } from "../_lib/supabase.js";
-import { tomarYPublicar, type PostRedes } from "../_lib/redes/cola.js";
+import { correrCola, tomarYPublicar, type PostRedes } from "../_lib/redes/cola.js";
 import { instagramConfigurado } from "../_lib/redes/instagram.js";
 import * as instagram from "../_lib/redes/instagram.js";
 
-// /api/admin/redes — calendario de contenido (panel → Redes). Requiere admin.
+// /api/admin/redes — calendario de contenido (panel → Redes) y cron de publicación.
+//
+// El cron vive en este mismo archivo a propósito: el plan Hobby de Vercel limita la
+// cantidad de funciones por deploy, y una función más tumbaba el deploy entero.
+// vercel.json reescribe /api/cron/redes → /api/admin/redes?op=cron.
+//
+//   GET    ?op=cron (Bearer CRON_SECRET o REDES_CRON_SECRET) → corre la cola: rescata
+//          trabados y publica la fila más vieja que ya tocaba. Lo llama pg_cron cada
+//          15 minutos (migración 0013) y Vercel Cron una vez al día de respaldo.
+//
+// El resto requiere admin:
 //   GET    ?desde=ISO&hasta=ISO → { posts, instagram: boolean }
 //   PATCH  { id, caption?, titulo?, programado_para?, estado?: "programado"|"pausado" }
 //          No se puede editar lo publicado ni lo que se está publicando.
 //          Pasar a "programado" (reanudar o reintentar) limpia el contador de fallas.
 //   POST   { id, accion: "publicar_ya" } → lo publica ahora mismo (hasta ~45 s).
+// Acepta dos secretos: CRON_SECRET (el que manda Vercel Cron) y REDES_CRON_SECRET
+// (el que pg_cron lee de Vault). Sin ninguno configurado, falla cerrado.
+function cronAutorizado(auth: string): boolean {
+  const validos = [process.env.CRON_SECRET, process.env.REDES_CRON_SECRET].filter(Boolean);
+  return validos.some((s) => auth === `Bearer ${s}`);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function cron(req: any, res: any) {
+  if (!cronAutorizado((req.headers["authorization"] || "") as string)) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+  if (!instagramConfigurado()) {
+    return res.status(200).json({ ok: false, motivo: "Faltan META_IG_USER_ID o META_ACCESS_TOKEN" });
+  }
+  try {
+    const r = await correrCola(supabaseAdmin(), new Date());
+    console.info("[cron redes]", JSON.stringify(r));
+    return res.status(200).json({ ok: true, ...r });
+  } catch (e) {
+    console.error("[cron redes]", e);
+    return res.status(500).json({ error: (e as Error).message });
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export default async function handler(req: any, res: any) {
   res.setHeader("Cache-Control", "no-store");
+  if (req.method === "GET" && (req.query ?? {}).op === "cron") return cron(req, res);
   const admin = await requireAdmin(req);
   if (!admin) return res.status(401).json({ error: "No autorizado" });
 

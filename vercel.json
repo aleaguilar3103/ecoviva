@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/cron/redes", "destination": "/api/admin/redes?op=cron" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)",     "destination": "/index.html" }
   ],
@@ -9,6 +10,6 @@
   },
   "crons": [
     { "path": "/api/cron/agenda", "schedule": "0 11 * * *" },
-    { "path": "/api/cron/redes",  "schedule": "20 18 * * *" }
+    { "path": "/api/admin/redes?op=cron", "schedule": "20 18 * * *" }
   ]
 }
